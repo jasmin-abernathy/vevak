@@ -1,0 +1,37 @@
+name: Documentation
+description: Corriger ou compléter la documentation
+title: "[Docs] "
+labels: ["documentation", "status: ready"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Partie concernée
+      options:
+        - README
+        - Roadmap
+        - Écoconception
+        - Build
+        - F-Droid
+        - Sécurité
+        - Guide utilisateur
+        - Autre
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problème constaté
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Correction proposée
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Vérification
+      options:
+        - label: Cette issue ne contient aucune donnée sensible.
+          required: true

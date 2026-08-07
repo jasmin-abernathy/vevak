@@ -1,0 +1,25 @@
+{
+  "project": "VeVak",
+  "kit_version": "4",
+  "generated_on": "2026-07-23",
+  "canonical_distribution": "foss",
+  "canonical_application_id": "com.vevak.app",
+  "optional_play_application_id": "com.vevak.app.play",
+  "principles": [
+    "Kotlin natif, Jetpack Compose et Material 3",
+    "variante FOSS canonique pour F-Droid",
+    "variante Play facultative avec Fused Location Provider",
+    "aucune publicité, aucun pisteur, aucune télémétrie",
+    "aucun compte, aucun serveur VeVak, aucune permission Internet",
+    "moteur SMS et localisation hors ligne",
+    "cache de localisation avant réveil du capteur",
+    "position unique uniquement si nécessaire",
+    "aucune localisation périodique",
+    "aucune dépendance WorkManager dans le chemin critique",
+    "permissions minimales",
+    "R8 et shrinkResources en release",
+    "compatibilité minimale Android 8 / API 26",
+    "mesures de poids, démarrage, mémoire, localisation, écran éteint et segments SMS",
+    "aucune IA sans besoin démontré"
+  ]
+}

@@ -1,0 +1,74 @@
+name: Proposition de fonctionnalité
+description: Proposer une évolution après revue de besoin et de ressources
+title: "[Feature] "
+labels: ["feature", "status: needs discussion", "needs measurement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        VeVak privilégie la sobriété. Décrivez le besoin avant la solution et
+        comparez l'alternative la plus simple.
+  - type: textarea
+    id: need
+    attributes:
+      label: Besoin utilisateur
+    validations:
+      required: true
+  - type: textarea
+    id: simpler
+    attributes:
+      label: Alternative sans nouvelle fonctionnalité
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Zone
+      options:
+        - SMS
+        - Localisation
+        - Diagnostic
+        - Interface
+        - FOSS
+        - Play
+        - Documentation
+        - Publication
+        - Autre
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Données, permissions et sécurité
+    validations:
+      required: true
+  - type: textarea
+    id: resources
+    attributes:
+      label: APK, dépendances, CPU, mémoire, batterie et écran éteint
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Limites architecturales
+      description: Internet, serveur, WorkManager, polling, variante FOSS et API 26.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critères d'acceptation et mesures avant/après
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Vérifications
+      options:
+        - label: J'ai consulté ROADMAP.md.
+          required: true
+        - label: J'ai recherché une issue similaire.
+          required: true
+        - label: La fonction n'est pas présentée comme déjà approuvée.
+          required: true

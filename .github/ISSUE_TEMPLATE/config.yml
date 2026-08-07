@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Signaler une vulnérabilité en privé
+    url: https://github.com/jasmin-abernathy/vevak/security/advisories/new
+    about: Ne publiez jamais une vulnérabilité exploitable dans une issue.
+  - name: Lire la roadmap
+    url: https://github.com/jasmin-abernathy/vevak/blob/main/ROADMAP.md
+    about: Vérifiez les travaux déjà prévus.
+  - name: Documentation
+    url: https://github.com/jasmin-abernathy/vevak-docs
+    about: Architecture, écoconception, sécurité et guides.

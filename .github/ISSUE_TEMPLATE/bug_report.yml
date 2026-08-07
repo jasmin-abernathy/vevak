@@ -1,0 +1,62 @@
+name: Rapport de bug
+description: Signaler un comportement incorrect de VeVak
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ne publiez aucune position, aucun numéro, aucun SMS réel, aucune phrase
+        de déclenchement et aucun diagnostic non expurgé.
+  - type: input
+    id: version
+    attributes:
+      label: Version ou commit
+    validations:
+      required: true
+  - type: dropdown
+    id: variant
+    attributes:
+      label: Variante
+      options:
+        - foss
+        - play
+        - inconnue
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Appareil et version Android
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes de reproduction
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Résultat attendu
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Résultat observé
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic expurgé
+      description: Coller uniquement le rapport généré par VeVak.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Vérification
+      options:
+        - label: J'ai supprimé toute donnée personnelle et sensible.
+          required: true

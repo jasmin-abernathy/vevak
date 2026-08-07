@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "scope": "VeVak Android core",
+  "hardBoundaries": {
+    "trackers": 0,
+    "advertisingSdks": 0,
+    "vevakAccounts": 0,
+    "vevakServers": 0,
+    "internetPermission": false,
+    "periodicLocationTasks": 0,
+    "workManagerInCriticalPath": false
+  },
+  "runtimeDefaults": {
+    "acceptedCachedLocationMaxAgeSeconds": 120,
+    "singleLocationTimeoutSeconds": 8,
+    "minimumAcceptedRequestIntervalSeconds": 60,
+    "staleFallback": "optional and clearly labelled"
+  },
+  "build": {
+    "canonicalFlavor": "foss",
+    "minimumAndroidApi": 26,
+    "releaseMinification": true,
+    "releaseResourceShrinking": true,
+    "dependencyReviewRequired": true
+  },
+  "measurements": [
+    "APK size",
+    "cold start",
+    "idle memory",
+    "single location duration",
+    "screen-off activity",
+    "SMS segment count",
+    "behaviour on an older or entry-level device"
+  ]
+}

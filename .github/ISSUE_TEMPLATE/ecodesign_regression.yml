@@ -1,0 +1,47 @@
+name: Régression d'écoconception
+description: Signaler une dégradation mesurée du poids, de la batterie ou de la compatibilité
+title: "[Eco] "
+labels: ["ecodesign", "performance", "needs measurement"]
+body:
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact principal
+      options:
+        - Taille APK
+        - Batterie
+        - CPU
+        - Mémoire
+        - Démarrage
+        - Activité écran éteint
+        - Localisation
+        - Segments SMS
+        - Compatibilité API 26
+        - Variante FOSS
+        - Autre
+    validations:
+      required: true
+  - type: textarea
+    id: before_after
+    attributes:
+      label: Mesure avant et après
+    validations:
+      required: true
+  - type: textarea
+    id: protocol
+    attributes:
+      label: Protocole de mesure
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Commit, variante, appareil, Android et scénario
+    validations:
+      required: true
+  - type: textarea
+    id: benefit
+    attributes:
+      label: Bénéfice utilisateur censé justifier la régression
+    validations:
+      required: true
