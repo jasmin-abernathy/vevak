@@ -15,15 +15,16 @@ Cette feuille de route présente la direction du projet. Elle ne constitue pas u
 - aucun usage furtif ou non consenti ;
 - aucune promesse de remplacement des services d'urgence.
 
-## Topologie des dépôts Android
+## Architecture Android retenue
 
-La direction retenue en août 2026 est de séparer clairement les variantes afin de préserver la frontière FOSS :
+VeVak reste dans **un seul dépôt Android** (`jasmin-abernathy/vevak`) avec des variantes Gradle clairement isolées.
 
-- `VeVaK-android-FOSS` — version canonique libre, sans dépendance propriétaire inutile ;
-- `VeVaK-android-PlayStore` — variante de distribution Play, avec composants propriétaires uniquement lorsqu'ils sont nécessaires et explicitement isolés ;
-- `VeVaK-android-Custom` — intégrations ou besoins spécifiques, séparés du cœur canonique.
+Le projet contient actuellement :
 
-Le dépôt public `jasmin-abernathy/vevak` reste la référence de l'état actuellement implémenté tant que cette migration n'est pas terminée.
+- `foss` — variante canonique, basée sur les API Android et sans Google Play Services ;
+- `play` — variante facultative utilisant Google Play Services uniquement dans son source set / ses dépendances dédiées.
+
+Ce choix évite de dupliquer le cœur SMS, la sécurité, les tests et la documentation dans plusieurs dépôts. Une éventuelle variante ou intégration `custom` ne justifiera un dépôt séparé que lorsqu'un besoin concret, durable et incompatible avec le cœur commun apparaîtra.
 
 ## 0.3.x - Stabilisation
 
@@ -96,7 +97,8 @@ Garde-fous obligatoires :
 - fonctions distantes explicitement activées, révocables et auditées ;
 - verrouillage distant ou autres actions sensibles uniquement après threat model spécifique et validation des limites Android ;
 - consommation batterie et dépendances mesurées avant intégration ;
-- séparation architecturale nette entre cœur FOSS, composants Play éventuels et extensions Custom.
+- toute dépendance propriétaire reste confinée à la variante `play` ;
+- une extension spécifique reste dans le monorepo tant qu'elle peut être isolée proprement ; un dépôt séparé n'est créé qu'en cas de besoin réel.
 
 ## Fonctions non engagées dans le cœur actuel
 
