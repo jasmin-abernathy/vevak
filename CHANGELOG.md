@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased - product/repository sync (2026-08-27)
+
+Documentation and planning have been synchronised with the VeVak discussions held after the v4 ecodesign kit.
+
+### Clarified
+
+- the FOSS build remains canonical and the current public `vevak` repository remains the reference for implemented behaviour during repository migration;
+- planned Android separation: `VeVaK-android-FOSS`, `VeVaK-android-PlayStore` and `VeVaK-android-Custom`;
+- P0 reliability work now explicitly includes the complete guided SMS → validation → location → reply test, actionable manufacturer/battery diagnostics and deterministic dual-SIM/eSIM behaviour;
+- an outgoing manual SOS is a post-stabilisation extension, not a current core feature;
+- selected device-recovery ideas inspired by Find Hub / Find Device are an exploratory module, not an implemented feature;
+- no mandatory central VeVak server, covert tracking or permanent location is introduced by this planning update.
+
+### Not implemented by this entry
+
+This changelog entry documents product direction only. It does **not** claim implementation of SOS, remote ringing, remote lock-screen messaging, encrypted relay, remote locking or periodic tracking.
+
 ## 0.3.0 - kit v4 d'écoconception et contribution
 
 ### Conservé du kit v3
