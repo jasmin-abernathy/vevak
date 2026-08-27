@@ -6,8 +6,9 @@ Documentation and planning have been synchronised with the VeVak discussions hel
 
 ### Clarified
 
-- the FOSS build remains canonical and the current public `vevak` repository remains the reference for implemented behaviour during repository migration;
-- planned Android separation: `VeVaK-android-FOSS`, `VeVaK-android-PlayStore` and `VeVaK-android-Custom`;
+- the FOSS build remains canonical;
+- Android variants stay in the single `jasmin-abernathy/vevak` repository using Gradle product flavors (`foss` and `play`) rather than being duplicated into separate repositories;
+- a dedicated custom repository will only be considered if a concrete long-lived integration cannot be isolated cleanly in the current project;
 - P0 reliability work now explicitly includes the complete guided SMS → validation → location → reply test, actionable manufacturer/battery diagnostics and deterministic dual-SIM/eSIM behaviour;
 - an outgoing manual SOS is a post-stabilisation extension, not a current core feature;
 - selected device-recovery ideas inspired by Find Hub / Find Device are an exploratory module, not an implemented feature;
