@@ -57,7 +57,7 @@ Le moteur SMS et la localisation sont déjà implémentés. Les priorités sont 
 
 ### SOS sortant manuel
 
-Étudier puis prototyper un flux explicite permettant à l'utilisateur d'envoyer lui-même une alerte à son contact de confiance.
+Étudier puis prototyper un flux explicite permettant à l'utilisateur d'envoyer lui-même sa position ou une alerte à son contact de confiance, sans attendre une demande entrante.
 
 Contraintes :
 
@@ -66,7 +66,9 @@ Contraintes :
 - aucun appel automatique aux services d'urgence ;
 - message honnête sur l'absence de garantie de livraison ;
 - réutilisation du moteur local/SMS existant lorsque possible ;
-- aucune télémétrie ni stockage centralisé requis.
+- aucune télémétrie ni stockage centralisé requis ;
+- si le **mode discret temporaire** est actif, l'envoi manuel ne doit créer **aucune notification locale supplémentaire** : la confirmation reste dans l'interface de VeVak (état, snackbar ou message équivalent) ;
+- l'absence de notification supplémentaire pour cet envoi manuel ne supprime pas la notification persistante `VeVak est actif` lorsque celle-ci est requise par le modèle de sécurité général.
 
 Les raccourcis, tuiles rapides ou appels complémentaires ne seront ajoutés qu'après validation séparée de leur utilité et du risque de faux déclenchement.
 
