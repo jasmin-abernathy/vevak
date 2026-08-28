@@ -7,6 +7,7 @@ package com.vevak.app.ui
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
+import android.telephony.SubscriptionManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,6 +24,9 @@ import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.MapProvider
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
+import com.vevak.app.sms.SmsReplyFormatter
+import com.vevak.app.sms.SmsReplySender
+import com.vevak.app.system.BatteryReader
 import com.vevak.app.system.RequestVisibilityNotifier
 import com.vevak.app.system.TrustedNetworkReader
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +44,8 @@ data class AppUiState(
     val testLocation: VeVakLocationSnapshot? = null,
     val testLocationLoading: Boolean = false,
     val fallbackLocationLoading: Boolean = false,
+    val manualShareConfirmationPending: Boolean = false,
+    val manualShareLoading: Boolean = false,
     val auditEvents: List<RequestAuditEvent> = emptyList(),
     val authorizationDuration: AuthorizationDuration = AuthorizationDuration.ThirtyDays,
     val consentChecked: Boolean = false,
@@ -52,6 +58,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val auditRepository = RequestAuditRepository(application)
     private val diagnosticsRepository = DiagnosticsRepository(application)
     private val locationRepository = VeVakLocationRepository(application)
+    private val smsSender = SmsReplySender(application)
+    private val batteryReader = BatteryReader(application)
     private val notifier = RequestVisibilityNotifier(application)
     private val trustedNetworkReader = TrustedNetworkReader(application)
     private val _state = MutableStateFlow(AppUiState())
@@ -165,6 +173,100 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         persistSettings(updated, "Mode discret désactivé.")
     }
 
+    fun requestManualPositionShare() {
+        val app = getApplication<Application>()
+        val settings = _state.value.settings
+        when {
+            settings.contactPhone.isBlank() ->
+                _state.update { it.copy(message = "Configurez d'abord un contact de confiance.") }
+            ContextCompat.checkSelfPermission(app, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED ->
+                _state.update { it.copy(message = "Autorisez d'abord l'envoi de SMS.") }
+            !hasForegroundLocationPermission(app) ->
+                _state.update { it.copy(message = "Autorisez d'abord la localisation.") }
+            defaultSmsSubscriptionId() == null ->
+                _state.update { it.copy(message = "Choisissez une SIM par défaut pour les SMS dans Android avant l'envoi. VeVak n'en choisit jamais une au hasard.") }
+            else ->
+                _state.update { it.copy(manualShareConfirmationPending = true, message = null) }
+        }
+    }
+
+    fun cancelManualPositionShare() {
+        _state.update { it.copy(manualShareConfirmationPending = false, message = "Envoi annulé.") }
+    }
+
+    fun confirmManualPositionShare() {
+        val app = getApplication<Application>()
+        val current = _state.value
+        if (!current.manualShareConfirmationPending || current.manualShareLoading) return
+        val settings = current.settings
+        val subscriptionId = defaultSmsSubscriptionId()
+        when {
+            settings.contactPhone.isBlank() -> {
+                _state.update { it.copy(manualShareConfirmationPending = false, message = "Aucun contact n'est configuré.") }
+                return
+            }
+            ContextCompat.checkSelfPermission(app, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED -> {
+                _state.update { it.copy(manualShareConfirmationPending = false, message = "Autorisation d'envoi de SMS absente.") }
+                return
+            }
+            !hasForegroundLocationPermission(app) -> {
+                _state.update { it.copy(manualShareConfirmationPending = false, message = "Autorisation de localisation absente.") }
+                return
+            }
+            subscriptionId == null -> {
+                _state.update { it.copy(manualShareConfirmationPending = false, message = "Aucune SIM SMS par défaut n'est définie dans Android.") }
+                return
+            }
+        }
+
+        _state.update {
+            it.copy(
+                manualShareConfirmationPending = false,
+                manualShareLoading = true,
+                message = null
+            )
+        }
+        viewModelScope.launch {
+            val location = runCatching {
+                locationRepository.fetchBestLocation(
+                    LocationRequestPolicy(
+                        maxAcceptedCacheAgeMillis = settings.maxCachedLocationAgeSeconds * 1_000L,
+                        currentLocationTimeoutMillis = settings.locationTimeoutSeconds * 1_000L,
+                        allowStaleFallback = settings.allowStaleFallback
+                    )
+                )
+            }.getOrNull()
+
+            if (location == null) {
+                _state.update {
+                    it.copy(
+                        manualShareLoading = false,
+                        message = "Aucune position obtenue : aucun SMS n'a été envoyé."
+                    )
+                }
+                return@launch
+            }
+
+            val body = SmsReplyFormatter.formatManualShare(settings, location, batteryReader.percentage())
+            val acceptedByAndroid = runCatching {
+                smsSender.send(settings.contactPhone, body, subscriptionId)
+            }.isSuccess
+
+            // Deliberately no RequestVisibilityNotifier call here. A manual share is an explicit,
+            // foreground action and must not create an extra Android notification in discreet mode.
+            _state.update {
+                it.copy(
+                    manualShareLoading = false,
+                    message = if (acceptedByAndroid) {
+                        "SMS transmis à Android pour envoi à votre contact. La livraison n'est pas garantie."
+                    } else {
+                        "Échec de l'envoi du SMS. Rien ne permet de confirmer sa livraison."
+                    }
+                )
+            }
+        }
+    }
+
     fun setConsentChecked(value: Boolean) = _state.update { it.copy(consentChecked = value) }
 
     fun setAuthorizationDuration(value: AuthorizationDuration) =
@@ -236,7 +338,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             runtimeRepository.reset()
             notifier.cancelActiveStatus()
             _state.update {
-                it.copy(settings = revoked, message = "Accès du contact coupé immédiatement.")
+                it.copy(
+                    settings = revoked,
+                    manualShareConfirmationPending = false,
+                    message = "Accès du contact coupé immédiatement."
+                )
             }
             refreshDiagnostics()
         }
@@ -334,6 +440,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun hasForegroundLocationPermission(app: Application): Boolean =
         listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
             .any { ContextCompat.checkSelfPermission(app, it) == PackageManager.PERMISSION_GRANTED }
+
+    private fun defaultSmsSubscriptionId(): Int? {
+        val subscriptionId = SubscriptionManager.getDefaultSmsSubscriptionId()
+        return subscriptionId.takeIf { SubscriptionManager.isValidSubscriptionId(it) }
+    }
 
     private fun updateSettings(block: (VeVakSettings) -> VeVakSettings) {
         _state.update { it.copy(settings = block(it.settings)) }
