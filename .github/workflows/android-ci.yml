@@ -6,6 +6,8 @@ on:
     paths:
       - "app/**"
       - "gradle/**"
+      - "gradlew"
+      - "gradlew.bat"
       - "*.gradle.kts"
       - "gradle.properties"
       - "scripts/**"
@@ -15,6 +17,8 @@ on:
     paths:
       - "app/**"
       - "gradle/**"
+      - "gradlew"
+      - "gradlew.bat"
       - "*.gradle.kts"
       - "gradle.properties"
       - "scripts/**"
@@ -32,26 +36,53 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.13"
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
-      - name: Verify static boundaries
+      - name: Ensure Android SDK 36 is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v sdkmanager
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Verify checked-in Gradle wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          test -s gradle/wrapper/gradle-wrapper.jar
+          ./gradlew --version
+
+      - name: Verify static privacy and ecodesign boundaries
         run: |
           python3 scripts/verify-foss-boundary.py
           python3 scripts/verify-ecodesign-boundaries.py
           python3 scripts/check-sensitive-logs.py
 
-      - name: FOSS unit tests and build
-        run: gradle --no-daemon testFossDebugUnitTest assembleFossDebug
+      - name: FOSS unit tests
+        run: ./gradlew --no-daemon --stacktrace testFossDebugUnitTest
 
-      - name: Optional Play unit tests and build
-        run: gradle --no-daemon testPlayDebugUnitTest assemblePlayDebug
+      - name: FOSS debug build and lint
+        run: ./gradlew --no-daemon --stacktrace assembleFossDebug lintFossDebug
+
+      - name: Play unit tests
+        run: ./gradlew --no-daemon --stacktrace testPlayDebugUnitTest
+
+      - name: Play debug build and lint
+        run: ./gradlew --no-daemon --stacktrace assemblePlayDebug lintPlayDebug
