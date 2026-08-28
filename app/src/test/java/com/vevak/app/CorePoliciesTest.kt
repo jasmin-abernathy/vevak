@@ -13,8 +13,10 @@ import com.vevak.app.security.RequestModeResolver
 import com.vevak.app.security.RequestRatePolicy
 import com.vevak.app.security.RequestRateState
 import com.vevak.app.sms.SmsCommandParser
+import com.vevak.app.system.TrustedNetworkReader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -102,6 +104,23 @@ class CorePoliciesTest {
         assertTrue(active.isConfigured(now + 1L))
         assertFalse(active.isConfigured(expiry))
         assertFalse(active.copy(authorizationGrantedAtEpochMs = 0L, authorizationExpiresAtEpochMs = 0L).isConfigured(now))
+    }
+
+    @Test
+    fun discreetMode_isAlwaysFinite() {
+        val now = 1_000L
+        val settings = VeVakSettings(discreetModeUntilEpochMs = now + 3_600_000L)
+        assertTrue(settings.isDiscreetModeActive(now))
+        assertFalse(settings.isDiscreetModeActive(now + 3_600_000L))
+    }
+
+    @Test
+    fun trustedWifiHash_isDeterministicAndDoesNotStorePlainSsid() {
+        val first = TrustedNetworkReader.hashSsid("My Home WiFi")
+        val second = TrustedNetworkReader.hashSsid("\"My Home WiFi\"")
+        assertEquals(first, second)
+        assertNotEquals("My Home WiFi", first)
+        assertEquals(64, first.length)
     }
 
     @Test
