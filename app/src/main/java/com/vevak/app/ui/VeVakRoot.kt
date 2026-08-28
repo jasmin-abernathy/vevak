@@ -153,7 +153,7 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
         vm.refreshDiagnostics()
     }
     Title("4. Autorisations")
-    Text("Les permissions SMS servent uniquement à recevoir la commande et à répondre. La localisation est sollicitée seulement après une commande normale autorisée. Les notifications sont obligatoires : sans visibilité locale, VeVak refuse d'envoyer une position automatiquement.")
+    Text("Les permissions SMS servent uniquement à recevoir la commande et à répondre. La localisation est sollicitée seulement après une commande normale autorisée ou un partage manuel confirmé. Les notifications sont obligatoires pour les réponses automatiques : sans visibilité locale, VeVak refuse d'envoyer une position automatiquement.")
     Primary("Autoriser SMS, localisation et notifications", onClick = { launcher.launch(mainPermissions) })
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         OutlinedButton(
@@ -258,6 +258,34 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
         Info("Aucune réponse automatique", "L'autorisation a expiré ou a été révoquée. Les commandes reçues ne donnent aucune position tant que vous ne réactivez pas l'accès localement.")
         Primary("Réactiver l'autorisation", vm::beginReauthorization)
     }
+
+    HorizontalDivider()
+    Text("Partager ma position", fontWeight = FontWeight.SemiBold)
+    Text("Vous pouvez envoyer volontairement une position unique à votre contact, sans attendre qu'il vous envoie une commande VeVak. Aucun service d'urgence n'est contacté.")
+    if (state.manualShareConfirmationPending) {
+        val contact = state.settings.contactName.ifBlank { state.settings.contactPhone }
+        Info("Confirmer l'envoi", "VeVak va obtenir une position unique puis l'envoyer par SMS à $contact. L'envoi n'est lancé qu'après votre confirmation.")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = vm::cancelManualPositionShare, modifier = Modifier.weight(1f)) {
+                Text("Annuler")
+            }
+            Button(onClick = vm::confirmManualPositionShare, modifier = Modifier.weight(1f)) {
+                Text("Confirmer et envoyer")
+            }
+        }
+    } else {
+        Primary(
+            if (state.manualShareLoading) "Envoi en cours…" else "Envoyer ma position maintenant",
+            vm::requestManualPositionShare,
+            enabled = !state.manualShareLoading
+        )
+    }
+    if (discreet) {
+        Info("Mode discret", "Cet envoi manuel n'ajoute aucune notification Android. Le résultat reste affiché uniquement dans VeVak ; la notification permanente « VeVak est actif » reste inchangée.")
+    } else {
+        Info("Envoi volontaire", "VeVak ne publie pas de notification Android supplémentaire pour ce partage manuel. Le résultat de la tentative est affiché ici. Un envoi accepté par Android ne garantit pas la livraison du SMS.")
+    }
+    Info("SIM utilisée", "VeVak utilise uniquement la SIM définie comme SIM SMS par défaut dans Android. S'il n'y en a pas, l'envoi est bloqué plutôt que de choisir une SIM au hasard.")
 
     HorizontalDivider()
     Text("Lieu de confiance", fontWeight = FontWeight.SemiBold)
