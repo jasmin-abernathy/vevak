@@ -23,6 +23,7 @@ import com.vevak.app.security.IncomingRequestMode
 import com.vevak.app.security.RequestModeResolver
 import com.vevak.app.system.BatteryReader
 import com.vevak.app.system.RequestVisibilityNotifier
+import com.vevak.app.system.TrustedNetworkReader
 
 class SmsRequestHandler(private val context: Context) {
     private val settingsRepository = VeVakSettingsRepository(context)
@@ -33,6 +34,7 @@ class SmsRequestHandler(private val context: Context) {
     private val replySender = SmsReplySender(context)
     private val batteryReader = BatteryReader(context)
     private val notifier = RequestVisibilityNotifier(context)
+    private val trustedNetworkReader = TrustedNetworkReader(context)
 
     suspend fun handle(intent: Intent) {
         val incoming = SmsIntentReader.read(intent) ?: return
@@ -42,16 +44,17 @@ class SmsRequestHandler(private val context: Context) {
 
         val mode = RequestModeResolver.resolve(incoming.body, settings) ?: return
         val now = System.currentTimeMillis()
+        val discreet = settings.isDiscreetModeActive(now)
 
         if (!settings.hasActiveAuthorization(now)) {
             auditRepository.append(now, RequestAuditOutcome.BlockedAuthorization)
-            if (notifier.notificationsAllowedForRequests()) notifier.showRequestReceived()
+            if (notifier.notificationsAllowedForRequests(discreet)) notifier.showRequestReceived(discreet)
             notifier.cancelActiveStatus()
             return
         }
 
-        // Visibility is a hard precondition: VeVak never sends a location invisibly.
-        if (!notifier.showRequestReceived()) {
+        // Visibility remains a hard precondition. Discreet mode changes noise, never local visibility.
+        if (!notifier.showRequestReceived(discreet)) {
             auditRepository.append(now, RequestAuditOutcome.BlockedVisibility)
             return
         }
@@ -71,12 +74,27 @@ class SmsRequestHandler(private val context: Context) {
             return
         }
 
-        val location = when (mode) {
-            IncomingRequestMode.Duress -> safetyFallback(settings)
-            IncomingRequestMode.Normal -> fetchRealLocation(settings)
+        // Never inspect current Wi-Fi/network state on a duress request. The duress branch remains
+        // completely independent from both real location and current-place inference.
+        val trustedPlaceLabel = when (mode) {
+            IncomingRequestMode.Duress -> null
+            IncomingRequestMode.Normal -> settings.trustedPlaceLabel.takeIf {
+                trustedNetworkReader.matches(settings)
+            }
         }
 
-        val reply = SmsReplyFormatter.format(settings, location, batteryReader.percentage())
+        val location = when {
+            mode == IncomingRequestMode.Duress -> safetyFallback(settings)
+            trustedPlaceLabel != null -> null
+            else -> fetchRealLocation(settings)
+        }
+
+        val battery = batteryReader.percentage()
+        val reply = if (mode == IncomingRequestMode.Normal && trustedPlaceLabel != null) {
+            SmsReplyFormatter.formatTrustedPlace(settings, trustedPlaceLabel, battery)
+        } else {
+            SmsReplyFormatter.format(settings, location, battery)
+        }
         val sent = runCatching {
             replySender.send(incoming.sender, reply, incoming.subscriptionId)
         }.isSuccess
@@ -85,6 +103,7 @@ class SmsRequestHandler(private val context: Context) {
             now,
             when {
                 !sent -> RequestAuditOutcome.SendFailed
+                trustedPlaceLabel != null -> RequestAuditOutcome.Replied
                 location == null -> RequestAuditOutcome.Unavailable
                 else -> RequestAuditOutcome.Replied
             }
