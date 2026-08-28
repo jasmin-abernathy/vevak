@@ -83,11 +83,31 @@ jobs:
       - name: FOSS unit tests
         run: ./gradlew --no-daemon --stacktrace testFossDebugUnitTest
 
-      - name: FOSS debug build and lint
-        run: ./gradlew --no-daemon --stacktrace assembleFossDebug lintFossDebug
+      - name: FOSS debug build
+        run: ./gradlew --no-daemon --stacktrace assembleFossDebug
+
+      - name: FOSS lint
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! ./gradlew --no-daemon --stacktrace lintFossDebug; then
+            echo "--- Complete FOSS lint report ---"
+            find app/build -type f -name 'lint-results-fossDebug.txt' -print -exec cat {} \;
+            exit 1
+          fi
 
       - name: Play unit tests
         run: ./gradlew --no-daemon --stacktrace testPlayDebugUnitTest
 
-      - name: Play debug build and lint
-        run: ./gradlew --no-daemon --stacktrace assemblePlayDebug lintPlayDebug
+      - name: Play debug build
+        run: ./gradlew --no-daemon --stacktrace assemblePlayDebug
+
+      - name: Play lint
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! ./gradlew --no-daemon --stacktrace lintPlayDebug; then
+            echo "--- Complete Play lint report ---"
+            find app/build -type f -name 'lint-results-playDebug.txt' -print -exec cat {} \;
+            exit 1
+          fi
