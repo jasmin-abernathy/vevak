@@ -40,7 +40,11 @@ data class VeVakSettings(
     val duressPhrase: String = "",
     val fallbackLatitude: Double? = null,
     val fallbackLongitude: Double? = null,
-    val fallbackAccuracyMeters: Float? = null
+    val fallbackAccuracyMeters: Float? = null,
+    val trustedWifiEnabled: Boolean = false,
+    val trustedWifiHash: String = "",
+    val trustedPlaceLabel: String = "Maison",
+    val discreetModeUntilEpochMs: Long = 0L
 ) {
     fun hasActiveAuthorization(nowMillis: Long = System.currentTimeMillis()): Boolean =
         authorizationGrantedAtEpochMs > 0L &&
@@ -53,6 +57,12 @@ data class VeVakSettings(
 
     fun hasValidDuressConfiguration(): Boolean =
         !duressEnabled || (duressPhrase.isNotBlank() && hasFallbackCoordinates())
+
+    fun hasTrustedWifiConfiguration(): Boolean =
+        trustedWifiEnabled && trustedWifiHash.isNotBlank() && trustedPlaceLabel.isNotBlank()
+
+    fun isDiscreetModeActive(nowMillis: Long = System.currentTimeMillis()): Boolean =
+        discreetModeUntilEpochMs > nowMillis
 
     fun isConfigured(nowMillis: Long = System.currentTimeMillis()): Boolean =
         completedOnboarding &&
