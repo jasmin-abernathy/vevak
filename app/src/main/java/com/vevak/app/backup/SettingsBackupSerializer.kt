@@ -63,7 +63,9 @@ object SettingsBackupSerializer {
     fun deserialize(bytes: ByteArray): VeVakSettings {
         require(bytes.size <= MAX_PLAINTEXT_BYTES) { "Backup payload is too large" }
         val properties = Properties()
-        InputStreamReader(ByteArrayInputStream(bytes), StandardCharsets.UTF_8).use(properties::load)
+        InputStreamReader(ByteArrayInputStream(bytes), StandardCharsets.UTF_8).use { reader ->
+            properties.load(reader)
+        }
         require(properties.getProperty("format") == FORMAT_VERSION) { "Unsupported backup format" }
 
         val provider = runCatching {
