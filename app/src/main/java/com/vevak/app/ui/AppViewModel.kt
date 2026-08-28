@@ -443,7 +443,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun defaultSmsSubscriptionId(): Int? {
         val subscriptionId = SubscriptionManager.getDefaultSmsSubscriptionId()
-        return subscriptionId.takeIf { SubscriptionManager.isValidSubscriptionId(it) }
+        return subscriptionId.takeIf { it >= 0 }
     }
 
     private fun updateSettings(block: (VeVakSettings) -> VeVakSettings) {
