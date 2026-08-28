@@ -18,7 +18,7 @@ class EntitlementPolicyTest {
     fun freeTierCannotUsePremiumCapabilities() {
         assertFalse(
             PremiumAccessPolicy.canUse(
-                PremiumCapability.MultipleTrustedContacts,
+                PremiumCapability.MultipleTrustedPlaces,
                 EntitlementState.free(),
                 nowMillis = 1_000L
             )
@@ -33,7 +33,7 @@ class EntitlementPolicyTest {
         )
         assertTrue(
             PremiumAccessPolicy.canUse(
-                PremiumCapability.EncryptedConfigurationExport,
+                PremiumCapability.AdvancedResponseProfiles,
                 premium,
                 nowMillis = 1_000L
             )
