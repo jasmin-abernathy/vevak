@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased - free multi-contact and encrypted backup (2026-08-28)
+
+### Added
+
+- several locally configured trusted contacts in the free core, with a current cap of five configured contacts for a simple/verifiable access model rather than monetisation;
+- separate phone number, normal phrase, finite authorisation and expiry for each contact;
+- local per-contact revoke/reactivate controls and removal of additional contacts;
+- manual outgoing position share can target any configured contact;
+- global anti-tracking quota remains shared across every contact so adding contacts never multiplies allowed automatic replies;
+- duress/safety phrase validation now checks every configured normal contact phrase;
+- encrypted `.vvk` configuration export/import through Android's document picker;
+- AES-GCM authenticated encryption with PBKDF2-HMAC-SHA256 password derivation, random salt and random IV;
+- bounded backup parsing and unit coverage for encryption, wrong passwords, Unicode contact persistence and per-contact authorisation.
+
+### Safety / privacy constraints
+
+- active contact authorisation timestamps are not exported;
+- temporary discreet-mode state is not exported;
+- request audit history is not exported;
+- importing a backup never silently re-authorises a restored contact;
+- wrong password, corruption or invalid restored settings leave current configuration unchanged;
+- no storage-wide permission, server, VeVak account, analytics or network dependency is introduced;
+- multiple contacts and encrypted configuration backup are explicitly outside `PremiumAccessPolicy` and remain part of the free baseline.
+
 ## Unreleased - freemium foundations (2026-08-28)
 
 ### Added
@@ -15,7 +39,7 @@
 
 - no existing VeVak capability is paywalled by this change;
 - no billing SDK, account requirement, Internet permission, telemetry, advertising or private client code is introduced;
-- core SMS request/reply, manual sharing, local revocation, consent expiry, anti-tracking safeguards, supported duress protections and safety-critical diagnostics remain outside the entitlement gate;
+- core SMS request/reply, manual sharing, several trusted contacts, encrypted configuration portability, local revocation, consent expiry, anti-tracking safeguards, supported duress protections and safety-critical diagnostics remain outside the entitlement gate;
 - a private repository is reserved for a genuinely separate optional hosted service if one is justified later, not for hiding GPL client code.
 
 ## Unreleased - trusted place, discreet alerts and manual sharing (2026-08-28)
@@ -30,7 +54,7 @@
 - dedicated low-importance request-notification channel for discreet mode, silent and without vibration by default;
 - home-screen controls to register/remove the trusted Wi-Fi, rename its label, enable/disable discreet mode and see its expiry;
 - manual outgoing position share from the home screen, requiring explicit confirmation before location acquisition and SMS sending;
-- manual share uses the configured trusted contact and only Android's default SMS SIM; if no default exists, the action is blocked rather than choosing a SIM arbitrarily;
+- manual share uses a configured trusted contact and only Android's default SMS SIM; if no default exists, the action is blocked rather than choosing a SIM arbitrarily;
 - manual share never creates its own Android notification, including while temporary discreet mode is active; success/failure stays in the VeVak UI;
 - manual-share result wording distinguishes an SMS accepted by Android for sending from confirmed delivery;
 - unit coverage for finite discreet mode, deterministic SSID hashing and the manual-share SMS format.
@@ -52,7 +76,7 @@
 - explicit, time-limited local authorisation (24 h, 7 days or 30 days) with no permanent option;
 - immediate local revocation from the home screen;
 - request visibility as a hard safety boundary: automatic location replies are blocked when VeVak cannot post request notifications;
-- ongoing active-status notification identifying the authorised contact and expiry;
+- ongoing active-status notification identifying authorised access and expiry;
 - hard anti-tracking limits of at least 15 minutes between automatic replies and at most four replies per 24-hour window;
 - minimal local request audit (maximum 20 generic outcomes, no coordinates, SMS text, phone number, phrase or duress marker);
 - optional safety-fallback / duress phrase with a pre-recorded fallback location;
@@ -83,7 +107,7 @@ Documentation and planning have been synchronised with the VeVak discussions hel
 
 ### Not implemented by this entry
 
-This older planning entry did **not** itself implement SOS, remote ringing, remote lock-screen messaging, encrypted relay, remote locking or periodic tracking. The later 2026-08-28 entry above documents the subsequently implemented manual position-share prototype.
+This older planning entry did **not** itself implement SOS, remote ringing, remote lock-screen messaging, encrypted relay, remote locking or periodic tracking. The later 2026-08-28 entries above document the subsequently implemented manual position-share and free resilience features.
 
 ## 0.3.0 - kit v4 d'écoconception et contribution
 
