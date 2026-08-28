@@ -20,6 +20,7 @@ No application can prove that consent was freely given when another person has p
 8. **No remote sensors.** Remote photo, microphone/audio capture and similar surveillance capabilities are out of scope.
 9. **Minimal local audit.** The phone keeps at most 20 recent request outcomes. It never stores coordinates, SMS bodies, Wi-Fi identifiers or request phrases in this audit trail.
 10. **No secret leakage in diagnostics.** Phone numbers, phrases, Wi-Fi identifiers, coordinates and whether a request used the safety fallback are excluded from redacted diagnostics.
+11. **Manual sharing is local-only.** An outgoing manual position share can only be initiated in the VeVak interface and requires explicit local confirmation before location acquisition and SMS sending. It cannot be remotely triggered or scheduled.
 
 ## Request visibility and temporary discreet mode
 
@@ -36,6 +37,24 @@ The owner may locally enable a **temporary discreet mode** for 1 hour, 8 hours o
 - disabling Android notifications entirely still blocks automatic replies.
 
 The ongoing notification identifies the authorised contact and the authorisation expiry. It does not expose the normal phrase, the safety phrase, the trusted Wi-Fi identifier or the fallback coordinates.
+
+## Manual outgoing position share
+
+The phone owner may voluntarily send one current position to the configured trusted contact from the VeVak home screen.
+
+This flow is intentionally different from an automatic incoming request:
+
+- opening the action only prepares a confirmation; it does not acquire location or send anything;
+- a second explicit local confirmation is required;
+- cancellation before confirmation performs no location acquisition and no SMS send;
+- if no position can be obtained, no location SMS is sent;
+- no emergency service is called;
+- no periodic/background manual-share loop exists;
+- no requester or remote command can trigger it;
+- it uses only Android's configured default SMS subscription; if none exists, VeVak blocks the action instead of choosing a SIM arbitrarily;
+- the result shown in the app distinguishes an SMS handed to Android for sending from proof of delivery.
+
+A manual share creates **no additional Android notification of its own**, in either normal or discreet mode. In temporary discreet mode, the result remains in the already-open VeVak interface. This exception does not weaken the automatic-request visibility rule because the owner is physically interacting with and confirming the action. The independent ongoing `VeVak est actif` notification remains governed by the normal authorisation model.
 
 ## Trusted place / home Wi-Fi shortcut
 
@@ -110,7 +129,11 @@ Before a public release, test at minimum:
 - normal request while notifications are enabled;
 - normal request while notification permission/channel is disabled (must send no location);
 - discreet mode for 1 h / 8 h / 24 h: request notification must remain visible but silent, and full notification disable must still block replies;
-- authorisation expiry and local revocation (must send no location);
+- manual outgoing share requires explicit confirmation and cancellation sends nothing;
+- manual outgoing share in discreet mode creates no additional Android notification and reports the result only in-app;
+- manual outgoing share with unavailable location sends no location SMS;
+- manual outgoing share uses the configured default SMS SIM and blocks when none is configured;
+- authorisation expiry and local revocation (must send no automatic location);
 - rate-limit floor and daily cap;
 - trusted Wi-Fi match: normal request must return the local label without real-location acquisition;
 - trusted Wi-Fi unavailable/non-match: normal request must fall back to the normal location path;
