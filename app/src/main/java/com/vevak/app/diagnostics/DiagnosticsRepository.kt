@@ -31,7 +31,11 @@ class DiagnosticsRepository(private val context: Context) {
                     locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true
             }.getOrDefault(false)
         }
-        val telephony = context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_MESSAGING)
+        val telephony = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_MESSAGING)
+        } else {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+        }
         val backend = locationRepository.backendStatus()
 
         val checks = listOf(
