@@ -87,7 +87,8 @@ class RequestVisibilityNotifier(private val context: Context) {
 
     /**
      * Returns false if VeVak cannot make the request visible. Even in discreet mode a local,
-     * silent notification remains visible in the notification shade; there is no covert mode.
+     * low-importance notification remains visible in the notification shade; there is no covert mode.
+     * Sound/vibration are disabled at the discreet notification-channel level.
      */
     fun showRequestReceived(discreet: Boolean = false): Boolean {
         if (!notificationsAllowedForRequests(discreet)) return false
@@ -106,7 +107,6 @@ class RequestVisibilityNotifier(private val context: Context) {
                 .setVisibility(Notification.VISIBILITY_PRIVATE)
                 .setWhen(System.currentTimeMillis())
                 .setShowWhen(!discreet)
-                .setSilent(discreet)
                 .build()
             manager.notify(REQUEST_NOTIFICATION_ID, notification)
         }.isSuccess
