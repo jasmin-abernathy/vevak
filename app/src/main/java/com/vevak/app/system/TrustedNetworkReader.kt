@@ -7,11 +7,7 @@ package com.vevak.app.system
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
-import android.os.Build
 import androidx.core.content.ContextCompat
 import com.vevak.app.model.VeVakSettings
 import java.security.MessageDigest
@@ -20,6 +16,9 @@ import java.security.MessageDigest
  * Reads only the currently connected Wi-Fi network. VeVak stores a one-way hash of the SSID,
  * never the network name itself. If Android does not expose the SSID, callers simply fall back
  * to the normal location path.
+ *
+ * This deliberately avoids ACCESS_NETWORK_STATE so the canonical FOSS flavor keeps its
+ * no-network-permission boundary. Android may redact the SSID; that is treated as "no match".
  */
 class TrustedNetworkReader(private val context: Context) {
     fun matches(settings: VeVakSettings): Boolean {
@@ -38,15 +37,6 @@ class TrustedNetworkReader(private val context: Context) {
 
     @Suppress("DEPRECATION")
     private fun currentSsid(): String? {
-        val connectivity = context.getSystemService(ConnectivityManager::class.java)
-        val active = connectivity?.activeNetwork
-        val capabilities = active?.let(connectivity::getNetworkCapabilities)
-        if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) != true) return null
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            return (capabilities.transportInfo as? WifiInfo)?.ssid
-        }
-
         val wifi = context.applicationContext.getSystemService(WifiManager::class.java)
         return wifi?.connectionInfo?.ssid
     }
