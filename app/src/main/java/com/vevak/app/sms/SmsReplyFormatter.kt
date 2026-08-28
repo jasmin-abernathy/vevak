@@ -26,6 +26,22 @@ object SmsReplyFormatter {
                 append(location.accuracyLabel())
             }
         }
+        appendBattery(settings, batteryPercent)
+    }
+
+    fun formatTrustedPlace(
+        settings: VeVakSettings,
+        label: String,
+        batteryPercent: Int?
+    ): String = buildString {
+        append("VeVak")
+        append("\nLe telephone est a ")
+        append(label.trim().ifBlank { "Maison" })
+        append('.')
+        appendBattery(settings, batteryPercent)
+    }
+
+    private fun StringBuilder.appendBattery(settings: VeVakSettings, batteryPercent: Int?) {
         if (settings.includeBattery && batteryPercent != null) {
             append("\nBatterie: ")
             append(batteryPercent)
