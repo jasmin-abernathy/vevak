@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased - freemium foundations (2026-08-28)
+
+### Added
+
+- public entitlement domain model for future paid convenience/service features;
+- flavor-specific entitlement providers so the canonical `foss` build stays free of proprietary billing SDKs;
+- a Play-flavor billing integration point that currently exposes only the free tier;
+- fail-closed premium access policy and unit tests;
+- `MONETIZATION.md` defining which safety functions must remain free, suitable paid-feature candidates, private-backend boundaries and anti-dark-pattern rules;
+- `docs/PAID_FEATURE_REVIEW.md` for product, privacy, abuse, licensing and ecodesign review before any paid feature is implemented.
+
+### Safety / FOSS constraints
+
+- no existing VeVak capability is paywalled by this change;
+- no billing SDK, account requirement, Internet permission, telemetry, advertising or private client code is introduced;
+- core SMS request/reply, manual sharing, local revocation, consent expiry, anti-tracking safeguards, supported duress protections and safety-critical diagnostics remain outside the entitlement gate;
+- a private repository is reserved for a genuinely separate optional hosted service if one is justified later, not for hiding GPL client code.
+
 ## Unreleased - trusted place, discreet alerts and manual sharing (2026-08-28)
 
 ### Added

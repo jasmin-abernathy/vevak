@@ -38,6 +38,21 @@ Les règles de confidentialité, d'anti-coercition, de sobriété et d'absence d
 - garder Compose hors du domaine métier ;
 - privilégier les API Android natives et les dépendances déjà présentes.
 
+## Fonctions payantes et monétisation
+
+Avant toute contribution liée à une fonction payante, lisez [`MONETIZATION.md`](MONETIZATION.md) et remplissez [`docs/PAID_FEATURE_REVIEW.md`](docs/PAID_FEATURE_REVIEW.md).
+
+Règles obligatoires :
+
+- le cœur de sécurité reste utilisable sans achat ;
+- aucune publicité, aucun tracker et aucune télémétrie ne sont ajoutés comme alternative au paiement ;
+- les contrôles de révocation, consentement, anti-suivi, confidentialité et suppression locale ne sont jamais derrière un paywall ;
+- la variante `foss` doit continuer à compiler sans SDK propriétaire de paiement ;
+- les dépendances de boutique restent dans le source set / la configuration Gradle de la plateforme concernée ;
+- le code client premium peut rester public : l'obscurité du code n'est pas une frontière de sécurité ;
+- un dépôt privé n'est justifié que pour un service réellement séparé, par exemple un futur relais hébergé, pas pour cacher du code client GPL ;
+- toute fonction payante sensible nécessite la même revue d'abus/coercition qu'une fonction gratuite.
+
 ## Revue d'écoconception
 
 Toute fonction nouvelle doit documenter :
