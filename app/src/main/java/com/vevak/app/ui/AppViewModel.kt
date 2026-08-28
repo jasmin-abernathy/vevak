@@ -128,17 +128,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun setDuressEnabled(enabled: Boolean) = updateSettings {
-        it.copy(duressEnabled = enabled)
-    }
-
-    fun updateDuressPhrase(value: String) = updateSettings {
-        it.copy(duressPhrase = value)
-    }
+    fun setDuressEnabled(enabled: Boolean) = updateSettings { it.copy(duressEnabled = enabled) }
+    fun updateDuressPhrase(value: String) = updateSettings { it.copy(duressPhrase = value) }
 
     fun updateTrustedPlaceLabel(value: String) {
-        val updated = _state.value.settings.copy(trustedPlaceLabel = value.take(40))
-        persistSettings(updated)
+        persistSettings(_state.value.settings.copy(trustedPlaceLabel = value.take(40)))
     }
 
     fun captureTrustedWifi() {
@@ -149,25 +143,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         val hash = trustedNetworkReader.currentSsidHash()
         if (hash == null) {
-            _state.update {
-                it.copy(message = "Impossible de lire le Wi-Fi actuel. Vérifiez que le téléphone est connecté en Wi-Fi et que la localisation Android est activée.")
-            }
+            _state.update { it.copy(message = "Impossible de lire le Wi-Fi actuel. Vérifiez que le téléphone est connecté en Wi-Fi et que la localisation Android est activée.") }
             return
         }
-        val updated = _state.value.settings.copy(
-            trustedWifiEnabled = true,
-            trustedWifiHash = hash,
-            trustedPlaceLabel = _state.value.settings.trustedPlaceLabel.trim().ifBlank { "Maison" }
+        val settings = _state.value.settings
+        persistSettings(
+            settings.copy(
+                trustedWifiEnabled = true,
+                trustedWifiHash = hash,
+                trustedPlaceLabel = settings.trustedPlaceLabel.trim().ifBlank { "Maison" }
+            ),
+            "Wi-Fi de confiance enregistré localement. Son nom n'est pas conservé en clair."
         )
-        persistSettings(updated, "Wi-Fi de confiance enregistré localement. Son nom n'est pas conservé en clair.")
     }
 
     fun clearTrustedWifi() {
-        val updated = _state.value.settings.copy(
-            trustedWifiEnabled = false,
-            trustedWifiHash = ""
+        persistSettings(
+            _state.value.settings.copy(trustedWifiEnabled = false, trustedWifiHash = ""),
+            "Lieu de confiance Wi-Fi désactivé."
         )
-        persistSettings(updated, "Lieu de confiance Wi-Fi désactivé.")
     }
 
     fun setDiscreetMode(hours: Int) {
@@ -179,15 +173,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { it.copy(message = "Réactivez d'abord au moins un contact VeVak.") }
             return
         }
-        val requestedUntil = now + hours * HOUR_MILLIS
-        val until = minOf(requestedUntil, latestExpiry)
-        val updated = settings.copy(discreetModeUntilEpochMs = until)
-        persistSettings(updated, "Mode discret activé jusqu'au ${java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(until))}. Les demandes restent visibles dans Android, mais sans son ni vibration.")
+        val until = minOf(now + hours * HOUR_MILLIS, latestExpiry)
+        persistSettings(
+            settings.copy(discreetModeUntilEpochMs = until),
+            "Mode discret activé jusqu'au ${java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(until))}. Les demandes restent visibles dans Android, mais sans son ni vibration."
+        )
     }
 
     fun disableDiscreetMode() {
-        val updated = _state.value.settings.copy(discreetModeUntilEpochMs = 0L)
-        persistSettings(updated, "Mode discret désactivé.")
+        persistSettings(_state.value.settings.copy(discreetModeUntilEpochMs = 0L), "Mode discret désactivé.")
     }
 
     fun updateNewContactName(value: String) = _state.update { it.copy(newContactName = value.take(80), message = null) }
@@ -217,6 +211,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(message = "Confirmez explicitement que ce nouveau contact est autorisé à demander votre position.") }
                 return
             }
+            !notifier.notificationsAllowedForRequests() -> {
+                _state.update { it.copy(message = "Activez les notifications VeVak avant d'autoriser un nouveau contact : aucune réponse automatique n'est permise sans visibilité locale.") }
+                return
+            }
             settings.trustedContacts().any { phoneMatcher.matches(phone, it.phone) } -> {
                 _state.update { it.copy(message = "Ce numéro correspond déjà à un contact VeVak.") }
                 return
@@ -236,8 +234,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             authorizationGrantedAtEpochMs = now,
             authorizationExpiresAtEpochMs = current.newContactAuthorizationDuration.expiresAt(now)
         )
-        val updated = settings.copy(additionalTrustedContacts = settings.additionalTrustedContacts + contact)
-        persistSettings(updated, "Contact ajouté et autorisé pour ${current.newContactAuthorizationDuration.label}.")
+        persistSettings(
+            settings.copy(additionalTrustedContacts = settings.additionalTrustedContacts + contact),
+            "Contact ajouté et autorisé pour ${current.newContactAuthorizationDuration.label}."
+        )
         _state.update {
             it.copy(
                 newContactName = "",
@@ -252,11 +252,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun revokeContact(contactId: String) {
         val settings = _state.value.settings
         val contact = settings.contactById(contactId) ?: return
-        val updated = settings.withUpdatedContact(contact.revoke()).copy(discreetModeUntilEpochMs = 0L)
-        persistSettings(updated, "Accès de ${contact.displayLabel()} coupé immédiatement.")
+        persistSettings(
+            settings.withUpdatedContact(contact.revoke()).copy(discreetModeUntilEpochMs = 0L),
+            "Accès de ${contact.displayLabel()} coupé immédiatement."
+        )
     }
 
     fun reauthorizeContact(contactId: String, duration: AuthorizationDuration) {
+        if (!notifier.notificationsAllowedForRequests()) {
+            _state.update { it.copy(message = "Activez les notifications VeVak avant de réautoriser ce contact : aucune réponse automatique n'est permise sans visibilité locale.") }
+            return
+        }
         val settings = _state.value.settings
         val contact = settings.contactById(contactId) ?: return
         val now = System.currentTimeMillis()
@@ -264,7 +270,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             authorizationGrantedAtEpochMs = now,
             authorizationExpiresAtEpochMs = duration.expiresAt(now)
         )
-        persistSettings(settings.withUpdatedContact(updatedContact), "${contact.displayLabel()} est de nouveau autorisé pour ${duration.label}.")
+        persistSettings(
+            settings.withUpdatedContact(updatedContact),
+            "${contact.displayLabel()} est de nouveau autorisé pour ${duration.label}."
+        )
     }
 
     fun removeAdditionalContact(contactId: String) {
@@ -286,14 +295,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(message = "Autorisez d'abord la localisation.") }
             defaultSmsSubscriptionId() == null ->
                 _state.update { it.copy(message = "Choisissez une SIM par défaut pour les SMS dans Android avant l'envoi. VeVak n'en choisit jamais une au hasard.") }
-            else ->
-                _state.update {
-                    it.copy(
-                        manualShareConfirmationPending = true,
-                        manualShareTargetContactId = contact.id,
-                        message = null
-                    )
-                }
+            else -> _state.update {
+                it.copy(
+                    manualShareConfirmationPending = true,
+                    manualShareTargetContactId = contact.id,
+                    message = null
+                )
+            }
         }
     }
 
@@ -333,13 +341,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        _state.update {
-            it.copy(
-                manualShareConfirmationPending = false,
-                manualShareLoading = true,
-                message = null
-            )
-        }
+        _state.update { it.copy(manualShareConfirmationPending = false, manualShareLoading = true, message = null) }
         viewModelScope.launch {
             val location = runCatching {
                 locationRepository.fetchBestLocation(
@@ -363,12 +365,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val body = SmsReplyFormatter.formatManualShare(settings, location, batteryReader.percentage())
-            val acceptedByAndroid = runCatching {
-                smsSender.send(contact.phone, body, subscriptionId)
-            }.isSuccess
-
-            // Deliberately no RequestVisibilityNotifier call here. A manual share is an explicit,
-            // foreground action and must not create an extra Android notification in discreet mode.
+            val acceptedByAndroid = runCatching { smsSender.send(contact.phone, body, subscriptionId) }.isSuccess
             _state.update {
                 it.copy(
                     manualShareLoading = false,
@@ -384,9 +381,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setConsentChecked(value: Boolean) = _state.update { it.copy(consentChecked = value) }
-
-    fun setAuthorizationDuration(value: AuthorizationDuration) =
-        _state.update { it.copy(authorizationDuration = value) }
+    fun setAuthorizationDuration(value: AuthorizationDuration) = _state.update { it.copy(authorizationDuration = value) }
 
     fun complete() {
         viewModelScope.launch {
@@ -405,9 +400,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             if (!notifier.notificationsAllowedForRequests()) {
-                _state.update {
-                    it.copy(message = "Activez les notifications VeVak : une réponse automatique n'est jamais autorisée sans visibilité locale.")
-                }
+                _state.update { it.copy(message = "Activez les notifications VeVak : une réponse automatique n'est jamais autorisée sans visibilité locale.") }
                 return@launch
             }
 
@@ -434,13 +427,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun beginReauthorization() {
-        _state.update {
-            it.copy(
-                step = OnboardingStep.Summary,
-                consentChecked = false,
-                message = null
-            )
-        }
+        _state.update { it.copy(step = OnboardingStep.Summary, consentChecked = false, message = null) }
     }
 
     fun revokeAuthorization() = revokeContact(VeVakSettings.PRIMARY_CONTACT_ID)
@@ -459,8 +446,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsRepository.save(_state.value.settings) }
     }
 
-    fun updateBackupPassword(value: String) =
-        _state.update { it.copy(backupPassword = value.take(256), message = null) }
+    fun updateBackupPassword(value: String) = _state.update { it.copy(backupPassword = value.take(256), message = null) }
 
     fun exportEncryptedBackup(uri: Uri) {
         val password = _state.value.backupPassword
@@ -495,7 +481,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(backupBusy = true, message = null) }
         viewModelScope.launch(Dispatchers.IO) {
             val restored = runCatching { backupRepository.import(uri, password) }.getOrNull()
-            if (restored == null || restored.trustedContacts().isEmpty() || !DuressPolicy.configurationIsValid(restored)) {
+            val valid = restored != null &&
+                restored.trustedContacts().isNotEmpty() &&
+                !hasDuplicateContactPhones(restored) &&
+                DuressPolicy.configurationIsValid(restored)
+            if (!valid) {
                 _state.update {
                     it.copy(
                         backupBusy = false,
@@ -506,7 +496,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
-            val safe = restored.withAllAuthorizationsRevoked().copy(
+            val safe = restored!!.withAllAuthorizationsRevoked().copy(
                 completedOnboarding = true,
                 discreetModeUntilEpochMs = 0L
             )
@@ -577,14 +567,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
             }.getOrNull()
-
             if (result == null) {
-                _state.update {
-                    it.copy(fallbackLocationLoading = false, message = "Impossible d'enregistrer une position de repli maintenant.")
-                }
+                _state.update { it.copy(fallbackLocationLoading = false, message = "Impossible d'enregistrer une position de repli maintenant.") }
                 return@launch
             }
-
             updateSettings {
                 it.copy(
                     fallbackLatitude = result.latitude,
@@ -602,6 +588,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun duressConfigurationValid(): Boolean = DuressPolicy.configurationIsValid(_state.value.settings)
+
+    private fun hasDuplicateContactPhones(settings: VeVakSettings): Boolean {
+        val contacts = settings.trustedContacts()
+        return contacts.indices.any { left ->
+            (left + 1 until contacts.size).any { right ->
+                phoneMatcher.matches(contacts[left].phone, contacts[right].phone)
+            }
+        }
+    }
 
     private fun hasForegroundLocationPermission(app: Application): Boolean =
         listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
