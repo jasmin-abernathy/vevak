@@ -24,6 +24,7 @@ import com.vevak.app.model.MapProvider
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
 import com.vevak.app.system.RequestVisibilityNotifier
+import com.vevak.app.system.TrustedNetworkReader
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,6 +53,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val diagnosticsRepository = DiagnosticsRepository(application)
     private val locationRepository = VeVakLocationRepository(application)
     private val notifier = RequestVisibilityNotifier(application)
+    private val trustedNetworkReader = TrustedNetworkReader(application)
     private val _state = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
@@ -110,6 +112,59 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         it.copy(duressPhrase = value)
     }
 
+    fun updateTrustedPlaceLabel(value: String) {
+        val updated = _state.value.settings.copy(trustedPlaceLabel = value.take(40))
+        persistSettings(updated)
+    }
+
+    fun captureTrustedWifi() {
+        val app = getApplication<Application>()
+        if (ContextCompat.checkSelfPermission(app, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            _state.update { it.copy(message = "Autorisez la localisation précise avant d'enregistrer le Wi-Fi du domicile.") }
+            return
+        }
+        val hash = trustedNetworkReader.currentSsidHash()
+        if (hash == null) {
+            _state.update {
+                it.copy(message = "Impossible de lire le Wi-Fi actuel. Vérifiez que le téléphone est connecté en Wi-Fi et que la localisation Android est activée.")
+            }
+            return
+        }
+        val updated = _state.value.settings.copy(
+            trustedWifiEnabled = true,
+            trustedWifiHash = hash,
+            trustedPlaceLabel = _state.value.settings.trustedPlaceLabel.trim().ifBlank { "Maison" }
+        )
+        persistSettings(updated, "Wi-Fi de confiance enregistré localement. Son nom n'est pas conservé en clair.")
+    }
+
+    fun clearTrustedWifi() {
+        val updated = _state.value.settings.copy(
+            trustedWifiEnabled = false,
+            trustedWifiHash = ""
+        )
+        persistSettings(updated, "Lieu de confiance Wi-Fi désactivé.")
+    }
+
+    fun setDiscreetMode(hours: Int) {
+        if (hours !in setOf(1, 8, 24)) return
+        val settings = _state.value.settings
+        if (!settings.hasActiveAuthorization()) {
+            _state.update { it.copy(message = "Réactivez d'abord l'autorisation VeVak.") }
+            return
+        }
+        val now = System.currentTimeMillis()
+        val requestedUntil = now + hours * HOUR_MILLIS
+        val until = minOf(requestedUntil, settings.authorizationExpiresAtEpochMs)
+        val updated = settings.copy(discreetModeUntilEpochMs = until)
+        persistSettings(updated, "Mode discret activé jusqu'au ${java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(until))}. Les demandes restent visibles dans Android, mais sans son ni vibration.")
+    }
+
+    fun disableDiscreetMode() {
+        val updated = _state.value.settings.copy(discreetModeUntilEpochMs = 0L)
+        persistSettings(updated, "Mode discret désactivé.")
+    }
+
     fun setConsentChecked(value: Boolean) = _state.update { it.copy(consentChecked = value) }
 
     fun setAuthorizationDuration(value: AuthorizationDuration) =
@@ -142,7 +197,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val final = settings.copy(
                 completedOnboarding = true,
                 authorizationGrantedAtEpochMs = now,
-                authorizationExpiresAtEpochMs = current.authorizationDuration.expiresAt(now)
+                authorizationExpiresAtEpochMs = current.authorizationDuration.expiresAt(now),
+                discreetModeUntilEpochMs = 0L
             )
             settingsRepository.save(final)
             runtimeRepository.reset()
@@ -173,7 +229,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val revoked = _state.value.settings.copy(
                 authorizationGrantedAtEpochMs = 0L,
-                authorizationExpiresAtEpochMs = 0L
+                authorizationExpiresAtEpochMs = 0L,
+                discreetModeUntilEpochMs = 0L
             )
             settingsRepository.save(revoked)
             runtimeRepository.reset()
@@ -282,6 +339,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(settings = block(it.settings)) }
     }
 
+    private fun persistSettings(settings: VeVakSettings, message: String? = null) {
+        _state.update { it.copy(settings = settings, message = message ?: it.message) }
+        viewModelScope.launch {
+            settingsRepository.save(settings)
+            notifier.syncActiveStatus(settings)
+            refreshDiagnostics()
+        }
+    }
+
     private fun nextOf(step: OnboardingStep): OnboardingStep = when (step) {
         OnboardingStep.Welcome -> OnboardingStep.Contact
         OnboardingStep.Contact -> OnboardingStep.Trigger
@@ -301,5 +367,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         OnboardingStep.Safety -> OnboardingStep.Permissions
         OnboardingStep.Summary -> OnboardingStep.Safety
         OnboardingStep.Home -> OnboardingStep.Home
+    }
+
+    private companion object {
+        const val HOUR_MILLIS = 60L * 60L * 1_000L
     }
 }
