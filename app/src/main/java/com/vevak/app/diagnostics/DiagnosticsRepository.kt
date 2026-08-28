@@ -40,15 +40,17 @@ class DiagnosticsRepository(private val context: Context) {
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
         }
         val backend = locationRepository.backendStatus()
-        val authorization = settings.hasActiveAuthorization()
+        val configuredContacts = settings.trustedContacts()
+        val activeContacts = settings.activeTrustedContacts()
+        val authorization = activeContacts.isNotEmpty()
         val visibility = notifier.notificationsAllowedForRequests(settings.isDiscreetModeActive())
         val duressValid = DuressPolicy.configurationIsValid(settings)
 
         val checks = listOf(
-            check(settings.contactPhone.isNotBlank(), "Contact autorisé", "Un numéro est configuré.", "Ajoutez le numéro qui peut interroger VeVak."),
-            check(settings.triggerPhrase.isNotBlank(), "Phrase de déclenchement", "Phrase configurée.", "Définissez une phrase non vide."),
-            check(authorization, "Autorisation locale", "Autorisation active et limitée dans le temps.", "Réactivez explicitement l'autorisation du contact."),
-            check(duressValid, "Protection sous contrainte", "Configuration cohérente.", "La phrase de sécurité doit être distincte et une position de repli doit être enregistrée."),
+            check(configuredContacts.isNotEmpty(), "Contacts autorisés", "${configuredContacts.size} contact(s) configuré(s).", "Ajoutez au moins un numéro pouvant interroger VeVak."),
+            check(configuredContacts.all { it.triggerPhrase.isNotBlank() }, "Phrases de déclenchement", "Toutes les phrases sont configurées.", "Chaque contact doit avoir une phrase non vide."),
+            check(authorization, "Autorisations locales", "${activeContacts.size} autorisation(s) active(s) et limitée(s) dans le temps.", "Réactivez explicitement au moins un contact."),
+            check(duressValid, "Protection sous contrainte", "Configuration cohérente.", "La phrase de sécurité doit être distincte de toutes les phrases normales et une position de repli doit être enregistrée."),
             check(visibility, "Visibilité des demandes", "Notifications disponibles.", "Activez les notifications VeVak : aucune position ne sera envoyée sans notification visible."),
             check(telephony, "Téléphonie SMS", "Appareil compatible.", "Cet appareil ne déclare pas la fonction SMS."),
             check(receive, "Réception des SMS", "Autorisation accordée.", "Autorisation RECEIVE_SMS manquante."),
@@ -66,6 +68,8 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("androidApi=${Build.VERSION.SDK_INT}")
             appendLine("locationBackend=${backend.name}")
             appendLine("usesGooglePlayServices=${BuildConfig.USES_GOOGLE_PLAY_SERVICES}")
+            appendLine("trustedContactCount=${configuredContacts.size}")
+            appendLine("activeTrustedContactCount=${activeContacts.size}")
             appendLine("trustedWifiConfigured=${settings.hasTrustedWifiConfiguration()}")
             appendLine("discreetModeActive=${settings.isDiscreetModeActive()}")
             checks.forEachIndexed { index, value ->
