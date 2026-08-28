@@ -40,6 +40,10 @@ class VeVakSettingsRepository(private val context: Context) {
         val FALLBACK_LAT = stringPreferencesKey("fallback_latitude")
         val FALLBACK_LON = stringPreferencesKey("fallback_longitude")
         val FALLBACK_ACCURACY = stringPreferencesKey("fallback_accuracy_meters")
+        val TRUSTED_WIFI_ENABLED = booleanPreferencesKey("trusted_wifi_enabled")
+        val TRUSTED_WIFI_HASH = stringPreferencesKey("trusted_wifi_hash")
+        val TRUSTED_PLACE_LABEL = stringPreferencesKey("trusted_place_label")
+        val DISCREET_MODE_UNTIL = longPreferencesKey("discreet_mode_until_epoch_ms")
     }
 
     val settingsFlow: Flow<VeVakSettings> = context.settingsDataStore.data.map { it.toSettings() }
@@ -66,6 +70,10 @@ class VeVakSettingsRepository(private val context: Context) {
             settings.fallbackLatitude?.let { prefs[Keys.FALLBACK_LAT] = it.toString() } ?: prefs.remove(Keys.FALLBACK_LAT)
             settings.fallbackLongitude?.let { prefs[Keys.FALLBACK_LON] = it.toString() } ?: prefs.remove(Keys.FALLBACK_LON)
             settings.fallbackAccuracyMeters?.let { prefs[Keys.FALLBACK_ACCURACY] = it.toString() } ?: prefs.remove(Keys.FALLBACK_ACCURACY)
+            prefs[Keys.TRUSTED_WIFI_ENABLED] = settings.trustedWifiEnabled
+            prefs[Keys.TRUSTED_WIFI_HASH] = settings.trustedWifiHash.trim()
+            prefs[Keys.TRUSTED_PLACE_LABEL] = settings.trustedPlaceLabel.trim().ifBlank { "Maison" }
+            prefs[Keys.DISCREET_MODE_UNTIL] = settings.discreetModeUntilEpochMs.coerceAtLeast(0L)
         }
     }
 
@@ -96,7 +104,11 @@ class VeVakSettingsRepository(private val context: Context) {
             duressPhrase = this[Keys.DURESS_PHRASE].orEmpty(),
             fallbackLatitude = this[Keys.FALLBACK_LAT]?.toDoubleOrNull(),
             fallbackLongitude = this[Keys.FALLBACK_LON]?.toDoubleOrNull(),
-            fallbackAccuracyMeters = this[Keys.FALLBACK_ACCURACY]?.toFloatOrNull()
+            fallbackAccuracyMeters = this[Keys.FALLBACK_ACCURACY]?.toFloatOrNull(),
+            trustedWifiEnabled = this[Keys.TRUSTED_WIFI_ENABLED] ?: false,
+            trustedWifiHash = this[Keys.TRUSTED_WIFI_HASH].orEmpty(),
+            trustedPlaceLabel = this[Keys.TRUSTED_PLACE_LABEL]?.trim().takeUnless { it.isNullOrBlank() } ?: "Maison",
+            discreetModeUntilEpochMs = this[Keys.DISCREET_MODE_UNTIL] ?: 0L
         )
     }
 }
