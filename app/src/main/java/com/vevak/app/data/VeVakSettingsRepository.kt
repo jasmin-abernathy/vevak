@@ -26,6 +26,7 @@ class VeVakSettingsRepository(private val context: Context) {
         val CONTACT_NAME = stringPreferencesKey("contact_name")
         val CONTACT_PHONE = stringPreferencesKey("contact_phone")
         val TRIGGER = stringPreferencesKey("trigger_phrase")
+        val ADDITIONAL_CONTACTS = stringPreferencesKey("additional_trusted_contacts_v1")
         val INCLUDE_BATTERY = booleanPreferencesKey("include_battery")
         val INCLUDE_ACCURACY = booleanPreferencesKey("include_accuracy")
         val MAP_PROVIDER = stringPreferencesKey("map_provider")
@@ -56,6 +57,11 @@ class VeVakSettingsRepository(private val context: Context) {
             prefs[Keys.CONTACT_NAME] = settings.contactName.trim()
             prefs[Keys.CONTACT_PHONE] = settings.contactPhone.trim()
             prefs[Keys.TRIGGER] = settings.triggerPhrase.trim()
+            prefs[Keys.ADDITIONAL_CONTACTS] = TrustedContactStorageCodec.encode(
+                settings.additionalTrustedContacts
+                    .filter { it.id != VeVakSettings.PRIMARY_CONTACT_ID && it.isConfigured() }
+                    .take(VeVakSettings.MAX_TRUSTED_CONTACTS - 1)
+            )
             prefs[Keys.INCLUDE_BATTERY] = settings.includeBattery
             prefs[Keys.INCLUDE_ACCURACY] = settings.includeAccuracy
             prefs[Keys.MAP_PROVIDER] = settings.mapProvider.name
@@ -91,6 +97,9 @@ class VeVakSettingsRepository(private val context: Context) {
             contactName = this[Keys.CONTACT_NAME].orEmpty(),
             contactPhone = this[Keys.CONTACT_PHONE].orEmpty(),
             triggerPhrase = this[Keys.TRIGGER] ?: "Info Mari",
+            additionalTrustedContacts = TrustedContactStorageCodec.decode(this[Keys.ADDITIONAL_CONTACTS].orEmpty())
+                .filter { it.id != VeVakSettings.PRIMARY_CONTACT_ID }
+                .take(VeVakSettings.MAX_TRUSTED_CONTACTS - 1),
             includeBattery = this[Keys.INCLUDE_BATTERY] ?: true,
             includeAccuracy = this[Keys.INCLUDE_ACCURACY] ?: true,
             mapProvider = provider,

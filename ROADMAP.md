@@ -30,10 +30,10 @@ Ce choix évite de dupliquer le cœur SMS, la sécurité, les tests et la docume
 
 VeVak peut proposer plus tard des fonctions payantes sans fermer le code client. Le modèle retenu est documenté dans [`MONETIZATION.md`](MONETIZATION.md).
 
-Fondations désormais prévues dans l'architecture :
+Fondations désormais retenues :
 
 - le dépôt Android reste public et sous GPL-3.0-or-later ;
-- le cœur de sécurité reste gratuit : demande/réponse SMS de base, partage manuel, révocation, expiration du consentement, limites anti-suivi, visibilité locale, protections sous contrainte supportées et diagnostics indispensables ;
+- le cœur de sécurité et de résilience reste gratuit : demande/réponse SMS, partage manuel, **plusieurs contacts de confiance**, **export/import chiffré de la configuration**, révocation, expiration du consentement, limites anti-suivi, visibilité locale, protections sous contrainte supportées et diagnostics indispensables ;
 - les fonctions payantes doivent surtout correspondre à de la commodité, de la configuration avancée ou à un service optionnel ayant un coût réel ;
 - le cœur connaît uniquement une abstraction d'`entitlement` publique ;
 - `foss` fournit un provider sans dépendance propriétaire et reste la variante canonique ;
@@ -41,7 +41,7 @@ Fondations désormais prévues dans l'architecture :
 - un éventuel backend payant, par exemple un relais chiffré, ne sera créé que si le service est réellement utile et restera facultatif pour le fonctionnement SMS de base ;
 - aucun achat ne doit être présenté avec des dark patterns, de la peur ou une fausse urgence.
 
-Candidats possibles, non promis : plusieurs contacts de confiance, export/import chiffré, personnalisation avancée, relais facultatif ou commodités multi-appareils. Chaque proposition doit passer par [`docs/PAID_FEATURE_REVIEW.md`](docs/PAID_FEATURE_REVIEW.md), une revue d'écoconception et, lorsqu'elle touche à la sécurité, une revue d'abus/coercition.
+Candidats possibles, non promis : plusieurs **lieux** de confiance, profils de réponse avancés, personnalisation avancée, commodités desktop/web/multi-appareils et relais facultatif. Chaque proposition doit passer par [`docs/PAID_FEATURE_REVIEW.md`](docs/PAID_FEATURE_REVIEW.md), une revue d'écoconception et, lorsqu'elle touche à la sécurité, une revue d'abus/coercition.
 
 ## 0.3.x - Stabilisation
 
@@ -61,11 +61,12 @@ Le moteur SMS et la localisation sont déjà implémentés. Les priorités sont 
 
 ### Partage sortant manuel — prototype implémenté, validation réelle requise
 
-Un flux permet désormais à l'utilisateur d'envoyer lui-même une position unique à son contact de confiance, sans attendre une demande entrante. Ce prototype doit encore être validé sur appareils réels avant d'être considéré comme stabilisé.
+Un flux permet désormais à l'utilisateur d'envoyer lui-même une position unique à un contact de confiance, sans attendre une demande entrante. Ce prototype doit encore être validé sur appareils réels avant d'être considéré comme stabilisé.
 
 Contraintes déjà intégrées :
 
 - déclenchement uniquement depuis l'interface locale de VeVak ;
+- sélection explicite du contact destinataire ;
 - confirmation explicite avant toute acquisition de position et tout envoi ;
 - annulation possible avant confirmation ;
 - aucun appel automatique aux services d'urgence ;
@@ -80,6 +81,40 @@ Contraintes déjà intégrées :
 
 À valider sur téléphone réel : obtention de position, SMS réellement reçu, erreur réseau, mode discret, SIM unique, double SIM/eSIM, absence de SIM par défaut et comportement constructeur.
 
+### Plusieurs contacts de confiance — implémenté, validation réelle requise
+
+La version gratuite accepte désormais plusieurs contacts locaux sans passer par le système d'`entitlement`.
+
+Principes :
+
+- le premier contact conserve le format historique afin de migrer proprement les installations existantes ;
+- des contacts supplémentaires peuvent être ajoutés localement sans permission carnet d'adresses ;
+- chaque contact dispose de son propre numéro, de sa propre phrase normale, de sa propre date d'autorisation et de sa propre expiration ;
+- ajout, révocation, suppression des contacts supplémentaires et réautorisation sont effectués uniquement dans l'interface locale ;
+- la phrase sous contrainte commune doit rester distincte de toutes les phrases normales ;
+- le plafond anti-suivi reste **global à l'appareil** : le nombre de contacts ne multiplie jamais le quota de réponses automatiques ;
+- un partage manuel peut cibler n'importe quel contact configuré sans rendre sa permission automatique active.
+
+À valider sur appareil réel : plusieurs expéditeurs, expiration/revocation indépendante, statut persistant avec plusieurs contacts, interactions avec mode discret et commandes sous contrainte.
+
+### Export/import chiffré — implémenté, validation réelle requise
+
+La configuration peut être exportée gratuitement via le sélecteur de fichiers Android vers un conteneur `.vvk` chiffré et authentifié.
+
+Principes :
+
+- aucun serveur VeVak ni compte ;
+- AES-GCM ;
+- clé dérivée du mot de passe via PBKDF2-HMAC-SHA256 avec sel aléatoire ;
+- IV aléatoire par sauvegarde ;
+- aucune permission stockage global ;
+- aucun historique de demandes exporté ;
+- aucune autorisation active ni état temporaire du mode discret exporté ;
+- après restauration, tous les contacts restent désautorisés jusqu'à validation locale ;
+- mauvais mot de passe, fichier corrompu ou configuration invalide : aucun remplacement des réglages courants.
+
+À valider sur appareil réel : création dans plusieurs fournisseurs de documents Android, restauration sur un autre appareil, mauvais mot de passe, fichier tronqué/corrompu, Unicode et plusieurs contacts.
+
 Les raccourcis, tuiles rapides ou appels complémentaires ne seront ajoutés qu'après validation séparée de leur utilité et du risque de faux déclenchement.
 
 ## 0.4 - Fiabilité et accessibilité
@@ -90,15 +125,16 @@ Les raccourcis, tuiles rapides ou appels complémentaires ne seront ajoutés qu'
 - auditer TalkBack, contraste, taille de texte et zones tactiles ;
 - documenter les restrictions propres aux constructeurs ;
 - confirmer le fonctionnement sur un appareil ancien ou d'entrée de gamme ;
-- ajouter un historique local minimal uniquement si les tests montrent qu'il est nécessaire, désactivable et sans corps de SMS ni coordonnées ;
-- étudier un import/export chiffré uniquement si le besoin est confirmé.
+- ajouter les tests instrumentés nécessaires pour les flux multi-contact et sélecteur de documents ;
+- étudier un historique local plus riche uniquement si le besoin est confirmé, désactivable et sans corps de SMS ni coordonnées ;
+- évaluer un verrouillage par code/biométrie avant export comme durcissement facultatif, sans rendre l'export dépendant d'un SDK propriétaire.
 
 ## 0.5+ - sécurité et usages avancés
 
 - étudier une authentification de requête plus robuste que numéro + phrase seule tout en restant compatible avec SMS et usage sans Internet ;
-- étudier plusieurs contacts autorisés avec droits explicites et limités ;
-- valider les besoins réels d'import/export chiffré et d'historique local minimal ;
-- poursuivre les améliorations multi-SIM sur la base de tests réels.
+- étudier des privilèges différents par contact uniquement après revue spécifique d'abus/coercition ;
+- poursuivre les améliorations multi-SIM sur la base de tests réels ;
+- mesurer l'impact CPU/batterie/poids APK de la cryptographie de sauvegarde sur appareils anciens.
 
 ## Module de récupération d'appareil - étude séparée
 

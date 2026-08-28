@@ -18,6 +18,7 @@ import com.vevak.app.location.LocationRequestPolicy
 import com.vevak.app.location.LocationSource
 import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.location.VeVakLocationSnapshot
+import com.vevak.app.model.TrustedContact
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.IncomingRequestMode
 import com.vevak.app.security.RequestModeResolver
@@ -40,16 +41,19 @@ class SmsRequestHandler(private val context: Context) {
         val incoming = SmsIntentReader.read(intent) ?: return
         val settings = settingsRepository.current()
         if (!settings.completedOnboarding) return
-        if (!phoneMatcher.matches(incoming.sender, settings.contactPhone)) return
 
-        val mode = RequestModeResolver.resolve(incoming.body, settings) ?: return
+        val resolved = resolveContact(incoming.sender, incoming.body, settings) ?: return
+        val contact = resolved.first
+        val mode = resolved.second
         val now = System.currentTimeMillis()
         val discreet = settings.isDiscreetModeActive(now)
 
-        if (!settings.hasActiveAuthorization(now)) {
+        if (!contact.hasActiveAuthorization(now)) {
             auditRepository.append(now, RequestAuditOutcome.BlockedAuthorization)
             if (notifier.notificationsAllowedForRequests(discreet)) notifier.showRequestReceived(discreet)
-            notifier.cancelActiveStatus()
+            // Another contact may still be authorised, so resynchronise instead of blindly
+            // removing the persistent status notification.
+            notifier.syncActiveStatus(settings)
             return
         }
 
@@ -65,6 +69,8 @@ class SmsRequestHandler(private val context: Context) {
             return
         }
 
+        // This limiter intentionally remains global across all trusted contacts. Adding contacts
+        // must never multiply the number of automatic location replies allowed per day.
         val allowed = runtimeRepository.tryAcquire(
             nowMillis = now,
             minimumIntervalMillis = settings.minRequestIntervalSeconds * 1_000L
@@ -108,6 +114,19 @@ class SmsRequestHandler(private val context: Context) {
                 else -> RequestAuditOutcome.Replied
             }
         )
+    }
+
+    private fun resolveContact(
+        sender: String?,
+        body: String,
+        settings: VeVakSettings
+    ): Pair<TrustedContact, IncomingRequestMode>? {
+        return settings.trustedContacts().asSequence()
+            .filter { phoneMatcher.matches(sender, it.phone) }
+            .mapNotNull { contact ->
+                RequestModeResolver.resolve(body, contact.triggerPhrase, settings)?.let { mode -> contact to mode }
+            }
+            .firstOrNull()
     }
 
     /**

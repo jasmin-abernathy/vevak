@@ -31,7 +31,7 @@ class RequestVisibilityNotifier(private val context: Context) {
                     "VeVak actif",
                     NotificationManager.IMPORTANCE_LOW
                 ).apply {
-                    description = "Indique visiblement qu'un contact est autorisé à demander une position."
+                    description = "Indique visiblement qu'au moins un contact est autorisé à demander une position."
                     lockscreenVisibility = Notification.VISIBILITY_PRIVATE
                 },
                 NotificationChannel(
@@ -66,17 +66,23 @@ class RequestVisibilityNotifier(private val context: Context) {
     }
 
     fun syncActiveStatus(settings: VeVakSettings) {
-        if (!settings.hasActiveAuthorization() || !statusNotificationsAllowed()) {
+        val activeContacts = settings.activeTrustedContacts()
+        if (activeContacts.isEmpty() || !statusNotificationsAllowed()) {
             cancelActiveStatus()
             return
         }
-        val contact = settings.contactName.ifBlank { settings.contactPhone }
-        val expiry = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(settings.authorizationExpiresAtEpochMs))
+        val latestExpiry = activeContacts.maxOf { it.authorizationExpiresAtEpochMs }
+        val expiry = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(latestExpiry))
+        val accessText = if (activeContacts.size == 1) {
+            "${activeContacts.first().displayLabel()} peut demander votre position jusqu'au $expiry."
+        } else {
+            "${activeContacts.size} contacts peuvent demander votre position ; dernière autorisation jusqu'au $expiry."
+        }
         val discreetSuffix = if (settings.isDiscreetModeActive()) " Mode discret temporaire actif." else ""
         val notification = Notification.Builder(context, STATUS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("VeVak est actif")
-            .setContentText("$contact peut demander votre position jusqu'au $expiry.$discreetSuffix")
+            .setContentText(accessText + discreetSuffix)
             .setContentIntent(openAppIntent())
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_STATUS)

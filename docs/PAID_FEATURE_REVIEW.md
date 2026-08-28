@@ -18,17 +18,19 @@ Copy this file into an issue or design note for every capability proposed behind
 ## Why paid?
 
 - Why is charging appropriate for this capability?
-- Why is it not part of VeVak's free safety baseline?
+- Why is it not part of VeVak's free safety/resilience baseline?
 - What real maintenance, convenience or infrastructure value justifies payment?
 
 ## Free-tier safety check
 
 Confirm that a user without entitlement can still:
 
-- receive/respond to the basic authorised SMS request;
-- use the supported manual share flow;
-- revoke authorisation locally;
-- benefit from anti-tracking limits and request visibility;
+- receive/respond to authorised SMS requests;
+- configure several trusted contacts with separate finite local authorisations;
+- use the supported manual share flow to a configured contact;
+- export/import their VeVak configuration in a password-protected encrypted file;
+- revoke each authorisation locally;
+- benefit from device-wide anti-tracking limits and request visibility;
 - use supported duress/safety safeguards;
 - access safety-critical diagnostics;
 - delete local data.
@@ -57,7 +59,7 @@ If any answer is no, stop and redesign the proposal.
 - Abuse/coercion risks:
 - Why the feature cannot create covert tracking:
 
-No billing or relay metadata may contain phone numbers, SMS bodies, request phrases, coordinates, trusted Wi-Fi identifiers or duress state.
+No billing or relay metadata may contain phone numbers, SMS bodies, request phrases, coordinates, trusted Wi-Fi identifiers, backup contents or duress state.
 
 ## FOSS / flavor boundary
 
