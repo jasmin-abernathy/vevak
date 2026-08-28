@@ -1,8 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- VeVak can be installed for diagnostics/testing on devices without SMS hardware,
+         but its core SMS feature will be reported unavailable there. -->
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.telephony.messaging"
-        android:required="true" />
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.location"
         android:required="false" />
@@ -28,7 +33,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.VeVak">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
