@@ -41,34 +41,42 @@ class RequestVisibilityNotifier(private val context: Context) {
                 ).apply {
                     description = "Prévient le propriétaire du téléphone lorsqu'une demande VeVak est reçue."
                     lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+                },
+                NotificationChannel(
+                    DISCREET_REQUEST_CHANNEL_ID,
+                    "Demandes VeVak discrètes",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Demandes VeVak sans son ni vibration pendant un mode discret activé localement et limité dans le temps."
+                    lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+                    setSound(null, null)
+                    enableVibration(false)
+                    setShowBadge(false)
                 }
             )
         )
     }
 
-    fun notificationsAllowedForRequests(): Boolean {
+    fun notificationsAllowedForRequests(discreet: Boolean = false): Boolean {
         ensureChannels()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return false
-        }
-        if (!manager.areNotificationsEnabled()) return false
-        val requestChannel = manager.getNotificationChannel(REQUEST_CHANNEL_ID) ?: return false
+        if (!notificationPermissionAndGlobalStateAllowed()) return false
+        val channelId = if (discreet) DISCREET_REQUEST_CHANNEL_ID else REQUEST_CHANNEL_ID
+        val requestChannel = manager.getNotificationChannel(channelId) ?: return false
         return requestChannel.importance != NotificationManager.IMPORTANCE_NONE
     }
 
     fun syncActiveStatus(settings: VeVakSettings) {
-        if (!settings.hasActiveAuthorization() || !notificationsAllowedForRequests()) {
+        if (!settings.hasActiveAuthorization() || !statusNotificationsAllowed()) {
             cancelActiveStatus()
             return
         }
         val contact = settings.contactName.ifBlank { settings.contactPhone }
         val expiry = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(settings.authorizationExpiresAtEpochMs))
+        val discreetSuffix = if (settings.isDiscreetModeActive()) " Mode discret temporaire actif." else ""
         val notification = Notification.Builder(context, STATUS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("VeVak est actif")
-            .setContentText("$contact peut demander votre position jusqu'au $expiry.")
+            .setContentText("$contact peut demander votre position jusqu'au $expiry.$discreetSuffix")
             .setContentIntent(openAppIntent())
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_STATUS)
@@ -78,22 +86,27 @@ class RequestVisibilityNotifier(private val context: Context) {
     }
 
     /**
-     * Returns false if VeVak cannot make the request visible. Callers must not send a
-     * location response when this returns false.
+     * Returns false if VeVak cannot make the request visible. Even in discreet mode a local,
+     * silent notification remains visible in the notification shade; there is no covert mode.
      */
-    fun showRequestReceived(): Boolean {
-        if (!notificationsAllowedForRequests()) return false
+    fun showRequestReceived(discreet: Boolean = false): Boolean {
+        if (!notificationsAllowedForRequests(discreet)) return false
         return runCatching {
-            val notification = Notification.Builder(context, REQUEST_CHANNEL_ID)
+            val channelId = if (discreet) DISCREET_REQUEST_CHANNEL_ID else REQUEST_CHANNEL_ID
+            val notification = Notification.Builder(context, channelId)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle("Demande VeVak reçue")
-                .setContentText("Une demande de position a été reçue. Ouvrez VeVak pour voir l'historique.")
+                .setContentTitle(if (discreet) "VeVak" else "Demande VeVak reçue")
+                .setContentText(
+                    if (discreet) "Une demande a été traitée."
+                    else "Une demande de position a été reçue. Ouvrez VeVak pour voir l'historique."
+                )
                 .setContentIntent(openAppIntent())
                 .setAutoCancel(true)
                 .setCategory(Notification.CATEGORY_STATUS)
                 .setVisibility(Notification.VISIBILITY_PRIVATE)
                 .setWhen(System.currentTimeMillis())
-                .setShowWhen(true)
+                .setShowWhen(!discreet)
+                .setSilent(discreet)
                 .build()
             manager.notify(REQUEST_NOTIFICATION_ID, notification)
         }.isSuccess
@@ -101,6 +114,22 @@ class RequestVisibilityNotifier(private val context: Context) {
 
     fun cancelActiveStatus() {
         manager.cancel(ACTIVE_NOTIFICATION_ID)
+    }
+
+    private fun statusNotificationsAllowed(): Boolean {
+        ensureChannels()
+        if (!notificationPermissionAndGlobalStateAllowed()) return false
+        val statusChannel = manager.getNotificationChannel(STATUS_CHANNEL_ID) ?: return false
+        return statusChannel.importance != NotificationManager.IMPORTANCE_NONE
+    }
+
+    private fun notificationPermissionAndGlobalStateAllowed(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
+        }
+        return manager.areNotificationsEnabled()
     }
 
     private fun openAppIntent(): PendingIntent {
@@ -118,6 +147,7 @@ class RequestVisibilityNotifier(private val context: Context) {
     private companion object {
         const val STATUS_CHANNEL_ID = "vevak_active_status"
         const val REQUEST_CHANNEL_ID = "vevak_requests"
+        const val DISCREET_REQUEST_CHANNEL_ID = "vevak_requests_discreet"
         const val ACTIVE_NOTIFICATION_ID = 4101
         const val REQUEST_NOTIFICATION_ID = 4102
     }
