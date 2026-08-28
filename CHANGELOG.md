@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased - abuse-prevention safeguards (2026-08-28)
+
+### Added
+
+- explicit, time-limited local authorisation (24 h, 7 days or 30 days) with no permanent option;
+- immediate local revocation from the home screen;
+- request visibility as a hard safety boundary: automatic location replies are blocked when VeVak cannot post request notifications;
+- ongoing active-status notification identifying the authorised contact and expiry;
+- hard anti-tracking limits of at least 15 minutes between automatic replies and at most four replies per 24-hour window;
+- minimal local request audit (maximum 20 generic outcomes, no coordinates, SMS text, phone number, phrase or duress marker);
+- optional safety-fallback / duress phrase with a pre-recorded fallback location;
+- fail-safe duress routing: a duress command never calls the real location repository, and phrase collisions prefer the safety path;
+- `ABUSE-PREVENTION.md` documenting coercive-control threat assumptions and non-negotiable product invariants;
+- unit tests for authorisation expiry, rate limits, phrase separation and fail-safe request routing.
+
+### Changed
+
+- legacy installs with no explicit authorisation timestamps are paused after upgrade and require local re-authorisation;
+- legacy request intervals below 15 minutes are clamped to the anti-tracking floor;
+- Android 13+ notification permission is now requested because request visibility is required for automatic replies;
+- privacy/security documentation no longer assumes that every outgoing SMS is necessarily inserted into the user's messaging-app history.
+
 ## Unreleased - product/repository sync (2026-08-27)
 
 Documentation and planning have been synchronised with the VeVak discussions held after the v4 ecodesign kit.
@@ -44,5 +66,4 @@ This changelog entry documents product direction only. It does **not** claim imp
 - 18 issues initiales de stabilisation et de mesure ;
 - scripts de création des labels, milestones et issues ;
 - CI limitée aux changements techniques et annulant les exécutions obsolètes ;
-- documentation explicite de l'absence de serveur et de WorkManager dans le
-  chemin critique.
+- documentation explicite de l'absence de serveur et de WorkManager dans le chemin critique.

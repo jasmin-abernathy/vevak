@@ -13,9 +13,12 @@ import androidx.core.content.ContextCompat
 import com.vevak.app.BuildConfig
 import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.model.VeVakSettings
+import com.vevak.app.security.DuressPolicy
+import com.vevak.app.system.RequestVisibilityNotifier
 
 class DiagnosticsRepository(private val context: Context) {
     private val locationRepository = VeVakLocationRepository(context)
+    private val notifier = RequestVisibilityNotifier(context)
 
     fun snapshot(settings: VeVakSettings): DiagnosticsSnapshot {
         val receive = granted(Manifest.permission.RECEIVE_SMS)
@@ -37,10 +40,16 @@ class DiagnosticsRepository(private val context: Context) {
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
         }
         val backend = locationRepository.backendStatus()
+        val authorization = settings.hasActiveAuthorization()
+        val visibility = notifier.notificationsAllowedForRequests()
+        val duressValid = DuressPolicy.configurationIsValid(settings)
 
         val checks = listOf(
             check(settings.contactPhone.isNotBlank(), "Contact autorisé", "Un numéro est configuré.", "Ajoutez le numéro qui peut interroger VeVak."),
             check(settings.triggerPhrase.isNotBlank(), "Phrase de déclenchement", "Phrase configurée.", "Définissez une phrase non vide."),
+            check(authorization, "Autorisation locale", "Autorisation active et limitée dans le temps.", "Réactivez explicitement l'autorisation du contact."),
+            check(duressValid, "Protection sous contrainte", "Configuration cohérente.", "La phrase de sécurité doit être distincte et une position de repli doit être enregistrée."),
+            check(visibility, "Visibilité des demandes", "Notifications disponibles.", "Activez les notifications VeVak : aucune position ne sera envoyée sans notification visible."),
             check(telephony, "Téléphonie SMS", "Appareil compatible.", "Cet appareil ne déclare pas la fonction SMS."),
             check(receive, "Réception des SMS", "Autorisation accordée.", "Autorisation RECEIVE_SMS manquante."),
             check(send, "Envoi des SMS", "Autorisation accordée.", "Autorisation SEND_SMS manquante."),
@@ -60,7 +69,7 @@ class DiagnosticsRepository(private val context: Context) {
             checks.forEachIndexed { index, value ->
                 appendLine("check.$index=${value.state}:${value.title}")
             }
-            append("Phone numbers, SMS bodies, trigger phrases and coordinates are excluded.")
+            append("Phone numbers, SMS bodies, trigger phrases, fallback mode and coordinates are excluded.")
         }
         return DiagnosticsSnapshot(checks, backend.name, report)
     }

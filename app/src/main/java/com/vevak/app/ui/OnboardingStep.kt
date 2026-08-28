@@ -4,4 +4,4 @@
  */
 package com.vevak.app.ui
 
-enum class OnboardingStep { Welcome, Contact, Trigger, Options, Permissions, Summary, Home }
+enum class OnboardingStep { Welcome, Contact, Trigger, Options, Permissions, Safety, Summary, Home }

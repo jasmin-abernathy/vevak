@@ -5,8 +5,15 @@
 package com.vevak.app
 
 import com.vevak.app.location.LocationSelectionPolicy
+import com.vevak.app.model.AuthorizationDuration
+import com.vevak.app.model.VeVakSettings
+import com.vevak.app.security.DuressPolicy
+import com.vevak.app.security.IncomingRequestMode
+import com.vevak.app.security.RequestModeResolver
 import com.vevak.app.security.RequestRatePolicy
+import com.vevak.app.security.RequestRateState
 import com.vevak.app.sms.SmsCommandParser
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -23,14 +30,78 @@ class CorePoliciesTest {
     }
 
     @Test
-    fun rateLimit_allowsFirstAndExpiredRequests() {
-        assertTrue(RequestRatePolicy.isAllowed(0L, 1_000L, 60_000L))
-        assertTrue(RequestRatePolicy.isAllowed(10_000L, 70_000L, 60_000L))
+    fun rateLimit_enforcesHardMinimumEvenIfLegacySettingWasLower() {
+        val first = RequestRatePolicy.evaluate(RequestRateState(), 1_000L, 60_000L)
+        assertTrue(first.allowed)
+        assertFalse(RequestRatePolicy.evaluate(first.state, 61_000L, 60_000L).allowed)
+        assertTrue(
+            RequestRatePolicy.evaluate(
+                first.state,
+                1_000L + RequestRatePolicy.HARD_MIN_INTERVAL_MILLIS,
+                60_000L
+            ).allowed
+        )
     }
 
     @Test
-    fun rateLimit_rejectsTooFrequentRequest() {
-        assertFalse(RequestRatePolicy.isAllowed(10_000L, 69_999L, 60_000L))
+    fun rateLimit_capsAutomaticRepliesInside24Hours() {
+        var state = RequestRateState()
+        var now = 1_000L
+        repeat(RequestRatePolicy.MAX_REQUESTS_PER_WINDOW) {
+            val result = RequestRatePolicy.evaluate(state, now, RequestRatePolicy.HARD_MIN_INTERVAL_MILLIS)
+            assertTrue(result.allowed)
+            state = result.state
+            now += RequestRatePolicy.HARD_MIN_INTERVAL_MILLIS
+        }
+        assertFalse(RequestRatePolicy.evaluate(state, now, RequestRatePolicy.HARD_MIN_INTERVAL_MILLIS).allowed)
+    }
+
+    @Test
+    fun rateLimit_resetsAfter24HoursButRejectsClockRollback() {
+        val first = RequestRatePolicy.evaluate(RequestRateState(), 1_000_000L, 0L)
+        assertTrue(first.allowed)
+        assertFalse(RequestRatePolicy.evaluate(first.state, 999_999L, 0L).allowed)
+        assertTrue(
+            RequestRatePolicy.evaluate(
+                first.state,
+                first.state.windowStartMillis + RequestRatePolicy.WINDOW_MILLIS,
+                0L
+            ).allowed
+        )
+    }
+
+    @Test
+    fun duressPolicy_requiresClearlyDistinctPhrasesAndValidCoordinates() {
+        assertFalse(DuressPolicy.phrasesAreDistinctEnough("où es-tu", "où es-tu stp"))
+        assertTrue(DuressPolicy.phrasesAreDistinctEnough("besoin position", "tu peux me rappeler maintenant"))
+        assertTrue(DuressPolicy.coordinatesAreValid(48.0, 2.0))
+        assertFalse(DuressPolicy.coordinatesAreValid(91.0, 2.0))
+    }
+
+    @Test
+    fun duressModeWinsFailSafeIfPhrasesEverCollide() {
+        val settings = VeVakSettings(
+            triggerPhrase = "position maintenant",
+            duressEnabled = true,
+            duressPhrase = "position maintenant"
+        )
+        assertEquals(IncomingRequestMode.Duress, RequestModeResolver.resolve("position maintenant", settings))
+    }
+
+    @Test
+    fun authorizationIsFiniteAndMustBeExplicitlyGranted() {
+        val now = 10_000L
+        val expiry = AuthorizationDuration.SevenDays.expiresAt(now)
+        val active = VeVakSettings(
+            completedOnboarding = true,
+            contactPhone = "+33123456789",
+            triggerPhrase = "besoin position",
+            authorizationGrantedAtEpochMs = now,
+            authorizationExpiresAtEpochMs = expiry
+        )
+        assertTrue(active.isConfigured(now + 1L))
+        assertFalse(active.isConfigured(expiry))
+        assertFalse(active.copy(authorizationGrantedAtEpochMs = 0L, authorizationExpiresAtEpochMs = 0L).isConfigured(now))
     }
 
     @Test

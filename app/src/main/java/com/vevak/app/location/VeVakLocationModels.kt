@@ -14,7 +14,8 @@ enum class LocationSource(val label: String) {
     FusedCurrent("Fused / actuelle"),
     FusedLastKnown("Fused / cache"),
     AndroidCurrent("Android / actuelle"),
-    AndroidLastKnown("Android / cache")
+    AndroidLastKnown("Android / cache"),
+    SafetyFallback("Repli de sécurité")
 }
 
 data class LocationBackendStatus(

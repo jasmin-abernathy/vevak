@@ -13,7 +13,8 @@
   "runtimeDefaults": {
     "acceptedCachedLocationMaxAgeSeconds": 120,
     "singleLocationTimeoutSeconds": 8,
-    "minimumAcceptedRequestIntervalSeconds": 60,
+    "minimumAcceptedRequestIntervalSeconds": 900,
+    "maximumAutomaticRepliesPer24Hours": 4,
     "staleFallback": "optional and clearly labelled"
   },
   "build": {
