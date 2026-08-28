@@ -17,6 +17,16 @@ Les tâches critiques liées à l'expéditeur SMS, aux permissions, à la
 localisation en arrière-plan ou à l'authentification ne sont généralement pas
 classées `good first issue`.
 
+## Contribuer à une version iOS
+
+Une version iOS est désormais ouverte à l'étude. Avant toute contribution Apple/Swift, lisez [`IOS-PORT.md`](IOS-PORT.md) et l'issue dédiée.
+
+Le but n'est pas de recopier naïvement le fonctionnement Android : iOS impose un modèle différent pour la réception et l'envoi des SMS. Le premier prototype utile doit donc viser un **partage manuel de position natif**, avec confirmation locale, Core Location et l'interface système d'envoi de message.
+
+Ne déposez pas encore de projet Xcode au milieu de la structure Android. Une fois une architecture iOS validée et un contributeur prêt à développer réellement le prototype, un dépôt `vevak-ios` séparé pourra être créé.
+
+Les règles de confidentialité, d'anti-coercition, de sobriété et d'absence de suivi furtif restent communes aux deux plateformes.
+
 ## Règles d'architecture
 
 - préserver la variante `foss` sans Google Play Services ;
