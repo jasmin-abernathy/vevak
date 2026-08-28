@@ -35,9 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -147,7 +145,7 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
     }
     Title("4. Autorisations")
     Text("Les permissions SMS servent uniquement à recevoir la commande et à répondre. La localisation est sollicitée seulement après une commande autorisée.")
-    Primary("Autoriser SMS et localisation") { launcher.launch(mainPermissions) }
+    Primary("Autoriser SMS et localisation", onClick = { launcher.launch(mainPermissions) })
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         OutlinedButton(
             onClick = {
