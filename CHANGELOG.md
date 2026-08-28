@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased - trusted place and discreet alerts (2026-08-28)
+
+### Added
+
+- optional trusted-place shortcut using the currently connected Wi-Fi network;
+- only a SHA-256 fingerprint of the Wi-Fi SSID is stored locally, never the network name in clear text;
+- normal requests can reply with a local label such as `Maison` without waking GPS when the trusted Wi-Fi matches;
+- trusted-place detection is never consulted for a duress request;
+- temporary discreet mode for 1 h, 8 h or 24 h, capped by the remaining authorisation period;
+- dedicated low-importance request-notification channel for discreet mode, silent and without vibration by default;
+- home-screen controls to register/remove the trusted Wi-Fi, rename its label, enable/disable discreet mode and see its expiry;
+- unit coverage for finite discreet mode and deterministic SSID hashing.
+
+### Safety constraints
+
+- discreet mode does **not** create a covert mode: request notifications remain visible in Android and the ongoing `VeVak est actif` notification remains present;
+- disabling notifications globally or disabling the active request channel still blocks automatic replies;
+- the trusted Wi-Fi shortcut is a convenience/privacy optimisation, not proof of physical presence;
+- if Android cannot identify the current Wi-Fi network, VeVak falls back to the normal location path.
+
 ## Unreleased - abuse-prevention safeguards (2026-08-28)
 
 ### Added
