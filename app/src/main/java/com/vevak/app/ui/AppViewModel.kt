@@ -7,10 +7,12 @@ package com.vevak.app.ui
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.telephony.SubscriptionManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.vevak.app.backup.SettingsBackupRepository
 import com.vevak.app.data.RequestAuditEvent
 import com.vevak.app.data.RequestAuditRepository
 import com.vevak.app.data.RuntimeStateRepository
@@ -22,13 +24,17 @@ import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.location.VeVakLocationSnapshot
 import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.MapProvider
+import com.vevak.app.model.TrustedContact
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
+import com.vevak.app.sms.PhoneNumberMatcher
 import com.vevak.app.sms.SmsReplyFormatter
 import com.vevak.app.sms.SmsReplySender
 import com.vevak.app.system.BatteryReader
 import com.vevak.app.system.RequestVisibilityNotifier
 import com.vevak.app.system.TrustedNetworkReader
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,10 +51,18 @@ data class AppUiState(
     val testLocationLoading: Boolean = false,
     val fallbackLocationLoading: Boolean = false,
     val manualShareConfirmationPending: Boolean = false,
+    val manualShareTargetContactId: String? = null,
     val manualShareLoading: Boolean = false,
     val auditEvents: List<RequestAuditEvent> = emptyList(),
     val authorizationDuration: AuthorizationDuration = AuthorizationDuration.ThirtyDays,
     val consentChecked: Boolean = false,
+    val newContactName: String = "",
+    val newContactPhone: String = "",
+    val newContactTriggerPhrase: String = "",
+    val newContactAuthorizationDuration: AuthorizationDuration = AuthorizationDuration.ThirtyDays,
+    val newContactConsentChecked: Boolean = false,
+    val backupPassword: String = "",
+    val backupBusy: Boolean = false,
     val message: String? = null
 )
 
@@ -62,6 +76,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val batteryReader = BatteryReader(application)
     private val notifier = RequestVisibilityNotifier(application)
     private val trustedNetworkReader = TrustedNetworkReader(application)
+    private val phoneMatcher = PhoneNumberMatcher(application)
+    private val backupRepository = SettingsBackupRepository(application)
     private val _state = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
@@ -157,13 +173,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setDiscreetMode(hours: Int) {
         if (hours !in setOf(1, 8, 24)) return
         val settings = _state.value.settings
-        if (!settings.hasActiveAuthorization()) {
-            _state.update { it.copy(message = "Réactivez d'abord l'autorisation VeVak.") }
+        val now = System.currentTimeMillis()
+        val latestExpiry = settings.latestActiveAuthorizationExpiry(now)
+        if (latestExpiry == null) {
+            _state.update { it.copy(message = "Réactivez d'abord au moins un contact VeVak.") }
             return
         }
-        val now = System.currentTimeMillis()
         val requestedUntil = now + hours * HOUR_MILLIS
-        val until = minOf(requestedUntil, settings.authorizationExpiresAtEpochMs)
+        val until = minOf(requestedUntil, latestExpiry)
         val updated = settings.copy(discreetModeUntilEpochMs = until)
         persistSettings(updated, "Mode discret activé jusqu'au ${java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(until))}. Les demandes restent visibles dans Android, mais sans son ni vibration.")
     }
@@ -173,12 +190,96 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         persistSettings(updated, "Mode discret désactivé.")
     }
 
-    fun requestManualPositionShare() {
-        val app = getApplication<Application>()
-        val settings = _state.value.settings
+    fun updateNewContactName(value: String) = _state.update { it.copy(newContactName = value.take(80), message = null) }
+    fun updateNewContactPhone(value: String) = _state.update { it.copy(newContactPhone = value.take(40), message = null) }
+    fun updateNewContactTrigger(value: String) = _state.update { it.copy(newContactTriggerPhrase = value.take(120), message = null) }
+    fun setNewContactAuthorizationDuration(value: AuthorizationDuration) =
+        _state.update { it.copy(newContactAuthorizationDuration = value, message = null) }
+    fun setNewContactConsentChecked(value: Boolean) =
+        _state.update { it.copy(newContactConsentChecked = value, message = null) }
+
+    fun addTrustedContact() {
+        val current = _state.value
+        val settings = current.settings
+        val name = current.newContactName.trim()
+        val phone = current.newContactPhone.trim()
+        val trigger = current.newContactTriggerPhrase.trim()
         when {
-            settings.contactPhone.isBlank() ->
-                _state.update { it.copy(message = "Configurez d'abord un contact de confiance.") }
+            settings.trustedContacts().size >= VeVakSettings.MAX_TRUSTED_CONTACTS -> {
+                _state.update { it.copy(message = "VeVak limite actuellement les contacts de confiance à ${VeVakSettings.MAX_TRUSTED_CONTACTS} afin de garder le modèle d'accès simple et vérifiable.") }
+                return
+            }
+            phone.isBlank() || trigger.isBlank() -> {
+                _state.update { it.copy(message = "Le numéro et la phrase du nouveau contact sont obligatoires.") }
+                return
+            }
+            !current.newContactConsentChecked -> {
+                _state.update { it.copy(message = "Confirmez explicitement que ce nouveau contact est autorisé à demander votre position.") }
+                return
+            }
+            settings.trustedContacts().any { phoneMatcher.matches(phone, it.phone) } -> {
+                _state.update { it.copy(message = "Ce numéro correspond déjà à un contact VeVak.") }
+                return
+            }
+            settings.duressEnabled && !DuressPolicy.phrasesAreDistinctEnough(trigger, settings.duressPhrase) -> {
+                _state.update { it.copy(message = "La phrase normale de ce contact est trop proche de la phrase sous contrainte.") }
+                return
+            }
+        }
+
+        val now = System.currentTimeMillis()
+        val contact = TrustedContact(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            phone = phone,
+            triggerPhrase = trigger,
+            authorizationGrantedAtEpochMs = now,
+            authorizationExpiresAtEpochMs = current.newContactAuthorizationDuration.expiresAt(now)
+        )
+        val updated = settings.copy(additionalTrustedContacts = settings.additionalTrustedContacts + contact)
+        persistSettings(updated, "Contact ajouté et autorisé pour ${current.newContactAuthorizationDuration.label}.")
+        _state.update {
+            it.copy(
+                newContactName = "",
+                newContactPhone = "",
+                newContactTriggerPhrase = "",
+                newContactAuthorizationDuration = AuthorizationDuration.ThirtyDays,
+                newContactConsentChecked = false
+            )
+        }
+    }
+
+    fun revokeContact(contactId: String) {
+        val settings = _state.value.settings
+        val contact = settings.contactById(contactId) ?: return
+        val updated = settings.withUpdatedContact(contact.revoke()).copy(discreetModeUntilEpochMs = 0L)
+        persistSettings(updated, "Accès de ${contact.displayLabel()} coupé immédiatement.")
+    }
+
+    fun reauthorizeContact(contactId: String, duration: AuthorizationDuration) {
+        val settings = _state.value.settings
+        val contact = settings.contactById(contactId) ?: return
+        val now = System.currentTimeMillis()
+        val updatedContact = contact.copy(
+            authorizationGrantedAtEpochMs = now,
+            authorizationExpiresAtEpochMs = duration.expiresAt(now)
+        )
+        persistSettings(settings.withUpdatedContact(updatedContact), "${contact.displayLabel()} est de nouveau autorisé pour ${duration.label}.")
+    }
+
+    fun removeAdditionalContact(contactId: String) {
+        if (contactId == VeVakSettings.PRIMARY_CONTACT_ID) return
+        val settings = _state.value.settings
+        val contact = settings.contactById(contactId) ?: return
+        persistSettings(settings.withoutContact(contactId), "${contact.displayLabel()} a été supprimé de VeVak.")
+    }
+
+    fun requestManualPositionShare(contactId: String = VeVakSettings.PRIMARY_CONTACT_ID) {
+        val app = getApplication<Application>()
+        val contact = _state.value.settings.contactById(contactId)
+        when {
+            contact == null || contact.phone.isBlank() ->
+                _state.update { it.copy(message = "Choisissez d'abord un contact de confiance configuré.") }
             ContextCompat.checkSelfPermission(app, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED ->
                 _state.update { it.copy(message = "Autorisez d'abord l'envoi de SMS.") }
             !hasForegroundLocationPermission(app) ->
@@ -186,12 +287,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             defaultSmsSubscriptionId() == null ->
                 _state.update { it.copy(message = "Choisissez une SIM par défaut pour les SMS dans Android avant l'envoi. VeVak n'en choisit jamais une au hasard.") }
             else ->
-                _state.update { it.copy(manualShareConfirmationPending = true, message = null) }
+                _state.update {
+                    it.copy(
+                        manualShareConfirmationPending = true,
+                        manualShareTargetContactId = contact.id,
+                        message = null
+                    )
+                }
         }
     }
 
     fun cancelManualPositionShare() {
-        _state.update { it.copy(manualShareConfirmationPending = false, message = "Envoi annulé.") }
+        _state.update {
+            it.copy(
+                manualShareConfirmationPending = false,
+                manualShareTargetContactId = null,
+                message = "Envoi annulé."
+            )
+        }
     }
 
     fun confirmManualPositionShare() {
@@ -199,22 +312,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val current = _state.value
         if (!current.manualShareConfirmationPending || current.manualShareLoading) return
         val settings = current.settings
+        val contact = current.manualShareTargetContactId?.let(settings::contactById)
         val subscriptionId = defaultSmsSubscriptionId()
         when {
-            settings.contactPhone.isBlank() -> {
-                _state.update { it.copy(manualShareConfirmationPending = false, message = "Aucun contact n'est configuré.") }
+            contact == null || contact.phone.isBlank() -> {
+                _state.update { it.copy(manualShareConfirmationPending = false, manualShareTargetContactId = null, message = "Le contact sélectionné n'est plus configuré.") }
                 return
             }
             ContextCompat.checkSelfPermission(app, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED -> {
-                _state.update { it.copy(manualShareConfirmationPending = false, message = "Autorisation d'envoi de SMS absente.") }
+                _state.update { it.copy(manualShareConfirmationPending = false, manualShareTargetContactId = null, message = "Autorisation d'envoi de SMS absente.") }
                 return
             }
             !hasForegroundLocationPermission(app) -> {
-                _state.update { it.copy(manualShareConfirmationPending = false, message = "Autorisation de localisation absente.") }
+                _state.update { it.copy(manualShareConfirmationPending = false, manualShareTargetContactId = null, message = "Autorisation de localisation absente.") }
                 return
             }
             subscriptionId == null -> {
-                _state.update { it.copy(manualShareConfirmationPending = false, message = "Aucune SIM SMS par défaut n'est définie dans Android.") }
+                _state.update { it.copy(manualShareConfirmationPending = false, manualShareTargetContactId = null, message = "Aucune SIM SMS par défaut n'est définie dans Android.") }
                 return
             }
         }
@@ -241,6 +355,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update {
                     it.copy(
                         manualShareLoading = false,
+                        manualShareTargetContactId = null,
                         message = "Aucune position obtenue : aucun SMS n'a été envoyé."
                     )
                 }
@@ -249,7 +364,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             val body = SmsReplyFormatter.formatManualShare(settings, location, batteryReader.percentage())
             val acceptedByAndroid = runCatching {
-                smsSender.send(settings.contactPhone, body, subscriptionId)
+                smsSender.send(contact.phone, body, subscriptionId)
             }.isSuccess
 
             // Deliberately no RequestVisibilityNotifier call here. A manual share is an explicit,
@@ -257,8 +372,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _state.update {
                 it.copy(
                     manualShareLoading = false,
+                    manualShareTargetContactId = null,
                     message = if (acceptedByAndroid) {
-                        "SMS transmis à Android pour envoi à votre contact. La livraison n'est pas garantie."
+                        "SMS transmis à Android pour envoi à ${contact.displayLabel()}. La livraison n'est pas garantie."
                     } else {
                         "Échec de l'envoi du SMS. Rien ne permet de confirmer sa livraison."
                     }
@@ -327,26 +443,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun revokeAuthorization() {
-        viewModelScope.launch {
-            val revoked = _state.value.settings.copy(
-                authorizationGrantedAtEpochMs = 0L,
-                authorizationExpiresAtEpochMs = 0L,
-                discreetModeUntilEpochMs = 0L
-            )
-            settingsRepository.save(revoked)
-            runtimeRepository.reset()
-            notifier.cancelActiveStatus()
-            _state.update {
-                it.copy(
-                    settings = revoked,
-                    manualShareConfirmationPending = false,
-                    message = "Accès du contact coupé immédiatement."
-                )
-            }
-            refreshDiagnostics()
-        }
-    }
+    fun revokeAuthorization() = revokeContact(VeVakSettings.PRIMARY_CONTACT_ID)
 
     fun reset() {
         viewModelScope.launch {
@@ -360,6 +457,75 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun persistDraft() {
         viewModelScope.launch { settingsRepository.save(_state.value.settings) }
+    }
+
+    fun updateBackupPassword(value: String) =
+        _state.update { it.copy(backupPassword = value.take(256), message = null) }
+
+    fun exportEncryptedBackup(uri: Uri) {
+        val password = _state.value.backupPassword
+        if (password.length < 8) {
+            _state.update { it.copy(message = "Choisissez un mot de passe de sauvegarde d'au moins 8 caractères.") }
+            return
+        }
+        val settings = _state.value.settings
+        _state.update { it.copy(backupBusy = true, message = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = runCatching { backupRepository.export(uri, settings, password) }
+            _state.update {
+                it.copy(
+                    backupBusy = false,
+                    backupPassword = "",
+                    message = if (result.isSuccess) {
+                        "Sauvegarde chiffrée créée. Conservez son mot de passe séparément : VeVak ne peut pas le récupérer."
+                    } else {
+                        "Impossible de créer la sauvegarde chiffrée. Aucun mot de passe n'a été enregistré par VeVak."
+                    }
+                )
+            }
+        }
+    }
+
+    fun importEncryptedBackup(uri: Uri) {
+        val password = _state.value.backupPassword
+        if (password.length < 8) {
+            _state.update { it.copy(message = "Saisissez le mot de passe de cette sauvegarde (8 caractères minimum).") }
+            return
+        }
+        _state.update { it.copy(backupBusy = true, message = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val restored = runCatching { backupRepository.import(uri, password) }.getOrNull()
+            if (restored == null || restored.trustedContacts().isEmpty() || !DuressPolicy.configurationIsValid(restored)) {
+                _state.update {
+                    it.copy(
+                        backupBusy = false,
+                        backupPassword = "",
+                        message = "Sauvegarde illisible, mot de passe incorrect ou configuration invalide. Rien n'a été modifié."
+                    )
+                }
+                return@launch
+            }
+
+            val safe = restored.withAllAuthorizationsRevoked().copy(
+                completedOnboarding = true,
+                discreetModeUntilEpochMs = 0L
+            )
+            settingsRepository.save(safe)
+            runtimeRepository.reset()
+            notifier.cancelActiveStatus()
+            _state.update {
+                it.copy(
+                    backupBusy = false,
+                    backupPassword = "",
+                    settings = safe,
+                    step = OnboardingStep.Home,
+                    manualShareConfirmationPending = false,
+                    manualShareTargetContactId = null,
+                    message = "Configuration restaurée. Par sécurité, tous les contacts sont désautorisés : réactivez localement uniquement ceux que vous souhaitez autoriser."
+                )
+            }
+            refreshDiagnostics()
+        }
     }
 
     fun refreshDiagnostics() {
