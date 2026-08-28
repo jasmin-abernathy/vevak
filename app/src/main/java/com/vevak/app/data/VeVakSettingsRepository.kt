@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.vevak.app.model.MapProvider
@@ -32,6 +33,13 @@ class VeVakSettingsRepository(private val context: Context) {
         val CACHE_AGE = intPreferencesKey("max_cached_location_age_seconds")
         val TIMEOUT = intPreferencesKey("location_timeout_seconds")
         val STALE_FALLBACK = booleanPreferencesKey("allow_stale_fallback")
+        val AUTH_GRANTED_AT = longPreferencesKey("authorization_granted_at_epoch_ms")
+        val AUTH_EXPIRES_AT = longPreferencesKey("authorization_expires_at_epoch_ms")
+        val DURESS_ENABLED = booleanPreferencesKey("duress_enabled")
+        val DURESS_PHRASE = stringPreferencesKey("duress_phrase")
+        val FALLBACK_LAT = stringPreferencesKey("fallback_latitude")
+        val FALLBACK_LON = stringPreferencesKey("fallback_longitude")
+        val FALLBACK_ACCURACY = stringPreferencesKey("fallback_accuracy_meters")
     }
 
     val settingsFlow: Flow<VeVakSettings> = context.settingsDataStore.data.map { it.toSettings() }
@@ -47,10 +55,17 @@ class VeVakSettingsRepository(private val context: Context) {
             prefs[Keys.INCLUDE_BATTERY] = settings.includeBattery
             prefs[Keys.INCLUDE_ACCURACY] = settings.includeAccuracy
             prefs[Keys.MAP_PROVIDER] = settings.mapProvider.name
-            prefs[Keys.MIN_INTERVAL] = settings.minRequestIntervalSeconds.coerceIn(30, 3600)
+            prefs[Keys.MIN_INTERVAL] = settings.minRequestIntervalSeconds.coerceIn(900, 3600)
             prefs[Keys.CACHE_AGE] = settings.maxCachedLocationAgeSeconds.coerceIn(30, 3600)
             prefs[Keys.TIMEOUT] = settings.locationTimeoutSeconds.coerceIn(3, 30)
             prefs[Keys.STALE_FALLBACK] = settings.allowStaleFallback
+            prefs[Keys.AUTH_GRANTED_AT] = settings.authorizationGrantedAtEpochMs.coerceAtLeast(0L)
+            prefs[Keys.AUTH_EXPIRES_AT] = settings.authorizationExpiresAtEpochMs.coerceAtLeast(0L)
+            prefs[Keys.DURESS_ENABLED] = settings.duressEnabled
+            prefs[Keys.DURESS_PHRASE] = settings.duressPhrase.trim()
+            settings.fallbackLatitude?.let { prefs[Keys.FALLBACK_LAT] = it.toString() } ?: prefs.remove(Keys.FALLBACK_LAT)
+            settings.fallbackLongitude?.let { prefs[Keys.FALLBACK_LON] = it.toString() } ?: prefs.remove(Keys.FALLBACK_LON)
+            settings.fallbackAccuracyMeters?.let { prefs[Keys.FALLBACK_ACCURACY] = it.toString() } ?: prefs.remove(Keys.FALLBACK_ACCURACY)
         }
     }
 
@@ -71,10 +86,17 @@ class VeVakSettingsRepository(private val context: Context) {
             includeBattery = this[Keys.INCLUDE_BATTERY] ?: true,
             includeAccuracy = this[Keys.INCLUDE_ACCURACY] ?: true,
             mapProvider = provider,
-            minRequestIntervalSeconds = this[Keys.MIN_INTERVAL] ?: 60,
+            minRequestIntervalSeconds = (this[Keys.MIN_INTERVAL] ?: 900).coerceIn(900, 3600),
             maxCachedLocationAgeSeconds = this[Keys.CACHE_AGE] ?: 120,
             locationTimeoutSeconds = this[Keys.TIMEOUT] ?: 8,
-            allowStaleFallback = this[Keys.STALE_FALLBACK] ?: true
+            allowStaleFallback = this[Keys.STALE_FALLBACK] ?: true,
+            authorizationGrantedAtEpochMs = this[Keys.AUTH_GRANTED_AT] ?: 0L,
+            authorizationExpiresAtEpochMs = this[Keys.AUTH_EXPIRES_AT] ?: 0L,
+            duressEnabled = this[Keys.DURESS_ENABLED] ?: false,
+            duressPhrase = this[Keys.DURESS_PHRASE].orEmpty(),
+            fallbackLatitude = this[Keys.FALLBACK_LAT]?.toDoubleOrNull(),
+            fallbackLongitude = this[Keys.FALLBACK_LON]?.toDoubleOrNull(),
+            fallbackAccuracyMeters = this[Keys.FALLBACK_ACCURACY]?.toFloatOrNull()
         )
     }
 }

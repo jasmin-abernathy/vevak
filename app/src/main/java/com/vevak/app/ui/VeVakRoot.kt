@@ -44,8 +44,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vevak.app.diagnostics.CheckState
+import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.MapProvider
+import com.vevak.app.security.DuressPolicy
+import com.vevak.app.security.RequestRatePolicy
 import com.vevak.app.ui.theme.VeVakTheme
+import java.text.DateFormat
+import java.util.Date
 
 @Composable
 fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
@@ -65,6 +70,7 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
                     OnboardingStep.Trigger -> Trigger(state, viewModel)
                     OnboardingStep.Options -> Options(state, viewModel)
                     OnboardingStep.Permissions -> Permissions(state, viewModel)
+                    OnboardingStep.Safety -> Safety(state, viewModel)
                     OnboardingStep.Summary -> Summary(state, viewModel)
                     OnboardingStep.Home -> Home(state, viewModel)
                 }
@@ -75,9 +81,9 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
 
 @Composable private fun Welcome(next: () -> Unit) {
     Title("Localisation à la demande, par SMS")
-    Text("VeVak répond uniquement à une phrase exacte envoyée par un contact autorisé. Aucun compte, aucun serveur et aucune permission Internet ne sont requis.")
+    Text("VeVak répond uniquement aux commandes d'un contact autorisé. Aucun compte VeVak, aucun serveur VeVak et aucune permission Internet ne sont requis.")
+    Info("Protection contre la surveillance", "VeVak n'a aucun mode furtif. L'autorisation du contact expire, les demandes sont limitées, chaque demande doit pouvoir produire une notification locale et l'accès peut être coupé depuis l'accueil.")
     Info("Important", "VeVak n'est pas un service d'urgence. Les SMS, la localisation et les restrictions du constructeur peuvent échouer. Testez l'application régulièrement et ne l'utilisez jamais comme unique mesure de sécurité.")
-    Info("Visibilité des SMS", "VeVak ne peut pas masquer les SMS : la demande reçue et la réponse envoyée restent visibles dans votre application de messagerie.")
     Primary("Configurer VeVak", next)
 }
 
@@ -102,12 +108,12 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
 }
 
 @Composable private fun Trigger(state: AppUiState, vm: AppViewModel) {
-    Title("2. Phrase de déclenchement")
-    Text("La comparaison est exacte, sans tenir compte de la casse ni des espaces répétés. Choisissez une phrase discrète, mais pas une formule utilisée par hasard dans une conversation.")
+    Title("2. Phrase normale")
+    Text("La comparaison est exacte, sans tenir compte de la casse ni des espaces répétés. Choisissez une phrase qui ne risque pas d'apparaître par hasard dans une conversation.")
     OutlinedTextField(
         value = state.settings.triggerPhrase,
         onValueChange = vm::updateTrigger,
-        label = { Text("Phrase") },
+        label = { Text("Phrase normale") },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true
     )
@@ -126,26 +132,29 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
             Text(provider.label)
         }
     }
-    Info("Politique par défaut", "VeVak utilise d'abord une position en cache de moins de 2 minutes, puis demande une position unique pendant 8 secondes au maximum. Il n'effectue aucune localisation périodique.")
+    Info("Limite anti-suivi", "Même si le contact connaît la phrase, VeVak impose au minimum 15 minutes entre deux réponses automatiques et au maximum ${RequestRatePolicy.MAX_REQUESTS_PER_WINDOW} réponses sur 24 heures. Ces limites ne peuvent pas être augmentées depuis l'interface.")
     Navigation(vm, canContinue = true)
 }
 
 @Composable private fun Permissions(state: AppUiState, vm: AppViewModel) {
     val context = LocalContext.current
     val mainPermissions = remember {
-        arrayOf(
-            Manifest.permission.RECEIVE_SMS,
-            Manifest.permission.SEND_SMS,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
+        buildList {
+            add(Manifest.permission.RECEIVE_SMS)
+            add(Manifest.permission.SEND_SMS)
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }.toTypedArray()
     }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         vm.refreshDiagnostics()
     }
     Title("4. Autorisations")
-    Text("Les permissions SMS servent uniquement à recevoir la commande et à répondre. La localisation est sollicitée seulement après une commande autorisée.")
-    Primary("Autoriser SMS et localisation", onClick = { launcher.launch(mainPermissions) })
+    Text("Les permissions SMS servent uniquement à recevoir la commande et à répondre. La localisation est sollicitée seulement après une commande normale autorisée. Les notifications sont obligatoires : sans elles, VeVak refuse d'envoyer une position automatiquement.")
+    Primary("Autoriser SMS, localisation et notifications", onClick = { launcher.launch(mainPermissions) })
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         OutlinedButton(
             onClick = {
@@ -155,7 +164,7 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
             modifier = Modifier.fillMaxWidth()
         ) { Text("Ouvrir les réglages : choisir « Toujours autoriser »") }
     }
-    Info("Pourquoi l'arrière-plan ?", "La commande arrive lorsque l'application n'est généralement pas ouverte. Android exige donc une autorisation distincte pour obtenir une nouvelle position dans ce contexte.")
+    Info("Pourquoi l'arrière-plan ?", "Une commande normale peut arriver lorsque l'application n'est pas ouverte. Android exige alors une autorisation distincte pour demander une nouvelle position. La commande sous contrainte, elle, n'accède jamais à la position réelle.")
     state.diagnostics?.checks?.forEach { check ->
         val marker = when (check.state) { CheckState.Ok -> "OK"; CheckState.Warning -> "!"; CheckState.Error -> "À régler" }
         Text("$marker — ${check.title}: ${check.detail}")
@@ -163,24 +172,92 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
     Navigation(vm, canContinue = true)
 }
 
+@Composable private fun Safety(state: AppUiState, vm: AppViewModel) {
+    Title("5. Protection sous contrainte")
+    Text("Option facultative : vous pouvez définir une seconde phrase. Si elle est reçue depuis le contact autorisé, VeVak répond avec un lieu de repli choisi à l'avance au lieu de votre position réelle.")
+    CheckRow("Activer la phrase sous contrainte", state.settings.duressEnabled, vm::setDuressEnabled)
+
+    if (state.settings.duressEnabled) {
+        OutlinedTextField(
+            value = state.settings.duressPhrase,
+            onValueChange = vm::updateDuressPhrase,
+            label = { Text("Phrase sous contrainte") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        val distinct = DuressPolicy.phrasesAreDistinctEnough(state.settings.triggerPhrase, state.settings.duressPhrase)
+        if (!distinct && state.settings.duressPhrase.isNotBlank()) {
+            Info("Phrase trop proche", "La phrase de sécurité doit être nettement différente de la phrase normale afin d'éviter tout déclenchement accidentel.")
+        }
+
+        Primary(
+            if (state.fallbackLocationLoading) "Enregistrement en cours…" else "Enregistrer ma position actuelle comme lieu de repli",
+            vm::captureFallbackLocation,
+            enabled = !state.fallbackLocationLoading
+        )
+        if (state.settings.hasFallbackCoordinates()) {
+            Info("Lieu de repli enregistré", "Les coordonnées restent uniquement sur cet appareil et ne sont pas affichées sur l'accueil. Réappuyez sur le bouton pour remplacer ce lieu.")
+        }
+        Info("Règle de sécurité", "La phrase sous contrainte ne lance jamais le GPS et ne lit jamais la position réelle. Sa réponse utilise le même format que la réponse normale. L'historique local ne révèle pas quel mode a été utilisé.")
+    } else {
+        Info("Désactivé par défaut", "Sans cette option, seule la phrase normale peut produire une réponse de localisation.")
+    }
+    state.message?.let { Text(it) }
+    val valid = !state.settings.duressEnabled ||
+        (DuressPolicy.configurationIsValid(state.settings) && state.settings.hasFallbackCoordinates())
+    Navigation(vm, canContinue = valid)
+}
+
 @Composable private fun Summary(state: AppUiState, vm: AppViewModel) {
-    Title("5. Vérification")
+    Title("6. Consentement et activation")
     Info("Contact", state.settings.contactName.ifBlank { state.settings.contactPhone } + " — " + state.settings.contactPhone)
-    Info("Phrase", state.settings.triggerPhrase)
-    Info("Carte", state.settings.mapProvider.label)
-    Info("Comportement", "Cache ≤ ${state.settings.maxCachedLocationAgeSeconds}s, localisation ≤ ${state.settings.locationTimeoutSeconds}s, délai entre demandes ≥ ${state.settings.minRequestIntervalSeconds}s.")
-    Info("À tester", "Après activation, envoyez la phrase depuis le contact autorisé, écran éteint. Recommencez après chaque mise à jour Android ou changement d'optimisation batterie.")
+    Info("Comportement", "Cache ≤ ${state.settings.maxCachedLocationAgeSeconds}s, localisation normale ≤ ${state.settings.locationTimeoutSeconds}s, délai automatique ≥ 15 min, maximum ${RequestRatePolicy.MAX_REQUESTS_PER_WINDOW} réponses / 24 h.")
+    if (state.settings.duressEnabled) {
+        Info("Protection sous contrainte", "Configurée. La phrase et les coordonnées de repli ne seront pas affichées sur l'écran d'accueil.")
+    }
+
+    Text("Durée de l'autorisation", fontWeight = FontWeight.SemiBold)
+    AuthorizationDuration.entries.forEach { duration ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(
+                selected = duration == state.authorizationDuration,
+                onClick = { vm.setAuthorizationDuration(duration) }
+            )
+            Text(duration.label)
+        }
+    }
+    Info("Pas d'autorisation permanente", "À l'expiration, VeVak conserve la configuration mais cesse de répondre jusqu'à une nouvelle validation locale sur ce téléphone.")
+    CheckRow(
+        "Je comprends que ce contact pourra demander ma position pendant la durée choisie et que je peux couper cet accès à tout moment.",
+        state.consentChecked,
+        vm::setConsentChecked
+    )
+    state.message?.let { Text(it) }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = vm::previous, modifier = Modifier.weight(1f)) { Text("Retour") }
-        Button(onClick = vm::complete, modifier = Modifier.weight(1f), enabled = state.settings.contactPhone.isNotBlank() && state.settings.triggerPhrase.isNotBlank()) { Text("Activer") }
+        Button(
+            onClick = vm::complete,
+            modifier = Modifier.weight(1f),
+            enabled = state.consentChecked && state.settings.contactPhone.isNotBlank() && state.settings.triggerPhrase.isNotBlank()
+        ) { Text("Activer") }
     }
 }
 
 @Composable private fun Home(state: AppUiState, vm: AppViewModel) {
-    Title(if (state.diagnostics?.ready == true) "VeVak est configuré" else "Configuration à vérifier")
-    Text("VeVak attend localement la phrase exacte du contact autorisé. Aucun serveur n'est contacté.")
-    Info("Contact", state.settings.contactName.ifBlank { state.settings.contactPhone })
-    Info("Phrase", state.settings.triggerPhrase)
+    val active = state.settings.hasActiveAuthorization()
+    Title(if (active) "VeVak est actif" else "VeVak est en pause")
+
+    if (active) {
+        val contact = state.settings.contactName.ifBlank { state.settings.contactPhone }
+        Info("Accès actuellement autorisé", "$contact peut demander une position jusqu'au ${formatDate(state.settings.authorizationExpiresAtEpochMs)}.")
+        OutlinedButton(onClick = vm::revokeAuthorization, modifier = Modifier.fillMaxWidth()) {
+            Text("Couper immédiatement l'accès du contact")
+        }
+    } else {
+        Info("Aucune réponse automatique", "L'autorisation a expiré ou a été révoquée. Les commandes reçues ne donnent aucune position tant que vous ne réactivez pas l'accès localement.")
+        Primary("Réactiver l'autorisation", vm::beginReauthorization)
+    }
+
     state.diagnostics?.checks?.forEach { check ->
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
@@ -189,13 +266,26 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
             }
         }
     }
+
     Primary(if (state.testLocationLoading) "Test en cours…" else "Tester une position unique", vm::testLocation, enabled = !state.testLocationLoading)
     state.testLocation?.let { Info("Résultat du test", "${it.ageLabel()} — précision ${it.accuracyLabel()} — ${it.source.label}") }
     state.message?.let { Text(it) }
     OutlinedButton(onClick = vm::refreshDiagnostics, modifier = Modifier.fillMaxWidth()) { Text("Actualiser le diagnostic") }
-    TextButton(onClick = vm::reset, modifier = Modifier.fillMaxWidth()) { Text("Recommencer la configuration") }
+
     HorizontalDivider()
-    Text("Les SMS restent visibles. VeVak ne garantit ni la réception du SMS ni l'obtention d'une position.", style = MaterialTheme.typography.bodySmall)
+    Text("Historique local des demandes", fontWeight = FontWeight.SemiBold)
+    if (state.auditEvents.isEmpty()) {
+        Text("Aucune demande enregistrée.", style = MaterialTheme.typography.bodySmall)
+    } else {
+        state.auditEvents.take(10).forEach { event ->
+            Text("${formatDateTime(event.timestampMillis)} — ${event.outcome.label}", style = MaterialTheme.typography.bodySmall)
+        }
+        Text("L'historique ne conserve ni coordonnées, ni contenu SMS, ni indication permettant de distinguer une réponse normale d'une réponse de sécurité.", style = MaterialTheme.typography.bodySmall)
+    }
+
+    TextButton(onClick = vm::reset, modifier = Modifier.fillMaxWidth()) { Text("Effacer les données locales et recommencer") }
+    HorizontalDivider()
+    Text("VeVak ne garantit ni la réception du SMS ni l'obtention d'une position. Une réponse automatique n'est jamais envoyée si les notifications VeVak ne peuvent pas être affichées.", style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable private fun Title(value: String) = Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
@@ -227,3 +317,9 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
         Button(onClick = { vm.persistDraft(); vm.next() }, enabled = canContinue, modifier = Modifier.weight(1f)) { Text("Continuer") }
     }
 }
+
+private fun formatDate(timestampMillis: Long): String =
+    DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(timestampMillis))
+
+private fun formatDateTime(timestampMillis: Long): String =
+    DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(timestampMillis))
