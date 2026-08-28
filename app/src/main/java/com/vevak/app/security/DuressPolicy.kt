@@ -25,7 +25,8 @@ object DuressPolicy {
 
     fun configurationIsValid(settings: VeVakSettings): Boolean =
         !settings.duressEnabled ||
-            (phrasesAreDistinctEnough(settings.triggerPhrase, settings.duressPhrase) &&
+            (settings.normalTriggerPhrases().isNotEmpty() &&
+                settings.normalTriggerPhrases().all { phrasesAreDistinctEnough(it, settings.duressPhrase) } &&
                 coordinatesAreValid(settings.fallbackLatitude, settings.fallbackLongitude))
 
     private fun editDistance(left: String, right: String): Int {
@@ -53,13 +54,20 @@ object DuressPolicy {
 enum class IncomingRequestMode { Normal, Duress }
 
 object RequestModeResolver {
-    fun resolve(messageBody: String, settings: VeVakSettings): IncomingRequestMode? {
-        // Fail safe: the safety phrase always wins if both phrases ever become equal through
+    fun resolve(messageBody: String, settings: VeVakSettings): IncomingRequestMode? =
+        resolve(messageBody, settings.triggerPhrase, settings)
+
+    fun resolve(
+        messageBody: String,
+        normalTriggerPhrase: String,
+        settings: VeVakSettings
+    ): IncomingRequestMode? {
+        // Fail safe: the safety phrase always wins if any normal phrase ever collides through
         // corrupted/legacy settings. The handler will then refuse to touch the real GPS path.
         if (settings.duressEnabled && SmsCommandParser.matches(messageBody, settings.duressPhrase)) {
             return IncomingRequestMode.Duress
         }
-        if (SmsCommandParser.matches(messageBody, settings.triggerPhrase)) {
+        if (SmsCommandParser.matches(messageBody, normalTriggerPhrase)) {
             return IncomingRequestMode.Normal
         }
         return null
