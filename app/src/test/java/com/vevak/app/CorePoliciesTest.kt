@@ -5,6 +5,8 @@
 package com.vevak.app
 
 import com.vevak.app.location.LocationSelectionPolicy
+import com.vevak.app.location.LocationSource
+import com.vevak.app.location.VeVakLocationSnapshot
 import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
@@ -13,8 +15,11 @@ import com.vevak.app.security.RequestModeResolver
 import com.vevak.app.security.RequestRatePolicy
 import com.vevak.app.security.RequestRateState
 import com.vevak.app.sms.SmsCommandParser
+import com.vevak.app.sms.SmsReplyFormatter
+import com.vevak.app.system.TrustedNetworkReader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -102,6 +107,42 @@ class CorePoliciesTest {
         assertTrue(active.isConfigured(now + 1L))
         assertFalse(active.isConfigured(expiry))
         assertFalse(active.copy(authorizationGrantedAtEpochMs = 0L, authorizationExpiresAtEpochMs = 0L).isConfigured(now))
+    }
+
+    @Test
+    fun discreetMode_isAlwaysFinite() {
+        val now = 1_000L
+        val settings = VeVakSettings(discreetModeUntilEpochMs = now + 3_600_000L)
+        assertTrue(settings.isDiscreetModeActive(now))
+        assertFalse(settings.isDiscreetModeActive(now + 3_600_000L))
+    }
+
+    @Test
+    fun trustedWifiHash_isDeterministicAndDoesNotStorePlainSsid() {
+        val first = TrustedNetworkReader.hashSsid("My Home WiFi")
+        val second = TrustedNetworkReader.hashSsid("\"My Home WiFi\"")
+        assertEquals(first, second)
+        assertNotEquals("My Home WiFi", first)
+        assertEquals(64, first.length)
+    }
+
+    @Test
+    fun manualShareFormatter_marksShareAsUserInitiatedAndKeepsConfiguredDetails() {
+        val settings = VeVakSettings(includeBattery = true, includeAccuracy = true)
+        val location = VeVakLocationSnapshot(
+            latitude = 48.8566,
+            longitude = 2.3522,
+            accuracyMeters = 12f,
+            source = LocationSource.AndroidCurrent,
+            ageMillis = 0L,
+            isMocked = false
+        )
+        val body = SmsReplyFormatter.formatManualShare(settings, location, 73)
+        assertTrue(body.contains("Je partage ma position"))
+        assertTrue(body.contains("48.8566"))
+        assertTrue(body.contains("2.3522"))
+        assertTrue(body.contains("Precision: env. 12 m"))
+        assertTrue(body.contains("Batterie: 73 %"))
     }
 
     @Test

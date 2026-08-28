@@ -82,7 +82,7 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
 @Composable private fun Welcome(next: () -> Unit) {
     Title("Localisation à la demande, par SMS")
     Text("VeVak répond uniquement aux commandes d'un contact autorisé. Aucun compte VeVak, aucun serveur VeVak et aucune permission Internet ne sont requis.")
-    Info("Protection contre la surveillance", "VeVak n'a aucun mode furtif. L'autorisation du contact expire, les demandes sont limitées, chaque demande doit pouvoir produire une notification locale et l'accès peut être coupé depuis l'accueil.")
+    Info("Protection contre la surveillance", "VeVak n'a aucun mode furtif. L'autorisation du contact expire, les demandes sont limitées, chaque demande reste localement visible et l'accès peut être coupé depuis l'accueil.")
     Info("Important", "VeVak n'est pas un service d'urgence. Les SMS, la localisation et les restrictions du constructeur peuvent échouer. Testez l'application régulièrement et ne l'utilisez jamais comme unique mesure de sécurité.")
     Primary("Configurer VeVak", next)
 }
@@ -153,7 +153,7 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
         vm.refreshDiagnostics()
     }
     Title("4. Autorisations")
-    Text("Les permissions SMS servent uniquement à recevoir la commande et à répondre. La localisation est sollicitée seulement après une commande normale autorisée. Les notifications sont obligatoires : sans elles, VeVak refuse d'envoyer une position automatiquement.")
+    Text("Les permissions SMS servent uniquement à recevoir la commande et à répondre. La localisation est sollicitée seulement après une commande normale autorisée ou un partage manuel confirmé. Les notifications sont obligatoires pour les réponses automatiques : sans visibilité locale, VeVak refuse d'envoyer une position automatiquement.")
     Primary("Autoriser SMS, localisation et notifications", onClick = { launcher.launch(mainPermissions) })
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         OutlinedButton(
@@ -164,7 +164,7 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
             modifier = Modifier.fillMaxWidth()
         ) { Text("Ouvrir les réglages : choisir « Toujours autoriser »") }
     }
-    Info("Pourquoi l'arrière-plan ?", "Une commande normale peut arriver lorsque l'application n'est pas ouverte. Android exige alors une autorisation distincte pour demander une nouvelle position. La commande sous contrainte, elle, n'accède jamais à la position réelle.")
+    Info("Pourquoi l'arrière-plan ?", "Une commande normale peut arriver lorsque l'application n'est pas ouverte. Android exige alors une autorisation distincte pour demander une nouvelle position. La commande sous contrainte, elle, n'accède jamais à la position réelle ni au Wi-Fi actuel.")
     state.diagnostics?.checks?.forEach { check ->
         val marker = when (check.state) { CheckState.Ok -> "OK"; CheckState.Warning -> "!"; CheckState.Error -> "À régler" }
         Text("$marker — ${check.title}: ${check.detail}")
@@ -198,7 +198,7 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
         if (state.settings.hasFallbackCoordinates()) {
             Info("Lieu de repli enregistré", "Les coordonnées restent uniquement sur cet appareil et ne sont pas affichées sur l'accueil. Réappuyez sur le bouton pour remplacer ce lieu.")
         }
-        Info("Règle de sécurité", "La phrase sous contrainte ne lance jamais le GPS et ne lit jamais la position réelle. Sa réponse utilise le même format que la réponse normale. L'historique local ne révèle pas quel mode a été utilisé.")
+        Info("Règle de sécurité", "La phrase sous contrainte ne lance jamais le GPS, ne lit jamais le Wi-Fi actuel et ne consulte jamais la position réelle. Sa réponse utilise le même format que la réponse normale. L'historique local ne révèle pas quel mode a été utilisé.")
     } else {
         Info("Désactivé par défaut", "Sans cette option, seule la phrase normale peut produire une réponse de localisation.")
     }
@@ -245,6 +245,7 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
 
 @Composable private fun Home(state: AppUiState, vm: AppViewModel) {
     val active = state.settings.hasActiveAuthorization()
+    val discreet = state.settings.isDiscreetModeActive()
     Title(if (active) "VeVak est actif" else "VeVak est en pause")
 
     if (active) {
@@ -257,6 +258,74 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
         Info("Aucune réponse automatique", "L'autorisation a expiré ou a été révoquée. Les commandes reçues ne donnent aucune position tant que vous ne réactivez pas l'accès localement.")
         Primary("Réactiver l'autorisation", vm::beginReauthorization)
     }
+
+    HorizontalDivider()
+    Text("Partager ma position", fontWeight = FontWeight.SemiBold)
+    Text("Vous pouvez envoyer volontairement une position unique à votre contact, sans attendre qu'il vous envoie une commande VeVak. Aucun service d'urgence n'est contacté.")
+    if (state.manualShareConfirmationPending) {
+        val contact = state.settings.contactName.ifBlank { state.settings.contactPhone }
+        Info("Confirmer l'envoi", "VeVak va obtenir une position unique puis l'envoyer par SMS à $contact. L'envoi n'est lancé qu'après votre confirmation.")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = vm::cancelManualPositionShare, modifier = Modifier.weight(1f)) {
+                Text("Annuler")
+            }
+            Button(onClick = vm::confirmManualPositionShare, modifier = Modifier.weight(1f)) {
+                Text("Confirmer et envoyer")
+            }
+        }
+    } else {
+        Primary(
+            if (state.manualShareLoading) "Envoi en cours…" else "Envoyer ma position maintenant",
+            vm::requestManualPositionShare,
+            enabled = !state.manualShareLoading
+        )
+    }
+    if (discreet) {
+        Info("Mode discret", "Cet envoi manuel n'ajoute aucune notification Android. Le résultat reste affiché uniquement dans VeVak ; la notification permanente « VeVak est actif » reste inchangée.")
+    } else {
+        Info("Envoi volontaire", "VeVak ne publie pas de notification Android supplémentaire pour ce partage manuel. Le résultat de la tentative est affiché ici. Un envoi accepté par Android ne garantit pas la livraison du SMS.")
+    }
+    Info("SIM utilisée", "VeVak utilise uniquement la SIM définie comme SIM SMS par défaut dans Android. S'il n'y en a pas, l'envoi est bloqué plutôt que de choisir une SIM au hasard.")
+
+    HorizontalDivider()
+    Text("Lieu de confiance", fontWeight = FontWeight.SemiBold)
+    Text("Vous pouvez enregistrer le Wi-Fi du domicile. Quand une commande normale arrive sur ce réseau, VeVak répond avec un libellé comme « Maison » sans réveiller le GPS.")
+    OutlinedTextField(
+        value = state.settings.trustedPlaceLabel,
+        onValueChange = vm::updateTrustedPlaceLabel,
+        label = { Text("Libellé du lieu") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
+    )
+    Primary("Enregistrer le Wi-Fi actuel comme lieu de confiance", vm::captureTrustedWifi)
+    if (state.settings.hasTrustedWifiConfiguration()) {
+        Info("Lieu de confiance actif", "Si le téléphone est connecté à ce Wi-Fi, la réponse indique « ${state.settings.trustedPlaceLabel} » au lieu d'envoyer des coordonnées. Le nom du réseau est conservé uniquement sous forme d'empreinte locale.")
+        OutlinedButton(onClick = vm::clearTrustedWifi, modifier = Modifier.fillMaxWidth()) {
+            Text("Supprimer ce lieu de confiance")
+        }
+    }
+    Info("Limite", "Le Wi-Fi sert de raccourci pratique, pas de preuve absolue de présence. Si Android ne permet pas d'identifier le réseau actuel, VeVak revient simplement à la localisation normale. Une phrase sous contrainte ne consulte jamais le Wi-Fi.")
+
+    HorizontalDivider()
+    Text("Mode discret temporaire", fontWeight = FontWeight.SemiBold)
+    if (discreet) {
+        Info("Mode discret actif", "Jusqu'au ${formatDateTime(state.settings.discreetModeUntilEpochMs)}. Les demandes sont silencieuses et sans vibration, mais restent visibles dans le volet Android. La notification permanente « VeVak est actif » reste affichée.")
+    } else {
+        Text("Réduit temporairement les alertes de demande sans transformer VeVak en mode furtif.")
+    }
+    if (active) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { vm.setDiscreetMode(1) }, modifier = Modifier.weight(1f)) { Text("1 h") }
+            OutlinedButton(onClick = { vm.setDiscreetMode(8) }, modifier = Modifier.weight(1f)) { Text("8 h") }
+            OutlinedButton(onClick = { vm.setDiscreetMode(24) }, modifier = Modifier.weight(1f)) { Text("24 h") }
+        }
+    }
+    if (discreet) {
+        OutlinedButton(onClick = vm::disableDiscreetMode, modifier = Modifier.fillMaxWidth()) {
+            Text("Désactiver le mode discret")
+        }
+    }
+    Info("Pas de mode invisible", "Désactiver complètement les notifications Android bloque toujours les réponses automatiques. Le mode discret agit seulement sur le son, la vibration et le niveau d'alerte, pour une durée limitée choisie localement.")
 
     state.diagnostics?.checks?.forEach { check ->
         Card(Modifier.fillMaxWidth()) {
@@ -280,12 +349,12 @@ fun VeVakRoot(viewModel: AppViewModel = viewModel()) {
         state.auditEvents.take(10).forEach { event ->
             Text("${formatDateTime(event.timestampMillis)} — ${event.outcome.label}", style = MaterialTheme.typography.bodySmall)
         }
-        Text("L'historique ne conserve ni coordonnées, ni contenu SMS, ni indication permettant de distinguer une réponse normale d'une réponse de sécurité.", style = MaterialTheme.typography.bodySmall)
+        Text("L'historique ne conserve ni coordonnées, ni contenu SMS, ni Wi-Fi, ni indication permettant de distinguer une réponse normale d'une réponse de sécurité.", style = MaterialTheme.typography.bodySmall)
     }
 
     TextButton(onClick = vm::reset, modifier = Modifier.fillMaxWidth()) { Text("Effacer les données locales et recommencer") }
     HorizontalDivider()
-    Text("VeVak ne garantit ni la réception du SMS ni l'obtention d'une position. Une réponse automatique n'est jamais envoyée si les notifications VeVak ne peuvent pas être affichées.", style = MaterialTheme.typography.bodySmall)
+    Text("VeVak ne garantit ni la réception du SMS ni l'obtention d'une position. Une réponse automatique n'est jamais envoyée si les notifications VeVak ne peuvent pas rester localement visibles.", style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable private fun Title(value: String) = Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)

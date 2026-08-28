@@ -42,6 +42,29 @@ Le moteur SMS et la localisation sont déjà implémentés. Les priorités sont 
 - mesurer les budgets d'écoconception de référence ;
 - compléter les métadonnées de publication F-Droid.
 
+### Partage sortant manuel — prototype implémenté, validation réelle requise
+
+Un flux permet désormais à l'utilisateur d'envoyer lui-même une position unique à son contact de confiance, sans attendre une demande entrante. Ce prototype doit encore être validé sur appareils réels avant d'être considéré comme stabilisé.
+
+Contraintes déjà intégrées :
+
+- déclenchement uniquement depuis l'interface locale de VeVak ;
+- confirmation explicite avant toute acquisition de position et tout envoi ;
+- annulation possible avant confirmation ;
+- aucun appel automatique aux services d'urgence ;
+- aucune position envoyée si VeVak ne parvient pas à en obtenir une ;
+- message honnête : une remise à l'API SMS Android n'est jamais présentée comme une preuve de livraison ;
+- réutilisation du moteur local de localisation et d'envoi SMS ;
+- aucune télémétrie ni stockage centralisé ;
+- aucune notification Android supplémentaire créée par le partage manuel ; en mode discret temporaire, le résultat reste uniquement dans l'interface de VeVak ;
+- la notification persistante `VeVak est actif`, lorsqu'elle est requise par le modèle général, reste indépendante ;
+- utilisation uniquement de la SIM définie comme SIM SMS par défaut dans Android ; si aucune SIM par défaut n'est définie, l'envoi est bloqué plutôt que de sélectionner une SIM arbitrairement ;
+- aucun déclenchement à distance et aucun envoi périodique.
+
+À valider sur téléphone réel : obtention de position, SMS réellement reçu, erreur réseau, mode discret, SIM unique, double SIM/eSIM, absence de SIM par défaut et comportement constructeur.
+
+Les raccourcis, tuiles rapides ou appels complémentaires ne seront ajoutés qu'après validation séparée de leur utilité et du risque de faux déclenchement.
+
 ## 0.4 - Fiabilité et accessibilité
 
 - ajouter un test guidé de bout en bout : SMS réel → validation → localisation → réponse ;
@@ -52,23 +75,6 @@ Le moteur SMS et la localisation sont déjà implémentés. Les priorités sont 
 - confirmer le fonctionnement sur un appareil ancien ou d'entrée de gamme ;
 - ajouter un historique local minimal uniquement si les tests montrent qu'il est nécessaire, désactivable et sans corps de SMS ni coordonnées ;
 - étudier un import/export chiffré uniquement si le besoin est confirmé.
-
-## Après stabilisation 0.4 - extensions de sécurité personnelle
-
-### SOS sortant manuel
-
-Étudier puis prototyper un flux explicite permettant à l'utilisateur d'envoyer lui-même une alerte à son contact de confiance.
-
-Contraintes :
-
-- déclenchement volontaire ;
-- confirmation ou compte à rebours annulable ;
-- aucun appel automatique aux services d'urgence ;
-- message honnête sur l'absence de garantie de livraison ;
-- réutilisation du moteur local/SMS existant lorsque possible ;
-- aucune télémétrie ni stockage centralisé requis.
-
-Les raccourcis, tuiles rapides ou appels complémentaires ne seront ajoutés qu'après validation séparée de leur utilité et du risque de faux déclenchement.
 
 ## 0.5+ - sécurité et usages avancés
 

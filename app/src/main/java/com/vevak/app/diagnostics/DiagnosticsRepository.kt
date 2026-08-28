@@ -41,7 +41,7 @@ class DiagnosticsRepository(private val context: Context) {
         }
         val backend = locationRepository.backendStatus()
         val authorization = settings.hasActiveAuthorization()
-        val visibility = notifier.notificationsAllowedForRequests()
+        val visibility = notifier.notificationsAllowedForRequests(settings.isDiscreetModeActive())
         val duressValid = DuressPolicy.configurationIsValid(settings)
 
         val checks = listOf(
@@ -66,10 +66,12 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("androidApi=${Build.VERSION.SDK_INT}")
             appendLine("locationBackend=${backend.name}")
             appendLine("usesGooglePlayServices=${BuildConfig.USES_GOOGLE_PLAY_SERVICES}")
+            appendLine("trustedWifiConfigured=${settings.hasTrustedWifiConfiguration()}")
+            appendLine("discreetModeActive=${settings.isDiscreetModeActive()}")
             checks.forEachIndexed { index, value ->
                 appendLine("check.$index=${value.state}:${value.title}")
             }
-            append("Phone numbers, SMS bodies, trigger phrases, fallback mode and coordinates are excluded.")
+            append("Phone numbers, SMS bodies, trigger phrases, Wi-Fi identifiers, fallback mode and coordinates are excluded.")
         }
         return DiagnosticsSnapshot(checks, backend.name, report)
     }
