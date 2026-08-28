@@ -26,6 +26,23 @@ Le projet contient actuellement :
 
 Ce choix évite de dupliquer le cœur SMS, la sécurité, les tests et la documentation dans plusieurs dépôts. Une éventuelle variante ou intégration `custom` ne justifiera un dépôt séparé que lorsqu'un besoin concret, durable et incompatible avec le cœur commun apparaîtra.
 
+## Modèle économique et fonctions payantes
+
+VeVak peut proposer plus tard des fonctions payantes sans fermer le code client. Le modèle retenu est documenté dans [`MONETIZATION.md`](MONETIZATION.md).
+
+Fondations désormais prévues dans l'architecture :
+
+- le dépôt Android reste public et sous GPL-3.0-or-later ;
+- le cœur de sécurité reste gratuit : demande/réponse SMS de base, partage manuel, révocation, expiration du consentement, limites anti-suivi, visibilité locale, protections sous contrainte supportées et diagnostics indispensables ;
+- les fonctions payantes doivent surtout correspondre à de la commodité, de la configuration avancée ou à un service optionnel ayant un coût réel ;
+- le cœur connaît uniquement une abstraction d'`entitlement` publique ;
+- `foss` fournit un provider sans dépendance propriétaire et reste la variante canonique ;
+- `play` dispose d'un point d'intégration séparé pour un futur Google Play Billing, sans dépendance de paiement tant que cette intégration n'est pas décidée ;
+- un éventuel backend payant, par exemple un relais chiffré, ne sera créé que si le service est réellement utile et restera facultatif pour le fonctionnement SMS de base ;
+- aucun achat ne doit être présenté avec des dark patterns, de la peur ou une fausse urgence.
+
+Candidats possibles, non promis : plusieurs contacts de confiance, export/import chiffré, personnalisation avancée, relais facultatif ou commodités multi-appareils. Chaque proposition doit passer par [`docs/PAID_FEATURE_REVIEW.md`](docs/PAID_FEATURE_REVIEW.md), une revue d'écoconception et, lorsqu'elle touche à la sécurité, une revue d'abus/coercition.
+
 ## 0.3.x - Stabilisation
 
 Le moteur SMS et la localisation sont déjà implémentés. Les priorités sont :
