@@ -8,12 +8,15 @@ package com.vevak.app.entitlement
  * Capabilities that may be offered as paid convenience or service extensions.
  *
  * Listing a capability here does not mean it is implemented or promised.
- * Core safety behaviour must never depend on this enum.
+ * Core safety behaviour must never depend on this enum. Multiple trusted
+ * contacts and encrypted configuration backup are deliberately absent because
+ * they are part of the free resilience/privacy baseline.
  */
 enum class PremiumCapability {
-    MultipleTrustedContacts,
-    EncryptedConfigurationExport,
+    MultipleTrustedPlaces,
+    AdvancedResponseProfiles,
     AdvancedPersonalisation,
+    CrossDeviceConvenience,
     OptionalRelayService
 }
 
