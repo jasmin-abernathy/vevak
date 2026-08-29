@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.1 - location-off resilience beta (2026-08-29)
+
+### Fixed
+
+- trusted-place Wi-Fi no longer immediately stops matching when Android redacts the SSID after the global Location switch is turned off, provided the phone remains on the exact same already-verified Android Wi-Fi network session;
+- VeVak now keeps one app-private last real location for up to 24 hours so Android clearing its own location cache does not automatically turn every later request into `Position indisponible`;
+- remembered locations keep their real age and are never silently presented as current;
+- mocked or invalid coordinates are rejected from the durable resilience cache;
+- diagnostics now distinguish « new location providers unavailable » from « every fallback unavailable » when the global Location switch is off.
+
+### Privacy / platform boundaries
+
+- `ACCESS_NETWORK_STATE` is now allowed in the canonical FOSS core solely for read-only continuity of an already-verified Wi-Fi session; the FOSS manifest still has no `INTERNET` permission;
+- the remembered precise position is stored only in the app-private sandbox, expires after 24 hours, is excluded from `.vvk` backups and redacted diagnostics, and is never uploaded;
+- a radio-fingerprint engine was reviewed but deliberately not added in this fix because current Android versions still gate Wi-Fi scans and many radio identifiers behind location-related permissions/settings, so it would not reliably solve the Location-off regression;
+- the duress/safety request path remains isolated from trusted-Wi-Fi detection and all real/remembered location acquisition.
+
+### Testing
+
+- unit coverage added for remembered-location validity, mocked-location rejection, clock rollback and retention boundaries;
+- tester flow now includes dedicated « trusted Wi-Fi then Location off » and « remembered position then Location off » regression checks;
+- version bumped to `0.3.1` / versionCode `4` so this beta is distinguishable from the affected `0.3.0` APK.
+
 ## Unreleased - free multi-contact and encrypted backup (2026-08-28)
 
 ### Added
