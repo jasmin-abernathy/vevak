@@ -8,6 +8,7 @@ import com.vevak.app.location.LocationSource
 import com.vevak.app.location.VeVakLocationSnapshot
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.sms.SmsReplyFormatter
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,5 +51,10 @@ class LocationReplyTest {
         assertFalse(body.contains("Adresse approx."))
         assertTrue(body.contains("49.1193"))
         assertTrue(body.contains("6.1757"))
+    }
+
+    @Test
+    fun trustedHomeReply_isExactlyTheRequestedSentence() {
+        assertEquals("Je suis à la maison", SmsReplyFormatter.formatTrustedPlace())
     }
 }
