@@ -2,7 +2,7 @@
 
 VeVak n'utilise aucun compte VeVak, aucune publicité, aucun pisteur et aucun serveur applicatif obligatoire.
 
-Les réglages restent dans le stockage privé Android de l'application : numéros autorisés, noms facultatifs, phrases normales, options de réponse, périodes d'autorisation et, si l'utilisateur l'active, phrase sous contrainte et coordonnées du lieu de repli. Chaque contact de confiance dispose de sa propre autorisation locale et de sa propre expiration. Si un lieu de confiance Wi-Fi est enregistré, VeVak conserve uniquement une empreinte SHA-256 du nom du réseau ainsi qu'un libellé choisi par l'utilisateur ; le SSID n'est pas stocké en clair. Les sauvegardes Android et transferts automatiques de l'application restent désactivés.
+Les réglages restent dans le stockage privé Android de l'application : numéros autorisés, noms facultatifs, phrases normales, options de réponse, périodes d'autorisation et, si l'utilisateur l'active, phrase sous contrainte et coordonnées du lieu de repli. Chaque contact de confiance dispose de sa propre autorisation locale et de sa propre expiration. Si un lieu de confiance Wi-Fi est enregistré avec l'identification durable, VeVak conserve uniquement une empreinte SHA-256 du nom du réseau ainsi qu'un libellé choisi par l'utilisateur ; le SSID n'est pas stocké en clair. Si l'utilisateur configure Maison sans activer la localisation, VeVak ne lit pas le nom du Wi-Fi : il mémorise uniquement, dans un stockage runtime séparé, l'identifiant opaque de la session réseau Android courante et le numéro de démarrage Android. Les sauvegardes Android et transferts automatiques de l'application restent désactivés.
 
 Pour éviter de dépendre du cache de localisation d'Android — que le système peut effacer lorsque l'utilisateur coupe le bouton global « Localisation » — VeVak conserve également dans son stockage privé **une seule dernière position réelle obtenue avec succès**, avec sa précision et son heure d'acquisition. Cette mémoire locale expire automatiquement après **24 heures**, n'est jamais envoyée à un serveur et n'est pas incluse dans l'export `.vvk`. Une position signalée par Android comme simulée n'est pas mémorisée dans ce cache de résilience.
 
@@ -18,7 +18,9 @@ Le partage manuel n'affiche pas de notification Android supplémentaire : son é
 
 Pour éviter un choix implicite sur les appareils double-SIM/eSIM, le partage manuel utilise uniquement la SIM définie par Android comme SIM SMS par défaut. Si Android n'en expose aucune, VeVak bloque le partage et demande à l'utilisateur d'en choisir une dans les réglages du téléphone.
 
-Lorsqu'un lieu de confiance Wi-Fi est configuré et que le téléphone est connecté au réseau correspondant, une commande normale peut répondre avec le libellé du lieu sans déclencher de nouvelle acquisition GPS. Android considère le SSID comme une information liée à la localisation et peut le masquer lorsque le bouton global « Localisation » est coupé. VeVak mémorise donc temporairement l'identifiant opaque de la **session réseau Android déjà vérifiée** : tant que cette même connexion Wi-Fi reste active, le lieu de confiance peut continuer à être reconnu sans relire le SSID. Après reconnexion Wi-Fi, redémarrage ou changement de réseau, VeVak exige de nouveau une identification positive et ne déduit jamais « Maison » à partir d'une simple adresse IP privée ou d'une passerelle courante.
+Lorsqu'un lieu de confiance Wi-Fi est configuré et que le téléphone est connecté au réseau correspondant, une commande normale peut répondre avec le libellé du lieu sans déclencher de nouvelle acquisition GPS. **Activer la localisation n'est pas obligatoire pour enregistrer la connexion Wi-Fi actuelle comme Maison.** Sans localisation, VeVak enregistre uniquement la session réseau Android courante : cette reconnaissance reste valable tant que cette connexion précise reste active, dans le même démarrage du téléphone. Une déconnexion/reconnexion ou un redémarrage invalide volontairement ce raccourci.
+
+Android considère le SSID comme une information liée à la localisation. Lorsque l'utilisateur autorise la localisation précise et active la localisation Android, VeVak peut lire ponctuellement le SSID au moment de la configuration, en conserver uniquement une empreinte et rendre ainsi la reconnaissance de Maison durable après une reconnexion ou un redémarrage. Cette amélioration est facultative : elle n'est jamais nécessaire pour utiliser le mode limité à la session Wi-Fi courante. VeVak ne déduit jamais « Maison » à partir d'une simple adresse IP privée, d'une passerelle courante ou d'autres caractéristiques réseau partagées.
 
 La permission Android `ACCESS_NETWORK_STATE` utilisée pour cette continuité est une permission de lecture de l'état des réseaux. Elle ne remplace pas et n'ajoute pas la permission `INTERNET`, qui reste absente de la variante FOSS canonique. VeVak n'ouvre aucune connexion réseau pour reconnaître ce lieu de confiance.
 
@@ -28,7 +30,7 @@ Cette détection du lieu de confiance n'est jamais utilisée pour une commande s
 
 VeVak permet d'exporter gratuitement sa configuration vers un fichier `.vvk` choisi via le sélecteur de documents Android. Aucun serveur VeVak n'est utilisé pour cette opération.
 
-Le contenu en clair de cette configuration peut inclure des données sensibles (numéros, phrases, empreinte Wi-Fi, coordonnées de repli). Avant écriture, VeVak chiffre et authentifie le contenu avec AES-GCM à l'aide d'une clé dérivée du mot de passe fourni par l'utilisateur via PBKDF2-HMAC-SHA256, avec sel aléatoire et IV aléatoire. Le mot de passe n'est pas enregistré par VeVak.
+Le contenu en clair de cette configuration peut inclure des données sensibles (numéros, phrases, empreinte Wi-Fi durable, coordonnées de repli). Avant écriture, VeVak chiffre et authentifie le contenu avec AES-GCM à l'aide d'une clé dérivée du mot de passe fourni par l'utilisateur via PBKDF2-HMAC-SHA256, avec sel aléatoire et IV aléatoire. Le mot de passe n'est pas enregistré par VeVak. En mode Wi-Fi limité à la session, la sauvegarde peut contenir le marqueur indiquant que ce mode était choisi, mais jamais l'identifiant réel de la session réseau courante.
 
 Ne sont jamais exportés dans cette sauvegarde :
 
@@ -38,7 +40,7 @@ Ne sont jamais exportés dans cette sauvegarde :
 - la dernière position mémorisée par le mécanisme de résilience ;
 - l'identifiant temporaire de session réseau utilisé pour la continuité du Wi-Fi de confiance.
 
-Après import, tous les contacts restaurés restent désautorisés jusqu'à une nouvelle validation locale. Une erreur de mot de passe, un fichier corrompu ou une configuration invalide laisse les réglages actuels inchangés.
+Après import, tous les contacts restaurés restent désautorisés jusqu'à une nouvelle validation locale. Une erreur de mot de passe, un fichier corrompu ou une configuration invalide laisse les réglages actuels inchangés. Si une sauvegarde provenait d'un mode Wi-Fi limité à une session, cette session ne peut pas être restaurée : l'utilisateur doit réenregistrer Maison sur le téléphone concerné.
 
 Le chiffrement protège le contenu du fichier, mais un fichier chiffré peut toujours être copié par une personne disposant d'un accès aux fichiers de l'appareil. Il doit donc être conservé avec les mêmes précautions que toute sauvegarde sensible, et son mot de passe doit être conservé séparément.
 
