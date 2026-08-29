@@ -44,6 +44,23 @@ gradlew.bat testFossDebugUnitTest assembleFossDebug lintFossDebug
 gradlew.bat testPlayDebugUnitTest assemblePlayDebug lintPlayDebug
 ```
 
+## Validated tester APK from GitHub Actions
+
+The `Android CI` workflow runs the static privacy/ecodesign checks, unit tests, builds and lint for both flavors.
+
+For successful runs on `main` (and manual non-PR runs), the workflow then publishes:
+
+```text
+vevak-foss-debug-<commit SHA>
+└── app-foss-debug.apk
+```
+
+as a GitHub Actions artifact with a short retention period. This artifact is deliberately published **only after all FOSS and Play verification steps have succeeded**, so the APK used for a real-device regression test can be tied to an exact validated commit.
+
+For the 0.3.1 resilience beta, verify the app reports version `0.3.1` / versionCode `4` before using test results to close the location-off regression.
+
+An Actions artifact is a test build, not a signed production release. Do not present it as the future stable/F-Droid release.
+
 ## Gradle Wrapper
 
 The following wrapper files are source-controlled and must stay together:
@@ -68,4 +85,4 @@ Examples include:
 
 ## Release note
 
-A successful desktop/CI build does not prove that SMS reception/reply, background location or dual-SIM behaviour works on a real device. These paths still require physical-device tests.
+A successful desktop/CI build does not prove that SMS reception/reply, trusted-Wi-Fi continuity, remembered-location fallback, background execution or dual-SIM behaviour works on a real device. These paths still require physical-device tests.
