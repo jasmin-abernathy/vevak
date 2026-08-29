@@ -129,6 +129,20 @@ class CorePoliciesTest {
     }
 
     @Test
+    fun trustedWifiSessionOnly_matchesOnlySameSessionAndBoot() {
+        assertTrue(TrustedNetworkReader.sessionMatches("abc", 42, "abc", 42))
+        assertFalse(TrustedNetworkReader.sessionMatches("abc", 42, "def", 42))
+        assertFalse(TrustedNetworkReader.sessionMatches("abc", 42, "abc", 43))
+    }
+
+    @Test
+    fun trustedWifiSessionOnly_rejectsMissingRuntimeMarker() {
+        assertFalse(TrustedNetworkReader.sessionMatches(null, 42, "abc", 42))
+        assertFalse(TrustedNetworkReader.sessionMatches("abc", 42, null, 42))
+        assertFalse(TrustedNetworkReader.sessionMatches("abc", -1, "abc", 42))
+    }
+
+    @Test
     fun manualShareFormatter_marksShareAsUserInitiatedAndKeepsConfiguredDetails() {
         val settings = VeVakSettings(includeBattery = true, includeAccuracy = true)
         val location = VeVakLocationSnapshot(
