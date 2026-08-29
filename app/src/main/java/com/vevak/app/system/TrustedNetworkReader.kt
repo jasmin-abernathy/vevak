@@ -15,24 +15,50 @@ import androidx.core.content.ContextCompat
 import com.vevak.app.model.VeVakSettings
 import java.security.MessageDigest
 
+data class TrustedNetworkCapture(
+    val storedHash: String,
+    val durable: Boolean
+)
+
 /**
- * Reads only the currently connected Wi-Fi network. VeVak stores a one-way hash of the SSID,
- * never the network name itself.
+ * Reads only the currently connected Wi-Fi network.
  *
- * Android treats the SSID as location-sensitive information and can redact it when the device's
- * global Location toggle is off. To avoid immediately forgetting a trusted place when the user
- * switches Location off, VeVak also remembers the opaque Android Network handle for the already
- * verified Wi-Fi connection, together with Android's boot count. The shortcut therefore survives
- * only the exact same network session inside the same boot. A reconnect or reboot requires a new
- * positive SSID identification. This deliberately fails closed rather than guessing from common
- * IP addresses, gateways or SSID-independent network properties.
+ * VeVak supports two privacy-preserving trusted-Wi-Fi modes:
+ * - durable: when Android exposes the SSID, VeVak stores only a one-way hash of it;
+ * - session-only: when SSID access is unavailable (for example because Location is off), VeVak
+ *   stores no Wi-Fi name and trusts only the exact current Android network session in this boot.
+ *
+ * Session-only mode is deliberately conservative: a disconnect/reconnect or reboot invalidates it.
+ * VeVak never guesses a trusted place from IP addresses, gateways or other shared network traits.
  */
 class TrustedNetworkReader(private val context: Context) {
     private val appContext = context.applicationContext
     private val runtimePrefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    fun captureCurrentNetwork(): TrustedNetworkCapture? {
+        currentSsidHash()?.let { ssidHash ->
+            clearSessionOnlyCapture()
+            return TrustedNetworkCapture(storedHash = ssidHash, durable = true)
+        }
+
+        val sessionHash = currentNetworkSessionHash() ?: return null
+        val bootCount = currentBootCount()
+        if (bootCount == INVALID_BOOT_COUNT) return null
+
+        runtimePrefs.edit()
+            .putString(KEY_SESSION_ONLY_NETWORK_SESSION, sessionHash)
+            .putInt(KEY_SESSION_ONLY_BOOT_COUNT, bootCount)
+            .apply()
+
+        return TrustedNetworkCapture(storedHash = SESSION_ONLY_MARKER, durable = false)
+    }
+
     fun matches(settings: VeVakSettings): Boolean {
         if (!settings.hasTrustedWifiConfiguration()) return false
+
+        if (settings.trustedWifiHash == SESSION_ONLY_MARKER) {
+            return matchesSessionOnlyCapture()
+        }
 
         // If Android exposes the SSID, it is authoritative. A visible non-match must never be
         // overridden by an old session marker. currentSsidHash() also refreshes the continuity
@@ -86,6 +112,35 @@ class TrustedNetworkReader(private val context: Context) {
         return hashToken("network-session:$handle")
     }
 
+    fun clearRuntimeCapture() {
+        runtimePrefs.edit()
+            .remove(KEY_LAST_VERIFIED_SSID_HASH)
+            .remove(KEY_LAST_VERIFIED_NETWORK_SESSION)
+            .remove(KEY_LAST_VERIFIED_BOOT_COUNT)
+            .remove(KEY_SESSION_ONLY_NETWORK_SESSION)
+            .remove(KEY_SESSION_ONLY_BOOT_COUNT)
+            .apply()
+    }
+
+    private fun matchesSessionOnlyCapture(): Boolean {
+        val rememberedSessionHash = runtimePrefs.getString(KEY_SESSION_ONLY_NETWORK_SESSION, null)
+        val rememberedBootCount = runtimePrefs.getInt(KEY_SESSION_ONLY_BOOT_COUNT, INVALID_BOOT_COUNT)
+        if (rememberedSessionHash.isNullOrBlank()) return false
+
+        val currentBootCount = currentBootCount()
+        if (rememberedBootCount == INVALID_BOOT_COUNT || currentBootCount == INVALID_BOOT_COUNT) return false
+        if (rememberedBootCount != currentBootCount) return false
+
+        return currentNetworkSessionHash()?.equals(rememberedSessionHash, ignoreCase = true) == true
+    }
+
+    private fun clearSessionOnlyCapture() {
+        runtimePrefs.edit()
+            .remove(KEY_SESSION_ONLY_NETWORK_SESSION)
+            .remove(KEY_SESSION_ONLY_BOOT_COUNT)
+            .apply()
+    }
+
     private fun rememberVerifiedSession(ssidHash: String) {
         val sessionHash = currentNetworkSessionHash() ?: return
         val bootCount = currentBootCount()
@@ -115,10 +170,14 @@ class TrustedNetworkReader(private val context: Context) {
     private fun String.normalizeSsid(): String = trim().removeSurrounding("\"")
 
     companion object {
+        const val SESSION_ONLY_MARKER = "session-only-v1"
+
         private const val PREFS_NAME = "vevak_trusted_network_runtime"
         private const val KEY_LAST_VERIFIED_SSID_HASH = "last_verified_ssid_hash"
         private const val KEY_LAST_VERIFIED_NETWORK_SESSION = "last_verified_network_session"
         private const val KEY_LAST_VERIFIED_BOOT_COUNT = "last_verified_boot_count"
+        private const val KEY_SESSION_ONLY_NETWORK_SESSION = "session_only_network_session"
+        private const val KEY_SESSION_ONLY_BOOT_COUNT = "session_only_boot_count"
         private const val INVALID_BOOT_COUNT = -1
 
         fun hashSsid(ssid: String): String = hashToken(ssid.trim().removeSurrounding("\""))
