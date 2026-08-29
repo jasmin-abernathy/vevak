@@ -8,6 +8,7 @@ import android.content.Context
 
 class VeVakLocationRepository(context: Context) {
     private val provider: LocationProvider = PlatformLocationProvider(context.applicationContext)
+    private val reverseGeocoder = SystemReverseGeocoder(context.applicationContext)
 
     suspend fun fetchBestLocation(policy: LocationRequestPolicy): VeVakLocationSnapshot? {
         val cached = provider.lastKnownLocation()?.toVeVakSnapshot(provider.lastKnownSource)
@@ -15,14 +16,19 @@ class VeVakLocationRepository(context: Context) {
                 cached.ageMillis,
                 policy.maxAcceptedCacheAgeMillis
             )
-        ) return cached
+        ) return enrich(cached)
 
         val current = provider.currentLocation(policy.currentLocationTimeoutMillis)
             ?.toVeVakSnapshot(provider.currentSource)
-        if (current != null) return current
+        if (current != null) return enrich(current)
 
-        return cached.takeIf { policy.allowStaleFallback }
+        return cached.takeIf { policy.allowStaleFallback }?.let { enrich(it) }
     }
 
     fun backendStatus(): LocationBackendStatus = provider.backendStatus()
+
+    private suspend fun enrich(location: VeVakLocationSnapshot): VeVakLocationSnapshot {
+        val address = reverseGeocoder.resolve(location) ?: return location
+        return location.copy(address = address)
+    }
 }
