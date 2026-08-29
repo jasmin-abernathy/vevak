@@ -6,6 +6,7 @@ package com.vevak.app
 
 import com.vevak.app.location.LocationSelectionPolicy
 import com.vevak.app.location.LocationSource
+import com.vevak.app.location.RememberedLocationPolicy
 import com.vevak.app.location.VeVakLocationSnapshot
 import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.VeVakSettings
@@ -20,6 +21,7 @@ import com.vevak.app.system.TrustedNetworkReader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -151,5 +153,34 @@ class CorePoliciesTest {
         assertTrue(LocationSelectionPolicy.acceptsCache(120_000L, 120_000L))
         assertFalse(LocationSelectionPolicy.acceptsCache(-1L, 120_000L))
         assertFalse(LocationSelectionPolicy.acceptsCache(120_001L, 120_000L))
+    }
+
+    @Test
+    fun rememberedLocation_acceptsOnlyRealValidCoordinates() {
+        val real = VeVakLocationSnapshot(
+            latitude = 49.1193,
+            longitude = 6.1757,
+            accuracyMeters = 25f,
+            source = LocationSource.AndroidCurrent,
+            ageMillis = 1_000L,
+            isMocked = false
+        )
+        assertTrue(RememberedLocationPolicy.canPersist(real))
+        assertFalse(RememberedLocationPolicy.canPersist(real.copy(latitude = 91.0)))
+        assertFalse(RememberedLocationPolicy.canPersist(real.copy(isMocked = true)))
+    }
+
+    @Test
+    fun rememberedLocation_ageRejectsClockRollbackAndExpiresAfter24Hours() {
+        val captured = 1_000_000L
+        assertEquals(60_000L, RememberedLocationPolicy.ageMillis(captured, captured + 60_000L))
+        assertNull(RememberedLocationPolicy.ageMillis(captured, captured - 1L))
+        assertTrue(RememberedLocationPolicy.MAX_RETENTION_MILLIS == 24L * 60L * 60L * 1_000L)
+        assertTrue(
+            RememberedLocationPolicy.ageMillis(
+                captured,
+                captured + RememberedLocationPolicy.MAX_RETENTION_MILLIS + 1L
+            )!! > RememberedLocationPolicy.MAX_RETENTION_MILLIS
+        )
     }
 }
