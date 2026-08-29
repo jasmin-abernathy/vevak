@@ -8,7 +8,7 @@
 > [!WARNING]
 > **VeVak does not contact emergency services and does not replace 112, 911, your phone's built-in emergency features, or any official safety service.**
 >
-> VeVak is currently under active development and real-world testing. Do not rely on it as your only means of communication or safety.
+> VeVak is under active development and real-device testing. Do not rely on it as your only means of communication or safety.
 
 ---
 
@@ -16,268 +16,187 @@
 
 ### What is VeVak?
 
-VeVak is a privacy-first, open-source Android application designed to let a **trusted contact request your approximate location by SMS** when an Internet connection is unavailable, unreliable, or intentionally disabled.
+VeVak is a privacy-first, open-source Android application that lets **explicitly authorised trusted contacts request location information by SMS** for a limited period.
 
-The core feature is designed to work locally on the device and to rely on the **mobile SMS network rather than a cloud service**.
+The core works locally on the phone and uses the **mobile SMS network rather than a mandatory cloud service**. The current prototype supports up to five locally configured trusted contacts, each with their own phone number, request phrase, finite authorisation and local revocation control.
 
-A user explicitly chooses:
-
-- the trusted phone number allowed to make a request;
-- the exact request phrase;
-- the permissions granted to the application.
-
-When VeVak receives a valid SMS request from the authorised contact, it attempts to obtain a recent or current location and sends the result back by SMS.
+The phone owner can also initiate a one-time manual location share.
 
 ### Why VeVak?
 
-Many location-sharing tools depend on:
+Many location-sharing tools depend on permanent Internet access, remote accounts and tracking infrastructure. VeVak explores a deliberately smaller model:
 
-- mobile data or Wi-Fi;
-- cloud accounts;
-- proprietary services;
-- continuous background connections;
-- remote tracking infrastructure.
+- local-first processing;
+- SMS-based communication;
+- finite, explicit authorisations;
+- no advertising or telemetry;
+- no mandatory VeVak account or server;
+- no continuous location tracking in the current core;
+- open-source development;
+- data minimisation and functional sobriety.
 
-VeVak explores a different approach:
+### How a normal request works
 
-- **local-first processing**;
-- **SMS-based communication**;
-- **explicitly authorised contact**;
-- **no advertising**;
-- **no tracking**;
-- **no mandatory cloud account**;
-- **data minimisation**;
-- **open-source development**;
-- **digital sustainability and functional sobriety**.
+```text
+Authorised contact
+      │
+      │ SMS containing that contact's configured phrase
+      ▼
+┌────────────────┐
+│     VeVak      │
+│ Android phone  │
+└────────────────┘
+      │
+      ├─ verifies sender + phrase
+      ├─ verifies finite local authorisation
+      ├─ enforces request visibility + anti-tracking limits
+      ├─ checks trusted-place / local location fallbacks
+      ├─ may request one bounded fresh location
+      ▼
+SMS response
+```
+
+### Location resilience in 0.3.1
+
+Android may redact Wi-Fi identifiers and may clear its own last-location cache when the user switches global **Location** off. VeVak 0.3.1 therefore uses a local resilience ladder instead of treating Android's cache as the only fallback.
+
+For a normal authorised request:
+
+1. a positively recognised trusted Wi-Fi place can return a local label such as `Maison` without waking GPS;
+2. if Android later redacts the SSID after Location is switched off, that trusted-place result can continue only for the **same already-verified Android Wi-Fi network session and the same device boot**;
+3. VeVak compares Android's cached point with its own app-private remembered last real location;
+4. when Android location providers are available, VeVak may attempt one bounded current-location lookup;
+5. if current acquisition fails and stale fallback is enabled, VeVak may use the freshest remaining cached point;
+6. VeVak's own remembered precise location expires after **24 hours**, and its real age remains visible in the reply.
+
+VeVak does **not** silently re-enable Android Location and does not claim that a third-party app can obtain a genuinely new GPS/network fix after the user has disabled the platform's location services.
+
+The remembered position:
+
+- is stored only in the app-private sandbox;
+- is never uploaded;
+- is excluded from `.vvk` configuration backups;
+- is excluded from redacted diagnostics and logs;
+- rejects locations Android marks as mocked;
+- expires after 24 hours.
+
+### Trusted Wi-Fi and network permissions
+
+The canonical FOSS variant still has **no `INTERNET` permission**.
+
+VeVak does request `ACCESS_NETWORK_STATE`, a read-only Android permission, so it can determine whether the already-active network session is Wi-Fi and preserve continuity of a network that was positively identified before Android redacted its SSID. This permission does not let VeVak open Internet connections.
+
+A Wi-Fi reconnect, network-session replacement or device reboot invalidates that continuity proof. If Android still hides the SSID afterwards, VeVak fails closed rather than guessing that the phone is still at the trusted place.
 
 ### Important limitation: SMS is still a network service
 
-VeVak does **not** require Internet access for its core location-request feature, but it still depends on:
+The core does not need Internet access, but it still depends on:
 
-- an available mobile network;
-- working SMS service;
-- Android allowing the application to receive and send SMS;
-- location availability;
-- the permissions granted by the user;
-- device and manufacturer background restrictions;
-- the user's mobile plan and operator configuration.
+- a working mobile network and SMS service;
+- Android SMS permissions;
+- notification visibility for automatic requests;
+- location permissions and available location information;
+- manufacturer/background restrictions;
+- SIM/eSIM and operator configuration.
 
-For this reason, VeVak should **not** be described as “working without a network” or as “always available”.
+VeVak must not be described as “working without any network”, “always locatable”, or “guaranteed in an emergency”.
 
-### Emergency services
+### Safety and abuse-prevention baseline
 
-VeVak is **not an emergency service**.
+The free/open-source core includes:
 
-In an emergency, use the official emergency number available in your country and the emergency features built into your phone.
+- up to five trusted contacts in the current prototype;
+- separate finite authorisation for each contact (24 h, 7 days or 30 days);
+- immediate local revocation;
+- a global anti-tracking quota shared across contacts;
+- mandatory local visibility for automatic requests;
+- manual one-time sharing initiated on the phone;
+- optional duress/safety fallback designed so that a duress request never inspects the real/trusted-Wi-Fi/remembered location path;
+- minimal local audit outcomes without coordinates, phone numbers, SMS contents, phrases or Wi-Fi identifiers;
+- encrypted `.vvk` configuration export/import that never silently restores active authorisations.
 
-In the European Union, **112** is the common emergency number.
+See `ABUSE-PREVENTION.md` and `PRIVACY.md` for the non-negotiable boundaries.
 
-VeVak may help a trusted contact receive a location in some situations, but:
+### Current real-device testing priorities
 
-- it does not contact emergency services;
-- it does not guarantee that a location can be obtained;
-- it does not guarantee that an SMS can be received or sent;
-- it must not be your only safety mechanism.
+P0 validation currently covers:
 
-### How it works
+- real SMS → validation → reply, including screen-off/app-closed use;
+- trusted Wi-Fi registered with Location on, then Location switched off while staying on the same Wi-Fi session;
+- remembered last position after global Location is switched off;
+- Wi-Fi reconnect and reboot fail-closed behaviour;
+- multiple senders and per-contact revocation;
+- dual-SIM/eSIM behaviour;
+- manufacturer battery/background restrictions;
+- encrypted backup portability;
+- accessibility and privacy-safe diagnostics.
 
-```text
-Trusted contact
-      │
-      │ SMS containing the configured request phrase
-      ▼
-┌───────────────┐
-│     VeVak     │
-│ Android phone │
-└───────────────┘
-      │
-      ├─ verifies the sender
-      ├─ verifies the request phrase
-      ├─ applies request rate limits
-      ├─ checks for a recent location
-      ├─ may request a fresh location
-      ▼
-SMS response to the trusted contact
-```
+The public P0 regression checklist is tracked in GitHub issue `#17` without posting real numbers, trigger phrases, Wi-Fi identifiers or coordinates.
 
-The intended strategy is:
+### Why not add every possible radio-location technique immediately?
 
-1. use a sufficiently recent cached location when appropriate;
-2. otherwise attempt a bounded one-time location request;
-3. if no usable location is available, return an explicit failure result rather than pretending that a location was found.
+Projects such as GPSLogger, NeoStumbler and local network-location backends demonstrate useful GPS/network/passive/Wi-Fi/cellular techniques. VeVak already asks multiple Android providers where appropriate, and local radio-environment learning remains a P1 research direction.
 
-### Privacy and security principles
-
-VeVak is designed around the following principles:
-
-- **one explicitly authorised contact**;
-- **an exact configurable request phrase**;
-- **local processing**;
-- **minimal persistence**;
-- **no analytics or advertising SDKs**;
-- **no direct logging of sensitive information**;
-- **no automatic cloud backup of sensitive application data**;
-- **rate limiting** for repeated requests;
-- **clear disclosure of permissions and limitations**;
-- **diagnostic information must be redacted**.
-
-Sensitive information such as:
-
-- phone numbers;
-- SMS contents;
-- request phrases;
-- precise coordinates;
-
-must not be included in public bug reports, screenshots, logs, or GitHub issues.
-
-### Phone readiness
-
-Reliable behaviour depends heavily on the phone and mobile network.
-
-Before using VeVak, users should verify that:
-
-- Android is up to date;
-- ordinary SMS sending and receiving works;
-- the SIM/eSIM is active;
-- 4G/5G and VoLTE are correctly configured when relevant;
-- location services are enabled when VeVak is expected to obtain a location;
-- VeVak has the required permissions;
-- manufacturer battery restrictions do not prevent expected background behaviour.
-
-VeVak includes or plans to include guided readiness checks, but these checks **cannot certify that the phone will work in every real-world situation**.
-
-### Current testing priorities
-
-The project is currently testing and documenting behaviour across:
-
-- screen-on and screen-off conditions;
-- mobile data disabled;
-- Wi-Fi disabled;
-- 4G and 5G networks;
-- VoLTE configurations;
-- different mobile operators;
-- single-SIM and dual-SIM phones;
-- Android background restrictions;
-- battery optimisation modes;
-- recent cached location vs fresh location;
-- location disabled or unavailable;
-- different Android versions;
-- accessibility with TalkBack and large text;
-- privacy-safe diagnostics.
-
-### Android background constraints
-
-SMS reception is event-driven on Android.
-
-VeVak must keep its SMS processing bounded and avoid long-running work inside a `BroadcastReceiver`. Location acquisition is therefore intentionally time-limited.
-
-Behaviour must be tested on real devices because Android versions and manufacturer-specific battery policies can affect background execution.
+It is **not** part of the 0.3.1 fix because current Android versions still gate Wi-Fi scans and many radio identifiers behind location-related permissions/settings. Adding more radio collection would increase sensitive state and permission complexity without reliably solving the exact “global Location off” failure.
 
 ### Variants
 
-The project separates a **FOSS-oriented variant** from variants that may depend on proprietary platform components.
+The repository contains two Gradle product flavors sharing the same tested core:
 
-The FOSS variant is intended to remain the canonical privacy-first version and should avoid unnecessary network dependencies.
+- `foss` — canonical open-source/privacy-first build using Android `LocationManager` and no Google Play Services;
+- `play` — isolates Google Fused Location Provider dependencies in the Play source set.
 
-### Distribution
+The FOSS boundary is enforced in CI. Proprietary Google location APIs must not leak into `main` or `foss`, and `android.permission.INTERNET` remains forbidden in the canonical core.
 
-The preferred distribution path is currently:
+### Build and CI
 
-1. source code on GitHub;
-2. closed testing;
-3. public pre-release builds;
-4. F-Droid-compatible distribution when the project meets the required quality and packaging criteria.
+The Android CI validates:
 
-Google Play distribution requires additional review because permissions related to SMS are heavily restricted by Play policy. The project will not weaken its privacy or safety model merely to satisfy a store distribution requirement.
+- privacy/ecodesign static boundaries;
+- FOSS unit tests;
+- FOSS debug build + lint;
+- Play unit tests;
+- Play debug build + lint.
+
+Successful non-PR runs also publish the exact validated FOSS debug APK as a short-lived GitHub Actions artifact for real-device testing.
+
+See `BUILDING.md` for local build instructions.
 
 ### Project status
 
-**Status: active development / prototype**
+**Status: active development / prototype / real-device validation in progress**
 
-VeVak is not yet a stable safety product.
-
-Before a stable release, the project requires:
-
-- successful reproducible builds;
-- multi-device testing;
-- multi-operator testing;
-- dual-SIM validation;
-- Android background-behaviour testing;
-- accessibility review;
-- security review;
-- documented failure modes;
-- privacy review;
-- clear release criteria.
+Before a stable release, VeVak still needs broader multi-device/operator testing, dual-SIM validation, background-behaviour evidence, accessibility review, security/privacy review, documented failure modes and clear release criteria.
 
 ### Repository structure
 
-Typical project structure:
-
 ```text
 .
-├── .github/          # Issue templates, workflows and project automation
-├── app/              # Android application
-├── brand/            # Brand and visual assets
-├── docs/             # Technical and user documentation
-├── github-planning/  # Roadmap and planning resources
-├── gradle/           # Gradle configuration
-├── scripts/          # Validation and maintenance scripts
-├── README.md
+├── .github/          # CI and contribution templates
+├── app/              # Android app + FOSS/Play source sets
+├── docs/             # Technical review notes
+├── gradle/           # Gradle wrapper/configuration
+├── scripts/          # Privacy/ecodesign validation scripts
+├── ABUSE-PREVENTION.md
+├── BUILDING.md
+├── CHANGELOG.md
+├── PRIVACY.md
 ├── ROADMAP.md
 ├── SECURITY.md
-├── PRIVACY.md
 └── LICENSE
 ```
 
-### Contributing
+### Contributing and responsible disclosure
 
-Contributions are welcome, especially for:
+Contributions are especially useful for Android/SMS testing, dual-SIM, accessibility, manufacturer compatibility, privacy/security review, documentation, F-Droid packaging and reproducible builds.
 
-- Android testing;
-- SMS behaviour;
-- dual-SIM support;
-- accessibility;
-- privacy and security review;
-- device-manufacturer compatibility;
-- technical documentation;
-- localisation;
-- F-Droid packaging;
-- reproducible builds.
+Before contributing, read `CONTRIBUTING.md`, `SECURITY.md`, `PRIVACY.md` and `ROADMAP.md`.
 
-Before contributing, please read:
+Never publish real phone numbers, SMS contents, request phrases, Wi-Fi identifiers or precise coordinates in public issues, screenshots or logs.
 
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-- `PRIVACY.md`
-- `ROADMAP.md`
+### Licence and origin
 
-When reporting a bug, **never include real phone numbers, SMS contents, request phrases, or coordinates**.
-
-### Responsible communication
-
-Please avoid claims such as:
-
-- “always locatable”;
-- “works without any network”;
-- “guaranteed in an emergency”;
-- “replaces emergency services”;
-- “anti-violence protection app”.
-
-Preferred wording:
-
-> VeVak can respond to an authorised SMS location request when SMS delivery, Android permissions, device background behaviour and location availability allow it.
-
-### Licence
-
-VeVak is open source.
-
-See the `LICENSE` file in this repository for the applicable licence terms.
-
-### Project origin
-
-VeVak is an open-source project developed in France by **Le Potager des Apps**.
-
-Documentation is maintained in both English and French.
+VeVak is open source under the licence in `LICENSE` and is developed in France by **Le Potager des Apps**.
 
 ---
 
@@ -285,75 +204,31 @@ Documentation is maintained in both English and French.
 
 ### Qu'est-ce que VeVak ?
 
-VeVak est une application Android libre et respectueuse de la vie privée, conçue pour permettre à **un contact de confiance de demander votre position approximative par SMS**, notamment lorsqu'une connexion Internet est indisponible, instable ou volontairement désactivée.
+VeVak est une application Android libre et respectueuse de la vie privée permettant à **plusieurs contacts de confiance explicitement autorisés de demander une information de localisation par SMS** pendant une durée limitée.
 
-La fonction principale est conçue pour fonctionner localement sur le téléphone et s'appuyer sur le **réseau SMS mobile plutôt que sur un service cloud**.
+Le cœur fonctionne localement sur le téléphone et s'appuie sur le **réseau SMS mobile plutôt que sur un service cloud obligatoire**. Le prototype actuel accepte jusqu'à cinq contacts configurés localement, chacun avec son numéro, sa phrase normale, sa propre autorisation temporaire et sa révocation locale.
 
-L'utilisateur choisit explicitement :
-
-- le numéro de téléphone autorisé à effectuer une demande ;
-- la phrase exacte déclenchant la demande ;
-- les autorisations accordées à l'application.
-
-Lorsqu'un SMS valide est reçu depuis le contact autorisé, VeVak tente d'obtenir une position récente ou actuelle puis renvoie le résultat par SMS.
+Le propriétaire du téléphone peut également déclencher lui-même un partage ponctuel de position.
 
 ### Pourquoi VeVak ?
 
-De nombreux outils de partage de position reposent sur :
+Beaucoup d'outils de partage de position reposent sur une connexion Internet permanente, des comptes distants et une infrastructure de suivi. VeVak explore volontairement un modèle plus réduit :
 
-- les données mobiles ou le Wi-Fi ;
-- un compte cloud ;
-- des services propriétaires ;
-- des connexions permanentes en arrière-plan ;
-- des infrastructures de suivi distantes.
+- traitement local d'abord ;
+- communication par SMS ;
+- autorisations explicites et limitées dans le temps ;
+- aucune publicité ni télémétrie ;
+- aucun compte ou serveur VeVak obligatoire ;
+- aucun suivi continu dans le cœur actuel ;
+- développement open source ;
+- minimisation des données et sobriété fonctionnelle.
 
-VeVak explore une autre approche :
-
-- **traitement local d'abord** ;
-- **communication par SMS** ;
-- **contact explicitement autorisé** ;
-- **aucune publicité** ;
-- **aucun suivi publicitaire** ;
-- **aucun compte cloud obligatoire** ;
-- **minimisation des données** ;
-- **développement open source** ;
-- **sobriété fonctionnelle et numérique**.
-
-### Limite importante : le SMS utilise toujours un réseau
-
-VeVak ne nécessite **pas de connexion Internet** pour sa fonction principale de demande de position, mais dépend toujours :
-
-- d'un réseau mobile disponible ;
-- du fonctionnement des SMS ;
-- de la possibilité pour Android de recevoir et d'envoyer les SMS ;
-- de la disponibilité de la localisation ;
-- des autorisations accordées par l'utilisateur ;
-- des restrictions d'arrière-plan du téléphone ;
-- du forfait et de la configuration de l'opérateur.
-
-VeVak ne doit donc pas être présenté comme une application « fonctionnant sans réseau » ou « toujours disponible ».
-
-### Services d'urgence
-
-VeVak **n'est pas un service d'urgence**.
-
-En cas d'urgence, utilisez le numéro d'urgence officiel disponible dans votre pays ainsi que les fonctions d'urgence intégrées au téléphone.
-
-Dans l'Union européenne, **le 112** est le numéro d'urgence commun.
-
-VeVak peut, dans certaines situations, aider un contact de confiance à recevoir une position, mais :
-
-- l'application ne contacte pas les secours ;
-- elle ne garantit pas qu'une position pourra être obtenue ;
-- elle ne garantit pas qu'un SMS pourra être reçu ou envoyé ;
-- elle ne doit jamais constituer l'unique dispositif de sécurité d'une personne.
-
-### Fonctionnement
+### Fonctionnement d'une demande normale
 
 ```text
-Contact de confiance
+Contact autorisé
       │
-      │ SMS contenant la phrase configurée
+      │ SMS contenant sa phrase configurée
       ▼
 ┌───────────────┐
 │     VeVak     │
@@ -361,188 +236,153 @@ Contact de confiance
 │ Android       │
 └───────────────┘
       │
-      ├─ vérification de l'expéditeur
-      ├─ vérification de la phrase
-      ├─ limitation des demandes
-      ├─ recherche d'une position récente
-      ├─ éventuellement recherche d'une nouvelle position
+      ├─ vérifie l'expéditeur et la phrase
+      ├─ vérifie l'autorisation locale temporaire
+      ├─ applique visibilité + limites anti-suivi
+      ├─ cherche un lieu de confiance / repli local
+      ├─ peut demander une position fraîche bornée
       ▼
-Réponse SMS au contact de confiance
+Réponse SMS
 ```
 
-La stratégie prévue consiste à :
+### Résilience de localisation en 0.3.1
 
-1. utiliser une position récente en cache lorsqu'elle est suffisamment pertinente ;
-2. sinon tenter une demande de localisation ponctuelle et limitée dans le temps ;
-3. si aucune position exploitable n'est disponible, renvoyer un échec explicite plutôt que de laisser croire qu'une position a été trouvée.
+Android peut masquer les identifiants Wi-Fi et effacer son propre cache de dernière position lorsque l'utilisateur coupe le bouton global **Localisation**. VeVak 0.3.1 utilise donc plusieurs replis locaux au lieu de dépendre uniquement du cache Android.
 
-### Principes de confidentialité et de sécurité
+Pour une demande normale autorisée :
 
-VeVak est conçu autour des principes suivants :
+1. un Wi-Fi de confiance positivement reconnu peut répondre avec un libellé local tel que `Maison` sans réveiller le GPS ;
+2. si Android masque ensuite le SSID après la coupure de Localisation, cette reconnaissance peut continuer uniquement pour **la même session réseau Wi-Fi Android déjà vérifiée et le même démarrage du téléphone** ;
+3. VeVak compare le cache Android à sa propre dernière position réelle mémorisée localement ;
+4. lorsque les fournisseurs Android sont disponibles, VeVak peut tenter une seule recherche actuelle limitée dans le temps ;
+5. si la recherche échoue et que le repli ancien est autorisé, VeVak peut utiliser le meilleur point restant ;
+6. la position précise mémorisée par VeVak expire après **24 heures** et son âge réel reste indiqué dans la réponse.
 
-- **un contact explicitement autorisé** ;
-- **une phrase exacte configurable** ;
-- **traitement local** ;
-- **stockage minimal** ;
-- **aucun SDK publicitaire ou analytique** ;
-- **aucun journal direct contenant des données sensibles** ;
-- **pas de sauvegarde cloud automatique des données sensibles de l'application** ;
-- **limitation de fréquence des demandes** ;
-- **présentation claire des autorisations et limites** ;
-- **diagnostics expurgés**.
+VeVak ne tente **pas** de rallumer silencieusement la Localisation Android et ne prétend pas qu'une application tierce peut produire un nouveau point GPS/réseau après désactivation des services de localisation par l'utilisateur.
 
-Les informations sensibles telles que :
+La position mémorisée :
 
-- les numéros de téléphone ;
-- le contenu des SMS ;
-- la phrase de déclenchement ;
-- les coordonnées précises ;
+- reste dans le stockage privé de l'application ;
+- n'est jamais envoyée à un serveur ;
+- n'est pas incluse dans les sauvegardes `.vvk` ;
+- n'apparaît pas dans les diagnostics ou journaux expurgés ;
+- refuse les positions signalées comme simulées par Android ;
+- expire après 24 heures.
 
-ne doivent jamais apparaître dans des rapports de bugs publics, captures d'écran, journaux ou issues GitHub.
+### Wi-Fi de confiance et permissions réseau
 
-### Préparation du téléphone
+La variante FOSS canonique n'a toujours **pas la permission `INTERNET`**.
 
-Le comportement réel dépend fortement du téléphone et du réseau mobile.
+VeVak utilise désormais `ACCESS_NETWORK_STATE`, une permission Android de lecture de l'état réseau, uniquement pour savoir si la session déjà active est du Wi-Fi et maintenir la continuité d'un réseau qui avait été positivement identifié avant qu'Android n'en masque le SSID. Cette permission ne permet pas à VeVak d'ouvrir une connexion Internet.
 
-Avant d'utiliser VeVak, il est recommandé de vérifier que :
+Une reconnexion Wi-Fi, un remplacement de session réseau ou un redémarrage invalide cette preuve de continuité. Si Android masque encore le SSID ensuite, VeVak échoue prudemment plutôt que de deviner que le téléphone est toujours à `Maison`.
 
-- Android est à jour ;
-- l'envoi et la réception de SMS ordinaires fonctionnent ;
-- la SIM ou eSIM est active ;
-- la 4G/5G et la VoLTE sont correctement configurées lorsque cela est pertinent ;
-- les services de localisation sont activés lorsqu'une position doit être obtenue ;
-- VeVak dispose des autorisations nécessaires ;
-- les restrictions de batterie du constructeur n'empêchent pas le fonctionnement attendu en arrière-plan.
+### Limite importante : le SMS utilise toujours un réseau
 
-VeVak inclut ou prévoit des vérifications guidées, mais celles-ci **ne peuvent pas certifier que le téléphone fonctionnera dans toutes les situations réelles**.
+Le cœur ne nécessite pas Internet, mais dépend toujours :
 
-### Tests prioritaires
+- d'un réseau mobile et d'un service SMS fonctionnels ;
+- des permissions SMS Android ;
+- de notifications visibles pour les demandes automatiques ;
+- des permissions et informations de localisation disponibles ;
+- des restrictions d'arrière-plan du constructeur ;
+- de la configuration SIM/eSIM et opérateur.
 
-Le projet teste actuellement notamment :
+VeVak ne doit pas être présenté comme « fonctionnant sans aucun réseau », « toujours localisable » ou « garanti en cas d'urgence ».
 
-- l'écran allumé et éteint ;
-- les données mobiles désactivées ;
-- le Wi-Fi désactivé ;
-- les réseaux 4G et 5G ;
-- différentes configurations VoLTE ;
-- plusieurs opérateurs mobiles ;
-- les téléphones simple SIM et double SIM ;
-- les restrictions Android en arrière-plan ;
-- les modes d'optimisation de batterie ;
-- la position récente en cache et la nouvelle localisation ;
-- la localisation désactivée ou indisponible ;
-- différentes versions d'Android ;
-- l'accessibilité avec TalkBack et l'agrandissement du texte ;
-- les diagnostics respectueux de la vie privée.
+### Socle de sécurité et prévention des abus
 
-### Contraintes Android en arrière-plan
+Le cœur libre inclut notamment :
 
-La réception de SMS est déclenchée par événement sous Android.
+- jusqu'à cinq contacts de confiance dans le prototype actuel ;
+- une autorisation distincte et limitée pour chacun (24 h, 7 jours ou 30 jours) ;
+- la révocation locale immédiate ;
+- un quota anti-suivi global partagé entre les contacts ;
+- une visibilité locale obligatoire pour les demandes automatiques ;
+- le partage ponctuel initié depuis le téléphone ;
+- un repli optionnel sous contrainte conçu pour ne jamais consulter le vrai Wi-Fi, la vraie position ou la position réelle mémorisée ;
+- un historique local minimal sans coordonnées, numéros, texte SMS, phrases ni identifiants Wi-Fi ;
+- un export/import `.vvk` chiffré qui ne réactive jamais silencieusement les autorisations.
 
-VeVak doit maintenir un traitement SMS limité dans le temps et éviter les travaux longs à l'intérieur d'un `BroadcastReceiver`. La recherche de localisation est donc volontairement bornée.
+Voir `ABUSE-PREVENTION.md` et `PRIVACY.md` pour les règles non négociables.
 
-Le fonctionnement doit être testé sur de vrais appareils, car les versions d'Android et les politiques de batterie propres aux constructeurs peuvent modifier le comportement en arrière-plan.
+### Tests terrain prioritaires
+
+La validation P0 couvre actuellement :
+
+- vrai SMS → validation → réponse, écran éteint et application fermée compris ;
+- Wi-Fi de confiance enregistré avec Localisation active puis Localisation coupée sans changer de session Wi-Fi ;
+- dernière position VeVak après coupure de Localisation ;
+- reconnexion Wi-Fi et redémarrage avec échec prudent ;
+- plusieurs expéditeurs et révocation par contact ;
+- double-SIM/eSIM ;
+- restrictions batterie/arrière-plan des constructeurs ;
+- portabilité de la sauvegarde chiffrée ;
+- accessibilité et diagnostics expurgés.
+
+La checklist P0 correspondante est suivie dans l'issue GitHub `#17`, sans y publier de numéro réel, phrase-clé, identifiant Wi-Fi ou coordonnées.
+
+### Pourquoi ne pas ajouter immédiatement toutes les techniques radio possibles ?
+
+Des projets comme GPSLogger, NeoStumbler et des backends de géolocalisation locale montrent des approches utiles combinant GPS, réseau, passif, Wi-Fi ou cellules. VeVak interroge déjà plusieurs fournisseurs Android lorsque c'est pertinent, et l'apprentissage local de l'environnement radio reste une piste P1.
+
+Ce n'est **pas** dans le correctif 0.3.1 car Android continue de conditionner les scans Wi-Fi et beaucoup d'identifiants radio aux permissions/réglages de localisation. Collecter davantage de données sensibles augmenterait la complexité sans résoudre de manière fiable le cas précis « Localisation globale coupée ».
 
 ### Variantes
 
-Le projet sépare une **variante orientée FOSS** des variantes pouvant éventuellement dépendre de composants propriétaires.
+Le dépôt contient deux flavors Gradle partageant le même cœur testé :
 
-La variante FOSS est destinée à rester la version canonique respectueuse de la vie privée et doit éviter les dépendances réseau inutiles.
+- `foss` — variante canonique libre, basée sur `LocationManager`, sans Google Play Services ;
+- `play` — dépendances Google Fused Location Provider isolées dans le source set Play.
 
-### Distribution
+La frontière FOSS est vérifiée en CI : les API propriétaires Google ne doivent pas fuiter dans `main` ou `foss`, et `android.permission.INTERNET` reste interdite dans le cœur canonique.
 
-Le parcours de distribution privilégié est actuellement :
+### Build et CI
 
-1. code source sur GitHub ;
-2. tests fermés ;
-3. préversions publiques ;
-4. distribution compatible F-Droid lorsque le projet répondra aux critères nécessaires.
+La CI Android vérifie :
 
-Une éventuelle distribution sur Google Play nécessite une étude supplémentaire, les autorisations liées aux SMS étant fortement encadrées par les règles du Play Store. Le projet ne modifiera pas son modèle de confidentialité ou de sécurité uniquement pour répondre aux contraintes d'une boutique.
+- les frontières statiques de confidentialité et d'écoconception ;
+- les tests unitaires FOSS ;
+- le build debug FOSS et son lint ;
+- les tests unitaires Play ;
+- le build debug Play et son lint.
+
+Après une exécution réussie hors pull request, la CI publie également l'APK FOSS debug exacte comme artefact GitHub Actions temporaire afin de tester précisément le build validé.
+
+Voir `BUILDING.md` pour les instructions de compilation locale.
 
 ### État du projet
 
-**État : développement actif / prototype**
+**État : développement actif / prototype / validation sur appareils réels en cours**
 
-VeVak n'est pas encore un produit de sécurité stable.
-
-Avant une version stable, le projet nécessite notamment :
-
-- des builds reproductibles réussis ;
-- des tests multi-appareils ;
-- des tests avec plusieurs opérateurs ;
-- une validation du double SIM ;
-- des tests du comportement Android en arrière-plan ;
-- un audit d'accessibilité ;
-- une revue de sécurité ;
-- une documentation des modes d'échec ;
-- une revue de confidentialité ;
-- des critères de publication clairement définis.
+Avant une version stable, VeVak nécessite encore davantage de tests multi-appareils et opérateurs, la validation double-SIM, des preuves de comportement en arrière-plan, une revue d'accessibilité, des revues sécurité/confidentialité, une documentation des modes d'échec et des critères de publication clairs.
 
 ### Structure du dépôt
 
 ```text
 .
-├── .github/          # Modèles d'issues, workflows et automatisations
-├── app/              # Application Android
-├── brand/            # Identité visuelle
-├── docs/             # Documentation technique et utilisateur
-├── github-planning/  # Roadmap et ressources de pilotage
-├── gradle/           # Configuration Gradle
-├── scripts/          # Scripts de validation et maintenance
-├── README.md
+├── .github/          # CI et modèles de contribution
+├── app/              # Application Android + source sets FOSS/Play
+├── docs/             # Notes de revue technique
+├── gradle/           # Wrapper/configuration Gradle
+├── scripts/          # Contrôles confidentialité/écoconception
+├── ABUSE-PREVENTION.md
+├── BUILDING.md
+├── CHANGELOG.md
+├── PRIVACY.md
 ├── ROADMAP.md
 ├── SECURITY.md
-├── PRIVACY.md
 └── LICENSE
 ```
 
-### Contribuer
+### Contribuer et signaler
 
-Les contributions sont particulièrement bienvenues sur :
+Les contributions sont particulièrement utiles pour les tests Android/SMS, le double-SIM, l'accessibilité, la compatibilité constructeur, les revues de confidentialité/sécurité, la documentation, le packaging F-Droid et les builds reproductibles.
 
-- les tests Android ;
-- le comportement SMS ;
-- le support double SIM ;
-- l'accessibilité ;
-- les revues de confidentialité et sécurité ;
-- la compatibilité avec les différents constructeurs ;
-- la documentation technique ;
-- les traductions ;
-- le packaging F-Droid ;
-- les builds reproductibles.
+Avant de contribuer, consultez `CONTRIBUTING.md`, `SECURITY.md`, `PRIVACY.md` et `ROADMAP.md`.
 
-Avant de contribuer, consultez :
+Ne publiez jamais de véritables numéros de téléphone, contenus SMS, phrases de déclenchement, identifiants Wi-Fi ou coordonnées précises dans une issue, une capture ou un journal public.
 
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-- `PRIVACY.md`
-- `ROADMAP.md`
+### Licence et origine
 
-Lors d'un signalement, **ne publiez jamais de véritable numéro de téléphone, contenu de SMS, phrase de déclenchement ou coordonnées géographiques**.
-
-### Communication responsable
-
-Évitez les formulations telles que :
-
-- « toujours localisable » ;
-- « fonctionne sans aucun réseau » ;
-- « garanti en cas d'urgence » ;
-- « remplace les secours » ;
-- « application de protection anti-violences ».
-
-Préférez :
-
-> VeVak peut répondre à une demande de localisation autorisée par SMS lorsque l'acheminement du SMS, les autorisations Android, le fonctionnement en arrière-plan du téléphone et la disponibilité de la localisation le permettent.
-
-### Licence
-
-VeVak est un projet open source.
-
-Consultez le fichier `LICENSE` du dépôt pour connaître les conditions de licence applicables.
-
-### Origine du projet
-
-VeVak est un projet open source développé en France par **Le Potager des Apps**.
-
-La documentation est maintenue en anglais et en français.
+VeVak est open source selon la licence présente dans `LICENSE` et est développé en France par **Le Potager des Apps**.
