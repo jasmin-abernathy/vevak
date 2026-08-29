@@ -18,6 +18,10 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Read-only connectivity state. This does not grant Internet access; it is used only to
+         recognise continuity of an already-verified Wi-Fi network session when Android redacts
+         the SSID after the global Location toggle is switched off. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
