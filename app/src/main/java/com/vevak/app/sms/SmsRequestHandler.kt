@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import com.vevak.app.data.ProtectionPromptRepository
 import com.vevak.app.data.RequestAuditOutcome
 import com.vevak.app.data.RequestAuditRepository
 import com.vevak.app.data.RuntimeStateRepository
@@ -30,6 +31,7 @@ class SmsRequestHandler(private val context: Context) {
     private val settingsRepository = VeVakSettingsRepository(context)
     private val runtimeRepository = RuntimeStateRepository(context)
     private val auditRepository = RequestAuditRepository(context)
+    private val protectionPromptRepository = ProtectionPromptRepository(context)
     private val phoneMatcher = PhoneNumberMatcher(context)
     private val locationRepository = VeVakLocationRepository(context)
     private val replySender = SmsReplySender(context)
@@ -51,13 +53,10 @@ class SmsRequestHandler(private val context: Context) {
         if (!contact.hasActiveAuthorization(now)) {
             auditRepository.append(now, RequestAuditOutcome.BlockedAuthorization)
             if (notifier.notificationsAllowedForRequests(discreet)) notifier.showRequestReceived(discreet)
-            // Another contact may still be authorised, so resynchronise instead of blindly
-            // removing the persistent status notification.
             notifier.syncActiveStatus(settings)
             return
         }
 
-        // Visibility remains a hard precondition. Discreet mode changes noise, never local visibility.
         if (!notifier.showRequestReceived(discreet)) {
             auditRepository.append(now, RequestAuditOutcome.BlockedVisibility)
             return
@@ -69,8 +68,7 @@ class SmsRequestHandler(private val context: Context) {
             return
         }
 
-        // This limiter intentionally remains global across all trusted contacts. Adding contacts
-        // must never multiply the number of automatic location replies allowed per day.
+        // Global limiter: adding contacts must never multiply tracking capacity.
         val allowed = runtimeRepository.tryAcquire(
             nowMillis = now,
             minimumIntervalMillis = settings.minRequestIntervalSeconds * 1_000L
@@ -80,8 +78,7 @@ class SmsRequestHandler(private val context: Context) {
             return
         }
 
-        // Never inspect current Wi-Fi/network state on a duress request. The duress branch remains
-        // completely independent from both real location and current-place inference.
+        // A protection/duress request never inspects current Wi-Fi or real location.
         val trustedPlaceLabel = when (mode) {
             IncomingRequestMode.Duress -> null
             IncomingRequestMode.Normal -> settings.trustedPlaceLabel.takeIf {
@@ -104,6 +101,12 @@ class SmsRequestHandler(private val context: Context) {
         val sent = runCatching {
             replySender.send(incoming.sender, reply, incoming.subscriptionId)
         }.isSuccess
+
+        if (sent && mode == IncomingRequestMode.Normal) {
+            // This counter is deliberately invisible. The UI only checks eligibility on a later
+            // voluntary app launch, so the second request itself creates no prompt or notification.
+            protectionPromptRepository.recordSuccessfulNormalReply(contact.id)
+        }
 
         auditRepository.append(
             now,
@@ -130,7 +133,7 @@ class SmsRequestHandler(private val context: Context) {
     }
 
     /**
-     * This branch deliberately never calls VeVakLocationRepository. A duress command must not
+     * This branch deliberately never calls VeVakLocationRepository. A protection request must not
      * acquire, refresh or inspect the real device location, even if the fallback is invalid.
      */
     private fun safetyFallback(settings: VeVakSettings): VeVakLocationSnapshot? {
