@@ -36,7 +36,8 @@ data class VeVakLocationSnapshot(
     val accuracyMeters: Float?,
     val source: LocationSource,
     val ageMillis: Long,
-    val isMocked: Boolean
+    val isMocked: Boolean,
+    val address: String? = null
 ) {
     fun ageLabel(): String {
         val seconds = max(0L, ageMillis) / 1000L
