@@ -8,6 +8,7 @@ import android.content.Context
 import android.location.Address
 import android.location.Geocoder
 import android.os.Build
+import androidx.annotation.RequiresApi
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -44,6 +45,7 @@ class SystemReverseGeocoder(context: Context) {
         return format(address)
     }
 
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private suspend fun resolveAsync(latitude: Double, longitude: Double): Address? =
         suspendCancellableCoroutine { continuation ->
             runCatching {
