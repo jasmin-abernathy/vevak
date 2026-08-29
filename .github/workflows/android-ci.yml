@@ -111,3 +111,13 @@ jobs:
             find app/build -type f -name 'lint-results-playDebug.txt' -print -exec cat {} \;
             exit 1
           fi
+
+      - name: Publish validated FOSS debug APK
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vevak-foss-debug-${{ github.sha }}
+          path: app/build/outputs/apk/foss/debug/app-foss-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
