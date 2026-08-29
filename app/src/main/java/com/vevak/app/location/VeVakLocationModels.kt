@@ -15,6 +15,7 @@ enum class LocationSource(val label: String) {
     FusedLastKnown("Fused / cache"),
     AndroidCurrent("Android / actuelle"),
     AndroidLastKnown("Android / cache"),
+    VeVakRemembered("VeVak / dernière position mémorisée"),
     SafetyFallback("Repli de sécurité")
 }
 
