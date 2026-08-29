@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail CI if proprietary/network dependencies leak into the canonical FOSS core."""
+"""Fail CI if proprietary or Internet dependencies leak into the canonical FOSS core."""
 
 from pathlib import Path
 import sys
@@ -8,12 +8,12 @@ ROOT = Path(__file__).resolve().parents[1]
 errors: list[str] = []
 
 manifest = (ROOT / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
-for permission in (
-    "android.permission.INTERNET",
-    "android.permission.ACCESS_NETWORK_STATE",
-):
-    if permission in manifest:
-        errors.append(f"Forbidden core manifest permission: {permission}")
+
+# ACCESS_NETWORK_STATE is intentionally allowed: VeVak uses it only to recognise whether the
+# already-active Android network session is Wi-Fi. It cannot open sockets or send data. INTERNET
+# remains forbidden in the canonical FOSS core.
+if "android.permission.INTERNET" in manifest:
+    errors.append("Forbidden core manifest permission: android.permission.INTERNET")
 
 # Proprietary Google APIs are allowed only in the Play source set/dependency scope.
 for source_root in (ROOT / "app/src/main", ROOT / "app/src/foss"):
