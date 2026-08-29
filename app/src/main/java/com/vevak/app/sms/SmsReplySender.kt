@@ -6,12 +6,18 @@ package com.vevak.app.sms
 
 import android.content.Context
 import android.os.Build
+import android.telephony.PhoneNumberUtils
 import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
 
 class SmsReplySender(private val context: Context) {
     @Suppress("DEPRECATION")
     fun send(destination: String, body: String, subscriptionId: Int?) {
+        val normalizedDestination = PhoneNumberUtils.normalizeNumber(destination)
+            .takeIf { it.isNotBlank() }
+            ?: destination.trim()
+        require(normalizedDestination.isNotBlank()) { "SMS destination is blank" }
+
         val baseManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             context.getSystemService(SmsManager::class.java) ?: SmsManager.getDefault()
         } else {
@@ -25,9 +31,9 @@ class SmsReplySender(private val context: Context) {
 
         val parts = manager.divideMessage(body)
         if (parts.size <= 1) {
-            manager.sendTextMessage(destination, null, body, null, null)
+            manager.sendTextMessage(normalizedDestination, null, body, null, null)
         } else {
-            manager.sendMultipartTextMessage(destination, null, parts, null, null)
+            manager.sendMultipartTextMessage(normalizedDestination, null, parts, null, null)
         }
     }
 }

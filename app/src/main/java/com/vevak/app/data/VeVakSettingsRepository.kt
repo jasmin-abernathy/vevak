@@ -91,12 +91,19 @@ class VeVakSettingsRepository(private val context: Context) {
         val provider = runCatching {
             MapProvider.valueOf(this[Keys.MAP_PROVIDER] ?: MapProvider.CoMaps.name)
         }.getOrDefault(MapProvider.CoMaps)
+        val completed = this[Keys.COMPLETED] ?: false
+        val storedTrigger = this[Keys.TRIGGER].orEmpty()
+        val migratedTrigger = if (!completed && storedTrigger.equals(LEGACY_TRIGGER_PLACEHOLDER, ignoreCase = true)) {
+            ""
+        } else {
+            storedTrigger
+        }
 
         return VeVakSettings(
-            completedOnboarding = this[Keys.COMPLETED] ?: false,
+            completedOnboarding = completed,
             contactName = this[Keys.CONTACT_NAME].orEmpty(),
             contactPhone = this[Keys.CONTACT_PHONE].orEmpty(),
-            triggerPhrase = this[Keys.TRIGGER] ?: "Info Mari",
+            triggerPhrase = migratedTrigger,
             additionalTrustedContacts = TrustedContactStorageCodec.decode(this[Keys.ADDITIONAL_CONTACTS].orEmpty())
                 .filter { it.id != VeVakSettings.PRIMARY_CONTACT_ID }
                 .take(VeVakSettings.MAX_TRUSTED_CONTACTS - 1),
@@ -119,5 +126,9 @@ class VeVakSettingsRepository(private val context: Context) {
             trustedPlaceLabel = this[Keys.TRUSTED_PLACE_LABEL]?.trim().takeUnless { it.isNullOrBlank() } ?: "Maison",
             discreetModeUntilEpochMs = this[Keys.DISCREET_MODE_UNTIL] ?: 0L
         )
+    }
+
+    private companion object {
+        const val LEGACY_TRIGGER_PLACEHOLDER = "Info Mari"
     }
 }

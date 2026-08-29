@@ -28,7 +28,7 @@ data class VeVakSettings(
     // original single-contact model. Additional contacts use TrustedContact records below.
     val contactName: String = "",
     val contactPhone: String = "",
-    val triggerPhrase: String = "Info Mari",
+    val triggerPhrase: String = "",
     val additionalTrustedContacts: List<TrustedContact> = emptyList(),
     val includeBattery: Boolean = true,
     val includeAccuracy: Boolean = true,
@@ -101,7 +101,7 @@ data class VeVakSettings(
         PRIMARY_CONTACT_ID -> copy(
             contactName = "",
             contactPhone = "",
-            triggerPhrase = "Info Mari",
+            triggerPhrase = "",
             authorizationGrantedAtEpochMs = 0L,
             authorizationExpiresAtEpochMs = 0L
         )
