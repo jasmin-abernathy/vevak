@@ -136,28 +136,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun captureTrustedWifi() {
-        val app = getApplication<Application>()
-        if (ContextCompat.checkSelfPermission(app, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            _state.update { it.copy(message = "Autorisez la localisation précise avant d'enregistrer le Wi-Fi du domicile.") }
+        val capture = trustedNetworkReader.captureCurrentNetwork()
+        if (capture == null) {
+            _state.update { it.copy(message = "Impossible d'identifier une connexion Wi-Fi active. Connectez d'abord le téléphone au Wi-Fi de la maison.") }
             return
         }
-        val hash = trustedNetworkReader.currentSsidHash()
-        if (hash == null) {
-            _state.update { it.copy(message = "Impossible de lire le Wi-Fi actuel. Vérifiez que le téléphone est connecté en Wi-Fi et que la localisation Android est activée.") }
-            return
-        }
+
         val settings = _state.value.settings
+        val message = if (capture.durable) {
+            "Wi-Fi maison mémorisé. VeVak conserve seulement une empreinte de son nom, jamais le nom en clair."
+        } else {
+            "Maison enregistrée sans localisation pour cette connexion Wi-Fi. Cela fonctionne tant que cette connexion reste la même. Optionnel : autoriser la localisation précise et activer temporairement la localisation Android permet à VeVak de reconnaître ce Wi-Fi après une reconnexion ou un redémarrage ; le nom du réseau n'est jamais conservé en clair."
+        }
         persistSettings(
             settings.copy(
                 trustedWifiEnabled = true,
-                trustedWifiHash = hash,
+                trustedWifiHash = capture.storedHash,
                 trustedPlaceLabel = settings.trustedPlaceLabel.trim().ifBlank { "Maison" }
             ),
-            "Wi-Fi de confiance enregistré localement. Son nom n'est pas conservé en clair."
+            message
         )
     }
 
     fun clearTrustedWifi() {
+        trustedNetworkReader.clearRuntimeCapture()
         persistSettings(
             _state.value.settings.copy(trustedWifiEnabled = false, trustedWifiHash = ""),
             "Lieu de confiance Wi-Fi désactivé."
