@@ -7,6 +7,7 @@ package com.vevak.app.location
 import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
+import android.os.SystemClock
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.LocationServices
@@ -37,24 +38,46 @@ class PlatformLocationProvider(context: Context) : LocationProvider {
             }
     }
 
+    /**
+     * Prefer a low-power fused fix first. If that does not produce anything quickly, spend the
+     * remaining bounded budget on high accuracy so Play builds can let FLP combine Wi-Fi, cellular
+     * and GNSS as needed without making GNSS the first choice.
+     */
     @SuppressLint("MissingPermission")
-    override suspend fun currentLocation(timeoutMillis: Long): Location? = withTimeoutOrNull(timeoutMillis) {
-        suspendCancellableCoroutine { continuation ->
-            val cancellation = CancellationTokenSource()
-            continuation.invokeOnCancellation { cancellation.cancel() }
+    override suspend fun currentLocation(timeoutMillis: Long): Location? {
+        if (timeoutMillis <= 0L) return null
+        val startedAt = SystemClock.elapsedRealtime()
+        val balancedBudget = minOf(BALANCED_MAX_BUDGET_MILLIS, (timeoutMillis / 2).coerceAtLeast(1_000L))
+        requestCurrent(Priority.PRIORITY_BALANCED_POWER_ACCURACY, balancedBudget)?.let { return it }
 
-            client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellation.token)
-                .addOnSuccessListener { location ->
-                    if (continuation.isActive) continuation.resume(location)
-                }
-                .addOnFailureListener {
-                    if (continuation.isActive) continuation.resume(null)
-                }
-                .addOnCanceledListener {
-                    if (continuation.isActive) continuation.resume(null)
-                }
+        val elapsed = SystemClock.elapsedRealtime() - startedAt
+        val remaining = (timeoutMillis - elapsed).coerceAtLeast(0L)
+        return if (remaining >= 500L) {
+            requestCurrent(Priority.PRIORITY_HIGH_ACCURACY, remaining)
+        } else {
+            null
         }
     }
+
+    @SuppressLint("MissingPermission")
+    private suspend fun requestCurrent(priority: Int, timeoutMillis: Long): Location? =
+        withTimeoutOrNull(timeoutMillis) {
+            suspendCancellableCoroutine { continuation ->
+                val cancellation = CancellationTokenSource()
+                continuation.invokeOnCancellation { cancellation.cancel() }
+
+                client.getCurrentLocation(priority, cancellation.token)
+                    .addOnSuccessListener { location ->
+                        if (continuation.isActive) continuation.resume(location)
+                    }
+                    .addOnFailureListener {
+                        if (continuation.isActive) continuation.resume(null)
+                    }
+                    .addOnCanceledListener {
+                        if (continuation.isActive) continuation.resume(null)
+                    }
+            }
+        }
 
     override fun backendStatus(): LocationBackendStatus {
         val result = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(appContext)
@@ -68,5 +91,9 @@ class PlatformLocationProvider(context: Context) : LocationProvider {
                 "Google Play Services indisponible (code $result)."
             }
         )
+    }
+
+    companion object {
+        private const val BALANCED_MAX_BUDGET_MILLIS = 3_000L
     }
 }
