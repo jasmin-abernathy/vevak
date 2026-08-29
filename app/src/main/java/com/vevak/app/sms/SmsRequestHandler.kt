@@ -92,11 +92,10 @@ class SmsRequestHandler(private val context: Context) {
             else -> fetchRealLocation(settings)
         }
 
-        val battery = batteryReader.percentage()
         val reply = if (mode == IncomingRequestMode.Normal && trustedPlaceLabel != null) {
-            SmsReplyFormatter.formatTrustedPlace(settings, trustedPlaceLabel, battery)
+            SmsReplyFormatter.formatTrustedPlace()
         } else {
-            SmsReplyFormatter.format(settings, location, battery)
+            SmsReplyFormatter.format(settings, location, batteryReader.percentage())
         }
         val sent = runCatching {
             replySender.send(incoming.sender, reply, incoming.subscriptionId)
