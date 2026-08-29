@@ -74,6 +74,7 @@ import com.vevak.app.model.MapProvider
 import com.vevak.app.model.TrustedContact
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
+import com.vevak.app.system.TrustedNetworkReader
 import com.vevak.app.ui.theme.VeVakTheme
 import java.text.DateFormat
 import java.util.Date
@@ -131,9 +132,6 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
                     OnboardingStep.Trigger -> TriggerScreen(state, viewModel)
                     OnboardingStep.Options -> OptionsScreen(state, viewModel)
                     OnboardingStep.Permissions -> PermissionsScreen(state, viewModel)
-                    // The old Safety enum is deliberately reused as the consent step so existing
-                    // persisted navigation remains migration-safe while the explicit protection
-                    // screen disappears from onboarding.
                     OnboardingStep.Safety, OnboardingStep.Summary -> ConsentScreen(state, viewModel)
                     OnboardingStep.Home -> HomeShell(
                         state = state,
@@ -419,7 +417,7 @@ private fun HomeTabContent(
     )
 
     if (!systemLocationEnabled(context)) {
-        WarningCard("Localisation désactivée", "VeVak peut encore disposer d'une ancienne position, mais ne pourra pas en obtenir une nouvelle.") { openLocationSettings(context) }
+        WarningCard("Localisation désactivée", "VeVak peut encore reconnaître la connexion Wi-Fi Maison déjà enregistrée pour cette session ou utiliser une ancienne position, mais ne pourra pas obtenir une nouvelle position GPS/réseau.") { openLocationSettings(context) }
     }
 
     if (contacts.isNotEmpty()) {
@@ -459,7 +457,7 @@ private fun HomeTabContent(
         val first = contacts.first()
         SimpleInfo("Premier test recommandé", "Depuis le téléphone de ${first.displayLabel()}, envoyez exactement : « ${first.triggerPhrase} ». Une réponse réussie confirme que SMS + autorisation + localisation fonctionnent ensemble.")
     } else if (hasSuccessfulRequest && !state.settings.hasTrustedWifiConfiguration()) {
-        ActionCard("Vous utilisez souvent VeVak à la maison ?", "Vous pouvez associer votre Wi-Fi à « Maison » pour répondre avec ce libellé sans réveiller le GPS lorsqu'Android permet d'identifier le réseau.", "Configurer Maison") {
+        ActionCard("Vous utilisez souvent VeVak à la maison ?", "Vous pouvez associer la connexion Wi-Fi actuelle à « Maison » sans activer la localisation. L'autoriser ensuite reste facultatif et permet seulement une reconnaissance plus durable après reconnexion.", "Configurer Maison") {
             selectTab(HomeTab.Places)
         }
     }
@@ -570,24 +568,50 @@ private fun ContactCard(contact: TrustedContact, state: AppUiState, vm: AppViewM
 @Composable
 private fun PlacesTabContent(state: AppUiState, vm: AppViewModel) {
     val context = LocalContext.current
+    val preciseLocationAllowed = hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+    val locationEnabled = systemLocationEnabled(context)
+    val sessionOnly = state.settings.trustedWifiHash == TrustedNetworkReader.SESSION_ONLY_MARKER
+
     Title("Lieux")
     Text("Un lieu de confiance est un raccourci local. Il ne prouve pas votre présence et ne remplace jamais la localisation normale.")
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Maison", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("Associez le Wi-Fi actuel à un libellé. Lorsqu'une demande normale arrive sur ce réseau et qu'Android permet de l'identifier, VeVak peut répondre « Maison » sans lancer une nouvelle recherche GPS.")
+            Text("Vous pouvez associer la connexion Wi-Fi actuelle à Maison sans activer la localisation. VeVak reconnaît alors cette connexion sans lancer de recherche GPS.")
             OutlinedTextField(value = state.settings.trustedPlaceLabel, onValueChange = vm::updateTrustedPlaceLabel, label = { Text("Libellé") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Button(onClick = vm::captureTrustedWifi, modifier = Modifier.fillMaxWidth()) { Text(if (state.settings.hasTrustedWifiConfiguration()) "Remplacer par le Wi-Fi actuel" else "Utiliser le Wi-Fi actuel") }
             if (state.settings.hasTrustedWifiConfiguration()) {
-                Text("Configuré ✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text(
+                    if (sessionOnly) "Configuré pour cette connexion ✓" else "Configuré durablement ✓",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
                 OutlinedButton(onClick = vm::clearTrustedWifi, modifier = Modifier.fillMaxWidth()) { Text("Supprimer ce lieu") }
             }
         }
     }
-    if (!systemLocationEnabled(context)) {
-        WarningCard("Android masque parfois le Wi-Fi quand la localisation est coupée", "VeVak ne peut pas garantir l'identification du réseau dans cet état.") { openLocationSettings(context) }
+
+    if (!state.settings.hasTrustedWifiConfiguration() || sessionOnly) {
+        SimpleInfo(
+            "Optionnel : reconnaître Maison plus longtemps",
+            "Android protège le nom du Wi-Fi comme une information liée à la localisation. Si vous autorisez la localisation précise et activez temporairement la localisation Android, VeVak peut mémoriser seulement une empreinte du nom du réseau et le reconnaître après une reconnexion ou un redémarrage. Sans cela, la connexion Wi-Fi actuelle suffit jusqu'à sa prochaine reconnexion."
+        )
+        if (sessionOnly) {
+            when {
+                !preciseLocationAllowed -> OutlinedButton(onClick = { openAppSettings(context) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Autoriser la localisation (facultatif)")
+                }
+                !locationEnabled -> OutlinedButton(onClick = { openLocationSettings(context) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Activer temporairement la localisation")
+                }
+                else -> OutlinedButton(onClick = vm::captureTrustedWifi, modifier = Modifier.fillMaxWidth()) {
+                    Text("Mémoriser ce Wi-Fi durablement")
+                }
+            }
+        }
     }
-    SimpleInfo("Comment VeVak cherche une position", "VeVak vérifie d'abord les informations déjà disponibles, puis essaie le réseau et enfin le GPS. Elle ne suit jamais votre position en continu.")
+
+    SimpleInfo("Comment VeVak cherche une position", "VeVak utilise d'abord le raccourci Maison lorsqu'il est reconnu. Sinon, elle vérifie les informations de position déjà disponibles puis essaie d'obtenir une nouvelle position. Elle ne suit jamais votre position en continu.")
     state.message?.let { InlineMessage(it) }
 }
 
