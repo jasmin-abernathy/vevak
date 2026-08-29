@@ -275,7 +275,6 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
         vm.refreshDiagnostics()
     }
 
-    // refreshTick is intentionally read here so returning from Android settings recomposes status.
     @Suppress("UNUSED_VARIABLE") val refresh = refreshTick
     val receiveSms = hasPermission(context, Manifest.permission.RECEIVE_SMS)
     val sendSms = hasPermission(context, Manifest.permission.SEND_SMS)
@@ -666,6 +665,8 @@ private fun SettingsTabContent(
     HorizontalDivider()
     Text("À propos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
     Text("VeVak fonctionne localement et n'est pas un service d'urgence. Les SMS et la localisation peuvent dépendre du téléphone, de l'opérateur et des réglages Android.")
+    SimpleInfo("Projet libre et gratuit", "Si VeVak vous est utile, vous pouvez soutenir volontairement son développement. Un don ne débloque aucune fonction et n'est jamais nécessaire pour utiliser le socle de sécurité.")
+    OutlinedButton(onClick = { openSupportPage(context) }, modifier = Modifier.fillMaxWidth()) { Text("Soutenir VeVak 🌱") }
     TextButton(onClick = vm::reset, modifier = Modifier.fillMaxWidth()) { Text("Réinitialiser VeVak") }
     state.message?.let { InlineMessage(it) }
 }
@@ -809,6 +810,12 @@ private fun openAppSettings(context: Context) {
 
 private fun openLocationSettings(context: Context) {
     context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+}
+
+private fun openSupportPage(context: Context) {
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://vevak.lepotager.org/soutenir/")))
+    }
 }
 
 private fun formatDate(epochMillis: Long): String =
