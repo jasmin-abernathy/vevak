@@ -49,17 +49,7 @@ object SmsReplyFormatter {
         appendBattery(settings, batteryPercent)
     }
 
-    fun formatTrustedPlace(
-        settings: VeVakSettings,
-        label: String,
-        batteryPercent: Int?
-    ): String = buildString {
-        append("VeVak")
-        append("\nLe telephone est a ")
-        append(label.trim().ifBlank { "Maison" })
-        append('.')
-        appendBattery(settings, batteryPercent)
-    }
+    fun formatTrustedPlace(): String = "Je suis à la maison"
 
     private fun StringBuilder.appendAddress(location: VeVakLocationSnapshot) {
         location.address?.trim()?.takeIf { it.isNotBlank() }?.let {
