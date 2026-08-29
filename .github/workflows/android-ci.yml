@@ -142,13 +142,20 @@ jobs:
           name: vevak-foss-debug-${{ github.sha }}
           path: beta-apk
 
-      - name: Prepare stable beta filename
+      - name: Prepare unique beta filename
         shell: bash
         run: |
           set -euo pipefail
           test -s beta-apk/app-foss-debug.apk
-          mv beta-apk/app-foss-debug.apk beta-apk/VeVak-foss-test.apk
-          sha256sum beta-apk/VeVak-foss-test.apk > beta-apk/VeVak-foss-test.apk.sha256
+          VERSION="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' app/build.gradle.kts | head -n 1)"
+          test -n "$VERSION"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          APK_NAME="VeVak-${VERSION}-foss-beta-${SHORT_SHA}.apk"
+          mv beta-apk/app-foss-debug.apk "beta-apk/$APK_NAME"
+          sha256sum "beta-apk/$APK_NAME" > "beta-apk/$APK_NAME.sha256"
+          echo "VEVAK_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=$SHORT_SHA" >> "$GITHUB_ENV"
+          echo "APK_NAME=$APK_NAME" >> "$GITHUB_ENV"
 
       - name: Publish rolling GitHub beta release
         shell: bash
@@ -157,24 +164,28 @@ jobs:
         run: |
           set -euo pipefail
           TAG="beta"
-          APK="beta-apk/VeVak-foss-test.apk"
-          CHECKSUM="beta-apk/VeVak-foss-test.apk.sha256"
-          NOTES="Bêta FOSS automatique de VeVak. Build issu du commit ${GITHUB_SHA}, publié uniquement après réussite des tests, builds, lints et vérifications de confidentialité/écoconception. Cette préversion reste destinée aux tests sur appareils réels."
+          APK="beta-apk/$APK_NAME"
+          CHECKSUM="beta-apk/$APK_NAME.sha256"
+          TITLE="VeVak ${VEVAK_VERSION} bêta — ${SHORT_SHA}"
+          NOTES="Bêta FOSS automatique de VeVak ${VEVAK_VERSION}. APK exacte : ${APK_NAME}. Build issu du commit ${GITHUB_SHA}, publié uniquement après réussite des tests, builds, lints et vérifications de confidentialité/écoconception. Cette préversion reste destinée aux tests sur appareils réels."
 
           git tag -f "$TAG" "$GITHUB_SHA"
           git push origin "refs/tags/$TAG" --force
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" "$CHECKSUM" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | while IFS= read -r asset; do
+              [ -z "$asset" ] || gh release delete-asset "$TAG" "$asset" --yes --repo "$GITHUB_REPOSITORY"
+            done
+            gh release upload "$TAG" "$APK" "$CHECKSUM" --repo "$GITHUB_REPOSITORY"
             gh release edit "$TAG" \
-              --title "VeVak bêta automatique" \
+              --title "$TITLE" \
               --notes "$NOTES" \
               --prerelease \
               --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" "$APK" "$CHECKSUM" \
               --verify-tag \
-              --title "VeVak bêta automatique" \
+              --title "$TITLE" \
               --notes "$NOTES" \
               --prerelease \
               --repo "$GITHUB_REPOSITORY"
