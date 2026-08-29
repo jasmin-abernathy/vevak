@@ -17,6 +17,7 @@ object SmsReplyFormatter {
         if (location == null) {
             append("\nPosition indisponible.")
         } else {
+            appendAddress(location)
             append('\n')
             append(MapLinkBuilder.build(settings.mapProvider, location.latitude, location.longitude))
             append("\nPosition: ")
@@ -36,6 +37,7 @@ object SmsReplyFormatter {
     ): String = buildString {
         append("VeVak")
         append("\nJe partage ma position :")
+        appendAddress(location)
         append('\n')
         append(MapLinkBuilder.build(settings.mapProvider, location.latitude, location.longitude))
         append("\nPosition: ")
@@ -57,6 +59,13 @@ object SmsReplyFormatter {
         append(label.trim().ifBlank { "Maison" })
         append('.')
         appendBattery(settings, batteryPercent)
+    }
+
+    private fun StringBuilder.appendAddress(location: VeVakLocationSnapshot) {
+        location.address?.trim()?.takeIf { it.isNotBlank() }?.let {
+            append("\nAdresse approx. : ")
+            append(it)
+        }
     }
 
     private fun StringBuilder.appendBattery(settings: VeVakSettings, batteryPercent: Int?) {
