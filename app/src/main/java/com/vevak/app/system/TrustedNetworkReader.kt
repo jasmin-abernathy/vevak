@@ -57,7 +57,14 @@ class TrustedNetworkReader(private val context: Context) {
         if (!settings.hasTrustedWifiConfiguration()) return false
 
         if (settings.trustedWifiHash == SESSION_ONLY_MARKER) {
-            return matchesSessionOnlyCapture()
+            val rememberedSessionHash = runtimePrefs.getString(KEY_SESSION_ONLY_NETWORK_SESSION, null)
+            val rememberedBootCount = runtimePrefs.getInt(KEY_SESSION_ONLY_BOOT_COUNT, INVALID_BOOT_COUNT)
+            return sessionMatches(
+                rememberedSessionHash = rememberedSessionHash,
+                rememberedBootCount = rememberedBootCount,
+                currentSessionHash = currentNetworkSessionHash(),
+                currentBootCount = currentBootCount()
+            )
         }
 
         // If Android exposes the SSID, it is authoritative. A visible non-match must never be
@@ -73,13 +80,13 @@ class TrustedNetworkReader(private val context: Context) {
         val rememberedSessionHash = runtimePrefs.getString(KEY_LAST_VERIFIED_NETWORK_SESSION, null)
         val rememberedBootCount = runtimePrefs.getInt(KEY_LAST_VERIFIED_BOOT_COUNT, INVALID_BOOT_COUNT)
         if (!rememberedTrustedHash.equals(settings.trustedWifiHash, ignoreCase = true)) return false
-        if (rememberedSessionHash.isNullOrBlank()) return false
 
-        val currentBootCount = currentBootCount()
-        if (rememberedBootCount == INVALID_BOOT_COUNT || currentBootCount == INVALID_BOOT_COUNT) return false
-        if (rememberedBootCount != currentBootCount) return false
-
-        return currentNetworkSessionHash()?.equals(rememberedSessionHash, ignoreCase = true) == true
+        return sessionMatches(
+            rememberedSessionHash = rememberedSessionHash,
+            rememberedBootCount = rememberedBootCount,
+            currentSessionHash = currentNetworkSessionHash(),
+            currentBootCount = currentBootCount()
+        )
     }
 
     fun currentSsidHash(): String? {
@@ -120,18 +127,6 @@ class TrustedNetworkReader(private val context: Context) {
             .remove(KEY_SESSION_ONLY_NETWORK_SESSION)
             .remove(KEY_SESSION_ONLY_BOOT_COUNT)
             .apply()
-    }
-
-    private fun matchesSessionOnlyCapture(): Boolean {
-        val rememberedSessionHash = runtimePrefs.getString(KEY_SESSION_ONLY_NETWORK_SESSION, null)
-        val rememberedBootCount = runtimePrefs.getInt(KEY_SESSION_ONLY_BOOT_COUNT, INVALID_BOOT_COUNT)
-        if (rememberedSessionHash.isNullOrBlank()) return false
-
-        val currentBootCount = currentBootCount()
-        if (rememberedBootCount == INVALID_BOOT_COUNT || currentBootCount == INVALID_BOOT_COUNT) return false
-        if (rememberedBootCount != currentBootCount) return false
-
-        return currentNetworkSessionHash()?.equals(rememberedSessionHash, ignoreCase = true) == true
     }
 
     private fun clearSessionOnlyCapture() {
@@ -181,6 +176,18 @@ class TrustedNetworkReader(private val context: Context) {
         private const val INVALID_BOOT_COUNT = -1
 
         fun hashSsid(ssid: String): String = hashToken(ssid.trim().removeSurrounding("\""))
+
+        internal fun sessionMatches(
+            rememberedSessionHash: String?,
+            rememberedBootCount: Int,
+            currentSessionHash: String?,
+            currentBootCount: Int
+        ): Boolean {
+            if (rememberedSessionHash.isNullOrBlank() || currentSessionHash.isNullOrBlank()) return false
+            if (rememberedBootCount == INVALID_BOOT_COUNT || currentBootCount == INVALID_BOOT_COUNT) return false
+            if (rememberedBootCount != currentBootCount) return false
+            return rememberedSessionHash.equals(currentSessionHash, ignoreCase = true)
+        }
 
         private fun hashToken(value: String): String {
             val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
