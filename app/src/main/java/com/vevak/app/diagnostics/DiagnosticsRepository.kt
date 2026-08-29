@@ -11,6 +11,7 @@ import android.location.LocationManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.vevak.app.BuildConfig
+import com.vevak.app.location.RememberedLocationPolicy
 import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
@@ -46,6 +47,26 @@ class DiagnosticsRepository(private val context: Context) {
         val visibility = notifier.notificationsAllowedForRequests(settings.isDiscreetModeActive())
         val duressValid = DuressPolicy.configurationIsValid(settings)
 
+        val locationServiceCheck = if (locationEnabled) {
+            ReadinessCheck("Services de localisation", "Services activés : VeVak peut demander une nouvelle position.", CheckState.Ok)
+        } else {
+            ReadinessCheck(
+                "Services de localisation",
+                "Désactivés : aucun nouveau point ne peut être calculé. Un lieu Wi-Fi déjà reconnu sur la même connexion ou la dernière position mémorisée par VeVak (maximum ${RememberedLocationPolicy.MAX_RETENTION_MILLIS / 3_600_000L} h) peuvent encore servir de repli.",
+                CheckState.Warning
+            )
+        }
+
+        val backendCheck = when {
+            backend.available -> ReadinessCheck("Moteur de localisation", backend.detail, CheckState.Ok)
+            foreground -> ReadinessCheck(
+                "Moteur de localisation",
+                "Aucune source Android active pour un nouveau point. Les replis locaux VeVak restent possibles s'ils ont été enregistrés auparavant.",
+                CheckState.Warning
+            )
+            else -> ReadinessCheck("Moteur de localisation", backend.detail, CheckState.Error)
+        }
+
         val checks = listOf(
             check(configuredContacts.isNotEmpty(), "Contacts autorisés", "${configuredContacts.size} contact(s) configuré(s).", "Ajoutez au moins un numéro pouvant interroger VeVak."),
             check(configuredContacts.all { it.triggerPhrase.isNotBlank() }, "Phrases de déclenchement", "Toutes les phrases sont configurées.", "Chaque contact doit avoir une phrase non vide."),
@@ -57,8 +78,8 @@ class DiagnosticsRepository(private val context: Context) {
             check(send, "Envoi des SMS", "Autorisation accordée.", "Autorisation SEND_SMS manquante."),
             check(foreground, "Localisation", "Accès accordé.", "Autorisez la localisation."),
             check(background, "Localisation en arrière-plan", "Accès permanent accordé.", "Choisissez « Toujours autoriser » dans les réglages Android."),
-            check(locationEnabled, "Services de localisation", "Services activés.", "Activez la localisation Android."),
-            check(backend.available, "Moteur de localisation", backend.detail, backend.detail)
+            locationServiceCheck,
+            backendCheck
         )
 
         val report = buildString {
@@ -71,6 +92,8 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("trustedContactCount=${configuredContacts.size}")
             appendLine("activeTrustedContactCount=${activeContacts.size}")
             appendLine("trustedWifiConfigured=${settings.hasTrustedWifiConfiguration()}")
+            appendLine("locationServicesEnabled=$locationEnabled")
+            appendLine("rememberedLocationRetentionHours=${RememberedLocationPolicy.MAX_RETENTION_MILLIS / 3_600_000L}")
             appendLine("discreetModeActive=${settings.isDiscreetModeActive()}")
             checks.forEachIndexed { index, value ->
                 appendLine("check.$index=${value.state}:${value.title}")
