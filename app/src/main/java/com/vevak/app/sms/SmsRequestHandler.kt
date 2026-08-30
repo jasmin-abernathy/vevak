@@ -78,8 +78,9 @@ class SmsRequestHandler(private val context: Context) {
         // A protection/duress request never enters the normal resolver. It must not inspect current
         // Wi-Fi, call Android location providers or perform the optional network request.
         val resolution = when (mode) {
-            IncomingRequestMode.Duress -> safetyFallback(settings)?.let(VeVakPositionResolution::Coordinates)
-                ?: VeVakPositionResolution.Unavailable
+            IncomingRequestMode.Duress -> safetyFallback(settings)?.let {
+                VeVakPositionResolution.Coordinates(it)
+            } ?: VeVakPositionResolution.Unavailable
             IncomingRequestMode.Normal -> positionResolver.resolve(settings)
         }
 
