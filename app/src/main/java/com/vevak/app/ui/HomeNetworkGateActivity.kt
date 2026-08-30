@@ -35,8 +35,8 @@ import com.vevak.app.ui.theme.VeVakTheme
 import kotlinx.coroutines.launch
 
 /**
- * Launcher gate: a home Wi-Fi identity is part of VeVak's initial local configuration.
- * There is intentionally no remote or silent way to replace it later.
+ * Launcher gate: a home Wi-Fi identity is part of every new VeVak configuration.
+ * Existing beta installations are not locked out during migration if they predate this requirement.
  */
 class HomeNetworkGateActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,7 +72,7 @@ private fun HomeNetworkGate(
 
     LaunchedEffect(Unit) {
         val current = repository.current()
-        if (current.hasTrustedWifiConfiguration()) {
+        if (current.hasTrustedWifiConfiguration() || current.completedOnboarding) {
             continueToApp()
         } else {
             settings = current
@@ -123,7 +123,7 @@ private fun HomeNetworkGate(
         }
         message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Text(
-            "Il n'y a pas de bouton « ignorer » : VeVak doit savoir quel réseau vous avez choisi comme Maison avant la suite de la configuration.",
+            "Il n'y a pas de bouton « ignorer » pour une nouvelle configuration : VeVak doit savoir quel réseau vous avez choisi comme Maison avant la suite.",
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
