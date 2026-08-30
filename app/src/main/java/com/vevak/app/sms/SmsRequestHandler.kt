@@ -93,17 +93,17 @@ class SmsRequestHandler(private val context: Context) {
 
         val batteryLabel = batteryReader.label()
         val reply = when (resolution) {
-            is VeVakPositionResolution.KnownPlace -> SmsReplyFormatter.formatTrustedPlace(
+            is VeVakPositionResolution.KnownPlace -> SmsReplyFormatter.formatTrustedPlaceWithBattery(
                 label = resolution.label,
                 batteryLabel = batteryLabel,
                 includeBattery = settings.includeBattery
             )
-            is VeVakPositionResolution.Coordinates -> SmsReplyFormatter.format(
+            is VeVakPositionResolution.Coordinates -> SmsReplyFormatter.formatWithBatteryLabel(
                 settings,
                 resolution.location,
                 batteryLabel
             )
-            VeVakPositionResolution.Unavailable -> SmsReplyFormatter.format(
+            VeVakPositionResolution.Unavailable -> SmsReplyFormatter.formatWithBatteryLabel(
                 settings,
                 null,
                 batteryLabel
