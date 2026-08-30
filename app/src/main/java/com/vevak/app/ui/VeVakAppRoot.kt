@@ -141,10 +141,11 @@ fun VeVakAppRoot(viewModel: AppViewModel = viewModel()) {
                 }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Protection contre les demandes répétées", fontWeight = FontWeight.Bold)
-                    Text("La version publique limite les réponses rapprochées. Les builds debug utilisent un délai court pour permettre les tests sur téléphone réel.")
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Protection anti-suivi abusif", fontWeight = FontWeight.Bold)
+                    Text("Toujours active : au moins 15 minutes entre deux réponses automatiques et 4 réponses maximum sur 24 heures.")
+                    Text("Cette limite est globale à tous les contacts et n'est pas désactivée dans les builds de test.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
