@@ -143,7 +143,7 @@ class CorePoliciesTest {
     }
 
     @Test
-    fun manualShareFormatter_marksShareAsUserInitiatedAndKeepsConfiguredDetails() {
+    fun manualShareFormatter_keepsUrlRadiusAndConfiguredBattery() {
         val settings = VeVakSettings(includeBattery = true, includeAccuracy = true)
         val location = VeVakLocationSnapshot(
             latitude = 48.8566,
@@ -154,11 +154,11 @@ class CorePoliciesTest {
             isMocked = false
         )
         val body = SmsReplyFormatter.formatManualShare(settings, location, 73)
-        assertTrue(body.contains("Je partage ma position"))
-        assertTrue(body.contains("48.8566"))
-        assertTrue(body.contains("2.3522"))
-        assertTrue(body.contains("Precision: env. 12 m"))
-        assertTrue(body.contains("Batterie: 73 %"))
+        assertTrue(body.contains("Dernière position connue"))
+        assertTrue(body.contains("48.856600"))
+        assertTrue(body.contains("2.352200"))
+        assertTrue(body.contains("Rayon approximatif : env. 12 m"))
+        assertTrue(body.contains("Batterie : 73 %"))
     }
 
     @Test
