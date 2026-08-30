@@ -11,7 +11,8 @@ data class ReadinessCheck(val title: String, val detail: String, val state: Chec
 data class DiagnosticsSnapshot(
     val checks: List<ReadinessCheck>,
     val backend: String,
-    val report: String
+    val report: String,
+    val locationCapabilities: LocationCapabilitySnapshot? = null
 ) {
     val ready: Boolean get() = checks.none { it.state == CheckState.Error }
 }
