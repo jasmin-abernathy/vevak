@@ -238,7 +238,7 @@ private fun OptionsScreen(state: AppUiState, vm: AppViewModel) {
     CheckRow("Ajouter le niveau de batterie", state.settings.includeBattery) { vm.updateOptions(battery = it) }
     CheckRow("Ajouter la précision de la position", state.settings.includeAccuracy) { vm.updateOptions(accuracy = it) }
     CheckRow("Utiliser une ancienne position si aucune nouvelle n'est disponible", state.settings.allowStaleFallback) { vm.updateOptions(staleFallback = it) }
-    SimpleInfo("Protection contre les demandes répétées", "VeVak limite automatiquement les réponses rapprochées pour éviter qu'un contact puisse transformer la fonction en suivi continu.")
+    SimpleInfo("Protection anti-suivi abusif", "Les réponses automatiques sont limitées à une toutes les 15 minutes et à 4 maximum sur 24 heures, pour l'ensemble des contacts.")
     NavigationButtons(vm, canContinue = true)
 }
 
@@ -437,13 +437,13 @@ private fun HomeTabContent(
     }
 
     if (contacts.isNotEmpty()) {
-        Primary(if (state.manualShareLoading) "Recherche de la position…" else "Partager ma position") {
+        Primary(if (state.manualShareLoading) "Lecture de la dernière position…" else "Partager ma position") {
             if (contacts.size == 1) vm.requestManualPositionShare(contacts.first().id) else shareChooser = true
         }
     }
 
     if (shareChooser) {
-        SimpleInfo("Choisir le destinataire", "VeVak utilisera une seule fois la meilleure source actuellement disponible après votre confirmation.")
+        SimpleInfo("Choisir le destinataire", "VeVak enverra uniquement la dernière position réelle déjà connue, avec son ancienneté, après votre confirmation.")
         contacts.forEach { contact ->
             OutlinedButton(
                 onClick = { shareChooser = false; vm.requestManualPositionShare(contact.id) },
@@ -458,8 +458,8 @@ private fun HomeTabContent(
         if (target != null) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Envoyer votre position à ${target.displayLabel()} ?", fontWeight = FontWeight.Bold)
-                    Text("VeVak choisira la meilleure information disponible : lieu reconnu, position locale récente, estimation réseau si vous l'avez activée, puis ancienne position autorisée. La livraison du SMS n'est pas garantie.")
+                    Text("Envoyer votre dernière position connue à ${target.displayLabel()} ?", fontWeight = FontWeight.Bold)
+                    Text("VeVak n'essaiera pas de produire un nouveau point : il enverra uniquement la dernière position réelle déjà connue et indiquera depuis combien de temps elle date. La livraison du SMS n'est pas garantie.")
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedButton(onClick = vm::cancelManualPositionShare, modifier = Modifier.weight(1f)) { Text("Annuler") }
                         Button(onClick = vm::confirmManualPositionShare, modifier = Modifier.weight(1f)) { Text("Envoyer") }
@@ -473,9 +473,7 @@ private fun HomeTabContent(
         val first = contacts.first()
         SimpleInfo("Premier test recommandé", "Depuis le téléphone de ${first.displayLabel()}, envoyez exactement : « ${first.triggerPhrase} ». Une réponse réussie confirme que SMS + autorisation + résolution de position fonctionnent ensemble.")
     } else if (hasSuccessfulRequest && !state.settings.hasTrustedWifiConfiguration()) {
-        ActionCard("Vous utilisez souvent VeVak à la maison ?", "Vous pouvez associer la connexion Wi-Fi actuelle à « Maison » sans activer la localisation. L'autoriser ensuite reste facultatif et permet seulement une reconnaissance plus durable après reconnexion.", "Configurer Maison") {
-            selectTab(HomeTab.Places)
-        }
+        ActionCard("Réseau Maison manquant", "Le réseau Maison fait désormais partie de la configuration de sécurité initiale. Fermez puis rouvrez VeVak pour compléter cette étape.", "Compris") { }
     }
 
     val pendingContact = pendingProtectionContactId?.let(state.settings::contactById)
@@ -523,7 +521,7 @@ private fun ContactsTabContent(state: AppUiState, vm: AppViewModel) {
     }
 
     Title("Contacts de confiance")
-    Text("Chaque personne a sa propre phrase-clé et sa propre date d'expiration. La limite anti-suivi reste commune à tout le téléphone.")
+    Text("Chaque personne a sa propre phrase-clé et sa propre date d'expiration. La protection anti-suivi reste globale : 15 min minimum entre réponses automatiques et 4 maximum sur 24 h pour tout le téléphone.")
     state.settings.trustedContacts().forEach { contact -> ContactCard(contact, state, vm) }
 
     if (state.settings.trustedContacts().size < VeVakSettings.MAX_TRUSTED_CONTACTS) {
@@ -563,7 +561,7 @@ private fun ContactCard(contact: TrustedContact, state: AppUiState, vm: AppViewM
             Text(contact.displayLabel(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(contact.phone, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(if (active) "Autorisé jusqu'au ${formatDate(contact.authorizationExpiresAtEpochMs)}" else "Accès expiré ou révoqué", color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-            OutlinedButton(onClick = { vm.requestManualPositionShare(contact.id) }, modifier = Modifier.fillMaxWidth()) { Text("Envoyer ma position") }
+            OutlinedButton(onClick = { vm.requestManualPositionShare(contact.id) }, modifier = Modifier.fillMaxWidth()) { Text("Envoyer ma dernière position connue") }
             if (active) {
                 OutlinedButton(onClick = { vm.revokeContact(contact.id) }, modifier = Modifier.fillMaxWidth()) { Text("Révoquer l'accès") }
             } else {
@@ -589,20 +587,23 @@ private fun PlacesTabContent(state: AppUiState, vm: AppViewModel) {
     val sessionOnly = state.settings.trustedWifiHash == TrustedNetworkReader.SESSION_ONLY_MARKER
 
     Title("Lieux")
-    Text("Un lieu de confiance est un raccourci local. Il ne prouve pas votre présence et ne remplace jamais une position précise lorsqu'elle est disponible.")
+    Text("Le réseau Maison est défini pendant la configuration initiale. Son remplacement est volontairement protégé contre les changements accidentels.")
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Maison", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("Vous pouvez associer la connexion Wi-Fi actuelle à Maison sans activer la localisation. VeVak reconnaît alors cette connexion sans lancer de recherche GPS.")
+            Text("VeVak conserve une empreinte locale du Wi-Fi quand Android le permet, jamais son nom en clair.")
             OutlinedTextField(value = state.settings.trustedPlaceLabel, onValueChange = vm::updateTrustedPlaceLabel, label = { Text("Libellé") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Button(onClick = vm::captureTrustedWifi, modifier = Modifier.fillMaxWidth()) { Text(if (state.settings.hasTrustedWifiConfiguration()) "Remplacer par le Wi-Fi actuel" else "Utiliser le Wi-Fi actuel") }
+            Button(onClick = vm::captureTrustedWifi, modifier = Modifier.fillMaxWidth()) { Text(if (state.settings.hasTrustedWifiConfiguration()) "Vérifier / renforcer ce Wi-Fi" else "Utiliser le Wi-Fi actuel") }
             if (state.settings.hasTrustedWifiConfiguration()) {
                 Text(
                     if (sessionOnly) "Configuré pour cette connexion ✓" else "Configuré durablement ✓",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
                 )
-                OutlinedButton(onClick = vm::clearTrustedWifi, modifier = Modifier.fillMaxWidth()) { Text("Supprimer ce lieu") }
+                OutlinedButton(
+                    onClick = { context.startActivity(Intent(context, SafetyCenterActivity::class.java)) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Changer le réseau Maison") }
             }
         }
     }
@@ -628,8 +629,8 @@ private fun PlacesTabContent(state: AppUiState, vm: AppViewModel) {
     }
 
     SimpleInfo(
-        "Comment VeVak cherche une position",
-        "VeVak essaie dans cet ordre : lieu reconnu, position Android/cache récente, estimation réseau si vous l'avez explicitement activée, puis ancienne position autorisée. Elle ne suit jamais votre position en continu."
+        "Comment VeVak cherche une position automatique",
+        "Pour une demande reçue par SMS, VeVak peut utiliser un lieu reconnu, une position Android/cache récente, une ancienne position autorisée et, uniquement si vous l'avez activée, une estimation réseau. Le partage manuel et l'urgence utilisent uniquement la dernière position réelle déjà connue."
     )
     state.message?.let { InlineMessage(it) }
 }
@@ -649,6 +650,10 @@ private fun SettingsTabContent(
     var diagnosticOpen by rememberSaveable { mutableStateOf(false) }
 
     Title("Réglages")
+    OutlinedButton(
+        onClick = { context.startActivity(Intent(context, SafetyCenterActivity::class.java)) },
+        modifier = Modifier.fillMaxWidth()
+    ) { Text("Sécurité, urgence et réseau Maison") }
 
     SectionToggle("Réponse et carte", responseOpen) { responseOpen = !responseOpen }
     if (responseOpen) {
