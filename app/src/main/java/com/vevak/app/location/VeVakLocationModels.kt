@@ -47,7 +47,11 @@ data class VeVakLocationSnapshot(
             seconds < 10 -> "maintenant"
             seconds < 60 -> "il y a ${seconds}s"
             seconds < 3600 -> "il y a ${seconds / 60} min"
-            else -> "il y a ${seconds / 3600} h"
+            seconds < 86_400 -> "il y a ${seconds / 3600} h"
+            else -> {
+                val days = seconds / 86_400
+                "il y a $days jour${if (days > 1) "s" else ""}"
+            }
         }
     }
 
