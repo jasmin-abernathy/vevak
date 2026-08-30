@@ -110,6 +110,7 @@ class ContactsAndBackupTest {
                     authorizationExpiresAtEpochMs = 88_000L
                 )
             ),
+            allowNetworkApproximation = true,
             trustedWifiEnabled = true,
             trustedWifiHash = "deadbeef",
             trustedPlaceLabel = "Maison",
@@ -124,6 +125,7 @@ class ContactsAndBackupTest {
         assertEquals(original.contactPhone, restored.contactPhone)
         assertEquals(original.additionalTrustedContacts.first().phone, restored.additionalTrustedContacts.first().phone)
         assertEquals("deadbeef", restored.trustedWifiHash)
+        assertTrue(restored.allowNetworkApproximation)
         assertFalse(restored.primaryTrustedContact().hasActiveAuthorization(10_000L))
         assertFalse(restored.additionalTrustedContacts.first().hasActiveAuthorization(10_000L))
         assertEquals(0L, restored.discreetModeUntilEpochMs)
