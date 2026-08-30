@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail CI if proprietary or Internet dependencies leak into the canonical FOSS core."""
+"""Fail CI if proprietary dependencies or unguarded network behaviour leak into FOSS/core."""
 
 from pathlib import Path
 import sys
@@ -8,12 +8,23 @@ ROOT = Path(__file__).resolve().parents[1]
 errors: list[str] = []
 
 manifest = (ROOT / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
+settings_model = (ROOT / "app/src/main/java/com/vevak/app/model/VeVakSettings.kt").read_text(encoding="utf-8")
+resolver = (ROOT / "app/src/main/java/com/vevak/app/location/VeVakPositionResolver.kt").read_text(encoding="utf-8")
+online_provider = (ROOT / "app/src/main/java/com/vevak/app/location/OnlineApproximateLocationProvider.kt").read_text(encoding="utf-8")
 
-# ACCESS_NETWORK_STATE is intentionally allowed: VeVak uses it only to recognise whether the
-# already-active Android network session is Wi-Fi. It cannot open sockets or send data. INTERNET
-# remains forbidden in the canonical FOSS core.
-if "android.permission.INTERNET" in manifest:
-    errors.append("Forbidden core manifest permission: android.permission.INTERNET")
+# VeVak 0.3.3 permits Internet transport solely for an explicit, disabled-by-default coarse
+# location fallback. Keep the permission and its privacy gate coupled so future refactors cannot
+# silently turn the FOSS build into a networked tracker.
+if "android.permission.INTERNET" not in manifest:
+    errors.append("Opt-in network fallback requires android.permission.INTERNET")
+if "val allowNetworkApproximation: Boolean = false" not in settings_model:
+    errors.append("Network approximation must remain disabled by default")
+if "if (settings.allowNetworkApproximation)" not in resolver:
+    errors.append("Online approximation must remain behind the explicit settings gate")
+if "https://api.beacondb.net/v1/geolocate" not in online_provider:
+    errors.append("Unexpected or missing FOSS network geolocation endpoint")
+if 'put("considerIp", true)' not in online_provider or 'put("lacf", false)' not in online_provider:
+    errors.append("FOSS online fallback must stay IP-only and must not submit cell/Wi-Fi identifiers")
 
 # Proprietary Google APIs are allowed only in the Play source set/dependency scope.
 for source_root in (ROOT / "app/src/main", ROOT / "app/src/foss"):
