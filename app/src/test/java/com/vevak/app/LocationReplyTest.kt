@@ -8,6 +8,7 @@ import com.vevak.app.location.LocationSource
 import com.vevak.app.location.VeVakLocationSnapshot
 import com.vevak.app.model.MapProvider
 import com.vevak.app.model.VeVakSettings
+import com.vevak.app.sms.MapLinkBuilder
 import com.vevak.app.sms.SmsReplyFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,11 +60,11 @@ class LocationReplyTest {
     }
 
     @Test
-    fun networkApproximation_isExplicitlyMarkedAsEstimate() {
+    fun networkApproximation_isPresentedAsAnAreaNotALastKnownFix() {
         val location = VeVakLocationSnapshot(
-            latitude = 49.1,
-            longitude = 6.2,
-            accuracyMeters = 12_000f,
+            latitude = 47.7427,
+            longitude = 6.82733,
+            accuracyMeters = 25_000f,
             source = LocationSource.NetworkApproximation,
             ageMillis = 0L,
             isMocked = false
@@ -71,8 +72,23 @@ class LocationReplyTest {
 
         val body = SmsReplyFormatter.format(settings, location, null)
 
-        assertTrue(body.contains("Dernière position connue (estimation réseau)"))
-        assertTrue(body.contains("12.0 km"))
+        assertTrue(body.contains("Zone estimée via le réseau"))
+        assertTrue(body.contains("pas une position exacte"))
+        assertTrue(body.contains("Précision faible"))
+        assertTrue(body.contains("25.0 km"))
+        assertTrue(body.contains("Carte de la zone"))
+        assertTrue(body.contains("#map=10/47.742700/6.827330"))
+        assertFalse(body.contains("Dernière position connue"))
+        assertFalse(body.contains("mlat="))
+        assertFalse(body.contains("mlon="))
+    }
+
+    @Test
+    fun approximateZoneZoom_tracksReturnedUncertainty() {
+        assertEquals(16, MapLinkBuilder.approximateZoom(200f))
+        assertEquals(11, MapLinkBuilder.approximateZoom(8_000f))
+        assertEquals(10, MapLinkBuilder.approximateZoom(25_000f))
+        assertEquals(8, MapLinkBuilder.approximateZoom(100_000f))
     }
 
     @Test
