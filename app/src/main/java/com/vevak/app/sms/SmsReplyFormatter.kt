@@ -8,6 +8,8 @@ import com.vevak.app.location.VeVakLocationSnapshot
 import com.vevak.app.model.VeVakSettings
 
 object SmsReplyFormatter {
+    private const val VERY_COARSE_NETWORK_RADIUS_METERS = 10_000f
+
     fun format(
         settings: VeVakSettings,
         location: VeVakLocationSnapshot?,
@@ -24,17 +26,10 @@ object SmsReplyFormatter {
         batteryLabel: String?
     ): String = buildString {
         append("VeVak")
-        if (location == null) {
-            append("\nPosition indisponible.")
-        } else {
-            append("\nDernière position connue")
-            if (location.isApproximateNetworkEstimate()) append(" (estimation réseau)")
-            append(" : ")
-            append(location.ageLabel())
-            append('\n')
-            append(MapLinkBuilder.build(settings.mapProvider, location.latitude, location.longitude))
-            append("\nRayon approximatif : ")
-            append(location.accuracyLabel())
+        when {
+            location == null -> append("\nPosition indisponible.")
+            location.isApproximateNetworkEstimate() -> appendNetworkEstimate(settings, location)
+            else -> appendRealLocation(settings, location)
         }
         appendBattery(settings.includeBattery, batteryLabel)
     }
@@ -69,6 +64,37 @@ object SmsReplyFormatter {
         batteryLabel: String?,
         includeBattery: Boolean
     ): String = formatTrustedPlaceWithBattery(label, batteryLabel, includeBattery)
+
+    private fun StringBuilder.appendRealLocation(settings: VeVakSettings, location: VeVakLocationSnapshot) {
+        append("\nDernière position connue : ")
+        append(location.ageLabel())
+        append('\n')
+        append(MapLinkBuilder.build(settings.mapProvider, location.latitude, location.longitude))
+        append("\nRayon approximatif : ")
+        append(location.accuracyLabel())
+    }
+
+    private fun StringBuilder.appendNetworkEstimate(settings: VeVakSettings, location: VeVakLocationSnapshot) {
+        val accuracy = location.accuracyMeters
+        append("\nZone estimée via le réseau — pas une position exacte.")
+        if (accuracy != null && accuracy > VERY_COARSE_NETWORK_RADIUS_METERS) {
+            append("\nPrécision faible : la zone peut s'étendre sur ")
+            append(location.accuracyLabel())
+            append(" autour du centre estimé.")
+        } else {
+            append("\nRayon approximatif : ")
+            append(location.accuracyLabel())
+        }
+        append("\nCarte de la zone : ")
+        append(
+            MapLinkBuilder.buildApproximateZone(
+                settings.mapProvider,
+                location.latitude,
+                location.longitude,
+                accuracy
+            )
+        )
+    }
 
     private fun trustedPlaceText(label: String): String {
         val cleanLabel = label.trim().ifBlank { "Maison" }
