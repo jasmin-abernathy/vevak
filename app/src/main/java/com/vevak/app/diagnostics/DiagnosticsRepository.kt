@@ -7,10 +7,10 @@ package com.vevak.app.diagnostics
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.vevak.app.BuildConfig
+import com.vevak.app.location.OnlineApproximateLocationProvider
 import com.vevak.app.location.RememberedLocationPolicy
 import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.model.VeVakSettings
@@ -19,6 +19,7 @@ import com.vevak.app.system.RequestVisibilityNotifier
 
 class DiagnosticsRepository(private val context: Context) {
     private val locationRepository = VeVakLocationRepository(context)
+    private val capabilityProbe = LocationCapabilityProbe(context)
     private val notifier = RequestVisibilityNotifier(context)
 
     fun snapshot(settings: VeVakSettings): DiagnosticsSnapshot {
@@ -26,45 +27,46 @@ class DiagnosticsRepository(private val context: Context) {
         val send = granted(Manifest.permission.SEND_SMS)
         val foreground = granted(Manifest.permission.ACCESS_FINE_LOCATION) || granted(Manifest.permission.ACCESS_COARSE_LOCATION)
         val background = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || granted(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        val locationManager = context.getSystemService(LocationManager::class.java)
-        val locationEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            locationManager?.isLocationEnabled == true
-        } else {
-            runCatching {
-                locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true ||
-                    locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true
-            }.getOrDefault(false)
-        }
         val telephony = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_MESSAGING)
         } else {
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
         }
         val backend = locationRepository.backendStatus()
+        val capabilities = capabilityProbe.snapshot()
         val configuredContacts = settings.trustedContacts()
         val activeContacts = settings.activeTrustedContacts()
         val authorization = activeContacts.isNotEmpty()
         val visibility = notifier.notificationsAllowedForRequests(settings.isDiscreetModeActive())
         val duressValid = DuressPolicy.configurationIsValid(settings)
 
-        val locationServiceCheck = if (locationEnabled) {
-            ReadinessCheck("Services de localisation", "Services activés : VeVak peut demander une nouvelle position.", CheckState.Ok)
-        } else {
+        val locationServiceCheck = if (capabilities.locationEnabled) {
             ReadinessCheck(
-                "Services de localisation",
-                "Désactivés : aucun nouveau point ne peut être calculé. Un lieu Wi-Fi déjà reconnu sur la même connexion ou la dernière position mémorisée par VeVak (maximum ${RememberedLocationPolicy.MAX_RETENTION_MILLIS / 3_600_000L} h) peuvent encore servir de repli.",
+                "Localisation précise Android",
+                "Activée : VeVak peut demander un nouveau point aux sources Android.",
+                CheckState.Ok
+            )
+        } else {
+            val extra = if (settings.allowNetworkApproximation) {
+                " L'estimation réseau via ${OnlineApproximateLocationProvider.SERVICE_NAME} est activée en dernier recours."
+            } else {
+                " L'estimation réseau est désactivée."
+            }
+            ReadinessCheck(
+                "Localisation précise Android",
+                "Désactivée : GPS/fused/réseau Android ne peuvent pas produire un nouveau point précis. VeVak peut encore utiliser un lieu reconnu, ses caches et sa mémoire locale (maximum ${RememberedLocationPolicy.MAX_RETENTION_MILLIS / 3_600_000L} h).$extra",
                 CheckState.Warning
             )
         }
 
         val backendCheck = when {
-            backend.available -> ReadinessCheck("Moteur de localisation", backend.detail, CheckState.Ok)
-            foreground -> ReadinessCheck(
-                "Moteur de localisation",
-                "Aucune source Android active pour un nouveau point. Les replis locaux VeVak restent possibles s'ils ont été enregistrés auparavant.",
+            backend.available -> ReadinessCheck("Moteur Android", backend.detail, CheckState.Ok)
+            foreground || settings.allowNetworkApproximation -> ReadinessCheck(
+                "Moteur Android",
+                "Aucune source Android active pour un nouveau point précis. Les autres étages du resolver VeVak restent disponibles selon la configuration.",
                 CheckState.Warning
             )
-            else -> ReadinessCheck("Moteur de localisation", backend.detail, CheckState.Error)
+            else -> ReadinessCheck("Moteur Android", backend.detail, CheckState.Error)
         }
 
         val checks = listOf(
@@ -76,8 +78,8 @@ class DiagnosticsRepository(private val context: Context) {
             check(telephony, "Téléphonie SMS", "Appareil compatible.", "Cet appareil ne déclare pas la fonction SMS."),
             check(receive, "Réception des SMS", "Autorisation accordée.", "Autorisation RECEIVE_SMS manquante."),
             check(send, "Envoi des SMS", "Autorisation accordée.", "Autorisation SEND_SMS manquante."),
-            check(foreground, "Localisation", "Accès accordé.", "Autorisez la localisation."),
-            check(background, "Localisation en arrière-plan", "Accès permanent accordé.", "Choisissez « Toujours autoriser » dans les réglages Android."),
+            check(foreground, "Permission de localisation", "Accès Android accordé.", "Autorisez la localisation pour permettre les sources précises lorsqu'elles sont activées."),
+            check(background, "Localisation en arrière-plan", "Accès permanent accordé.", "Choisissez « Toujours autoriser » pour les demandes automatiques précises."),
             locationServiceCheck,
             backendCheck
         )
@@ -92,15 +94,23 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("trustedContactCount=${configuredContacts.size}")
             appendLine("activeTrustedContactCount=${activeContacts.size}")
             appendLine("trustedWifiConfigured=${settings.hasTrustedWifiConfiguration()}")
-            appendLine("locationServicesEnabled=$locationEnabled")
+            appendLine("networkApproximationEnabled=${settings.allowNetworkApproximation}")
+            appendLine("locationServicesEnabled=${capabilities.locationEnabled}")
+            appendLine("locationLab.knownProviders=${capabilities.knownProviderCount}")
+            appendLine("locationLab.enabledProviders=${capabilities.enabledProviderCount}")
+            appendLine("locationLab.cachedProviderFixes=${capabilities.cachedProviderFixCount}")
+            appendLine("locationLab.visibleCellRecords=${capabilities.visibleCellRecordCount}")
+            appendLine("locationLab.wifiIdentityReadable=${capabilities.wifiIdentityReadable}")
+            appendLine("locationLab.activeTransport=${capabilities.activeTransport}")
+            appendLine("locationLab.finePermission=${capabilities.fineLocationPermission}")
             appendLine("rememberedLocationRetentionHours=${RememberedLocationPolicy.MAX_RETENTION_MILLIS / 3_600_000L}")
             appendLine("discreetModeActive=${settings.isDiscreetModeActive()}")
             checks.forEachIndexed { index, value ->
                 appendLine("check.$index=${value.state}:${value.title}")
             }
-            append("Phone numbers, SMS bodies, trigger phrases, Wi-Fi identifiers, fallback mode and coordinates are excluded.")
+            append("Phone numbers, SMS bodies, trigger phrases, SSIDs/BSSIDs, Cell IDs, fallback mode and coordinates are excluded.")
         }
-        return DiagnosticsSnapshot(checks, backend.name, report)
+        return DiagnosticsSnapshot(checks, backend.name, report, capabilities)
     }
 
     private fun granted(permission: String): Boolean =
