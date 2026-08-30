@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -80,6 +82,7 @@ private fun SafetyCenter(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -104,6 +107,7 @@ private fun SafetyCenter(
                 onClick = {
                     allRecipients = true
                     recipientStore.setUseAllActiveContacts(true)
+                    message = null
                 }
             )
             Text("Tous les contacts actuellement autorisés")
@@ -112,19 +116,25 @@ private fun SafetyCenter(
             RadioButton(
                 selected = !allRecipients,
                 onClick = {
-                    allRecipients = false
-                    val initial = if (selectedIds.isEmpty()) activeContacts.firstOrNull()?.id?.let(::setOf).orEmpty() else selectedIds
-                    selectedIds = initial
-                    recipientStore.setSelectedContactIds(initial)
+                    val initial = if (selectedIds.isEmpty()) {
+                        activeContacts.firstOrNull()?.id?.let { setOf(it) }.orEmpty()
+                    } else {
+                        selectedIds
+                    }
+                    if (initial.isEmpty()) {
+                        message = "Autorisez d'abord au moins un contact avant de créer une liste d'urgence prédéfinie."
+                    } else {
+                        allRecipients = false
+                        selectedIds = initial
+                        recipientStore.setSelectedContactIds(initial)
+                        message = null
+                    }
                 }
             )
             Text("Seulement des contacts prédéfinis")
         }
 
         if (!allRecipients) {
-            if (activeContacts.isEmpty()) {
-                Text("Aucun contact n'est actuellement autorisé.", color = MaterialTheme.colorScheme.error)
-            }
             activeContacts.forEach { contact ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
