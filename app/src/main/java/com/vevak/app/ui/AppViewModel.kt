@@ -371,12 +371,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
+            val batteryLabel = batteryReader.label()
             val body = when (resolution) {
-                is VeVakPositionResolution.KnownPlace -> SmsReplyFormatter.formatManualTrustedPlace(resolution.label)
-                is VeVakPositionResolution.Coordinates -> SmsReplyFormatter.formatManualShare(
+                is VeVakPositionResolution.KnownPlace -> SmsReplyFormatter.formatManualTrustedPlaceWithBattery(
+                    label = resolution.label,
+                    batteryLabel = batteryLabel,
+                    includeBattery = settings.includeBattery
+                )
+                is VeVakPositionResolution.Coordinates -> SmsReplyFormatter.formatManualShareWithBatteryLabel(
                     settings,
                     resolution.location,
-                    batteryReader.percentage()
+                    batteryLabel
                 )
                 VeVakPositionResolution.Unavailable -> return@launch
             }
