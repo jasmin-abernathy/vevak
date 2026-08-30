@@ -6,6 +6,7 @@ package com.vevak.app
 
 import com.vevak.app.location.LocationSource
 import com.vevak.app.location.VeVakLocationSnapshot
+import com.vevak.app.model.MapProvider
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.sms.SmsReplyFormatter
 import org.junit.Assert.assertEquals
@@ -14,10 +15,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LocationReplyTest {
-    private val settings = VeVakSettings(includeAccuracy = true)
+    private val settings = VeVakSettings(includeAccuracy = true, mapProvider = MapProvider.OpenStreetMap)
 
     @Test
-    fun automaticReply_includesResolvedAddressWhenAvailable() {
+    fun normalCoordinateReply_usesLastKnownUrlRadiusAndBatteryOnly() {
         val location = VeVakLocationSnapshot(
             latitude = 49.1193,
             longitude = 6.1757,
@@ -28,15 +29,19 @@ class LocationReplyTest {
             address = "12 rue Exemple, 57000 Metz, France"
         )
 
-        val body = SmsReplyFormatter.format(settings, location, null)
+        val body = SmsReplyFormatter.formatWithBatteryLabel(settings, location, "Batterie : 49 %")
 
-        assertTrue(body.contains("Adresse approx. : 12 rue Exemple, 57000 Metz, France"))
-        assertTrue(body.contains("49.1193"))
-        assertTrue(body.contains("6.1757"))
+        assertTrue(body.contains("Dernière position connue"))
+        assertTrue(body.contains("openstreetmap.org"))
+        assertTrue(body.contains("49.119300"))
+        assertTrue(body.contains("6.175700"))
+        assertTrue(body.contains("Rayon approximatif : env. 24 m"))
+        assertTrue(body.contains("Batterie : 49 %"))
+        assertFalse(body.contains("Adresse approx."))
     }
 
     @Test
-    fun manualReply_keepsCoordinatesWhenNoAddressWasResolved() {
+    fun manualCoordinateReply_usesTheSamePayloadContract() {
         val location = VeVakLocationSnapshot(
             latitude = 49.1193,
             longitude = 6.1757,
@@ -46,15 +51,15 @@ class LocationReplyTest {
             isMocked = false
         )
 
-        val body = SmsReplyFormatter.formatManualShare(settings, location, null)
+        val body = SmsReplyFormatter.formatManualShareWithBatteryLabel(settings, location, "Batterie en charge")
 
-        assertFalse(body.contains("Adresse approx."))
-        assertTrue(body.contains("49.1193"))
-        assertTrue(body.contains("6.1757"))
+        assertTrue(body.contains("Dernière position connue"))
+        assertTrue(body.contains("Rayon approximatif : env. 24 m"))
+        assertTrue(body.contains("Batterie en charge"))
     }
 
     @Test
-    fun networkApproximation_isNeverPresentedAsGps() {
+    fun networkApproximation_isExplicitlyMarkedAsEstimate() {
         val location = VeVakLocationSnapshot(
             latitude = 49.1,
             longitude = 6.2,
@@ -66,8 +71,7 @@ class LocationReplyTest {
 
         val body = SmsReplyFormatter.format(settings, location, null)
 
-        assertTrue(body.contains("Position approximative via le réseau"))
-        assertTrue(body.contains("pas une position GPS"))
+        assertTrue(body.contains("Dernière position connue (estimation réseau)"))
         assertTrue(body.contains("12.0 km"))
     }
 
@@ -78,13 +82,22 @@ class LocationReplyTest {
 
     @Test
     fun trustedHomeReply_isExactlyTheRequestedSentence() {
-        assertEquals("Je suis à la maison", SmsReplyFormatter.formatTrustedPlace())
+        assertEquals("Je suis chez moi", SmsReplyFormatter.formatTrustedPlace())
+    }
+
+    @Test
+    fun trustedHomeReply_canIncludeChargingState() {
+        assertEquals(
+            "Je suis chez moi\nBatterie en charge",
+            SmsReplyFormatter.formatTrustedPlaceWithBattery("Maison", "Batterie en charge", true)
+        )
     }
 
     @Test
     fun manualTrustedPlace_doesNotInventCoordinates() {
-        val body = SmsReplyFormatter.formatManualTrustedPlace("Maison")
-        assertTrue(body.contains("Maison"))
+        val body = SmsReplyFormatter.formatManualTrustedPlaceWithBattery("Maison", "Batterie : 48 %", true)
+        assertTrue(body.contains("Je suis chez moi"))
+        assertTrue(body.contains("Batterie : 48 %"))
         assertFalse(body.contains("http"))
     }
 }
