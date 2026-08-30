@@ -17,11 +17,15 @@ sealed interface VeVakPositionResolution {
 /**
  * Single location decision engine shared by automatic SMS replies, manual sharing and diagnostics.
  *
- * Order is intentionally privacy-first:
+ * Order is intentionally trust-first rather than freshness-only:
  * 1. already-recognised trusted place (no positioning request);
  * 2. fresh/cached local Android or VeVak point;
- * 3. explicit opt-in IP-only approximation via beaconDB;
- * 4. stale local point when the user explicitly kept stale fallback enabled.
+ * 3. an older real local point when stale fallback is allowed;
+ * 4. explicit opt-in IP-only approximation via beaconDB as absolute last resort.
+ *
+ * A clearly dated real fix is generally more useful in a safety context than a current IP centroid
+ * with an uncertainty of many kilometres. The formatter still exposes the age and radius so the
+ * recipient can judge the information instead of treating every result as equally reliable.
  */
 class VeVakPositionResolver(context: Context) {
     private val appContext = context.applicationContext
@@ -46,12 +50,6 @@ class VeVakPositionResolver(context: Context) {
             return VeVakPositionResolution.Coordinates(it)
         }
 
-        if (settings.allowNetworkApproximation) {
-            onlineApproximation.locate()?.let {
-                return VeVakPositionResolution.Coordinates(it)
-            }
-        }
-
         if (settings.allowStaleFallback) {
             val staleOnlyPolicy = LocationRequestPolicy(
                 maxAcceptedCacheAgeMillis = settings.maxCachedLocationAgeSeconds * 1_000L,
@@ -59,6 +57,14 @@ class VeVakPositionResolver(context: Context) {
                 allowStaleFallback = true
             )
             locationRepository.fetchBestLocation(staleOnlyPolicy)?.let {
+                if (!it.isApproximateNetworkEstimate()) {
+                    return VeVakPositionResolution.Coordinates(it)
+                }
+            }
+        }
+
+        if (settings.allowNetworkApproximation) {
+            onlineApproximation.locate()?.let {
                 return VeVakPositionResolution.Coordinates(it)
             }
         }
