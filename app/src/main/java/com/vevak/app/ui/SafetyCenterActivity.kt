@@ -142,7 +142,7 @@ private fun SafetyCenter(
                         onCheckedChange = { checked ->
                             val updated = if (checked) selectedIds + contact.id else selectedIds - contact.id
                             if (updated.isEmpty()) {
-                                message = "Gardez au moins un destinataire ou choisissez « Tous les contacts ».")
+                                message = "Gardez au moins un destinataire ou choisissez « Tous les contacts »."
                             } else {
                                 selectedIds = updated
                                 recipientStore.setSelectedContactIds(updated)
