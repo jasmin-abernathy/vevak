@@ -129,6 +129,26 @@ class CorePoliciesTest {
     }
 
     @Test
+    fun trustedLocalNetworkFingerprint_isDeterministicAcrossOrdering() {
+        val first = TrustedNetworkReader.localNetworkFingerprint(
+            prefixes = listOf("20010db8abcd00000000000000000000/64", "20010db8dcba00000000000000000000/64"),
+            gateways = listOf("fe80::1234", "fe80::1")
+        )
+        val second = TrustedNetworkReader.localNetworkFingerprint(
+            prefixes = listOf("20010db8dcba00000000000000000000/64", "20010db8abcd00000000000000000000/64"),
+            gateways = listOf("fe80::1", "fe80::1234")
+        )
+        assertEquals(first, second)
+        assertTrue(first?.length == 64)
+    }
+
+    @Test
+    fun trustedLocalNetworkFingerprint_rejectsWeakIncompleteSignals() {
+        assertNull(TrustedNetworkReader.localNetworkFingerprint(emptyList(), listOf("fe80::1")))
+        assertNull(TrustedNetworkReader.localNetworkFingerprint(listOf("20010db8abcd00000000000000000000/64"), emptyList()))
+    }
+
+    @Test
     fun trustedWifiSessionOnly_matchesOnlySameSessionAndBoot() {
         assertTrue(TrustedNetworkReader.sessionMatches("abc", 42, "abc", 42))
         assertFalse(TrustedNetworkReader.sessionMatches("abc", 42, "def", 42))
