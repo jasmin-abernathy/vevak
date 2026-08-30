@@ -310,9 +310,10 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
     }
 
     if (!locationEnabled) {
-        WarningCard("La localisation du téléphone est désactivée", "Les autorisations peuvent être accordées, mais VeVak ne pourra pas obtenir de nouvelle position tant que le réglage système reste coupé.") {
-            openLocationSettings(context)
-        }
+        SimpleInfo(
+            "Localisation précise actuellement désactivée",
+            "Ce réglage empêche Android de produire un nouveau point GPS/réseau précis, mais il n'empêche pas VeVak d'utiliser un lieu déjà reconnu, une position mémorisée ou — si vous l'activez plus tard — une estimation réseau approximative."
+        )
     }
 
     if (!allGranted) {
@@ -388,6 +389,7 @@ private fun HomeTabContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val promptRepository = remember { ProtectionPromptRepository(context.applicationContext) }
+    val trustedNetworkReader = remember { TrustedNetworkReader(context.applicationContext) }
     var pendingProtectionContactId by rememberSaveable { mutableStateOf<String?>(null) }
     var shareChooser by rememberSaveable { mutableStateOf(false) }
     var locationRefresh by remember { mutableIntStateOf(0) }
@@ -409,6 +411,7 @@ private fun HomeTabContent(
     val contacts = state.settings.trustedContacts()
     val active = state.settings.activeTrustedContacts()
     val hasSuccessfulRequest = state.auditEvents.any { it.outcome == RequestAuditOutcome.Replied }
+    val trustedPlaceRecognized = state.settings.hasTrustedWifiConfiguration() && trustedNetworkReader.matches(state.settings)
 
     Title(if (active.isNotEmpty()) "VeVak est actif" else "VeVak est en pause")
     StatusCard(
@@ -417,7 +420,20 @@ private fun HomeTabContent(
     )
 
     if (!systemLocationEnabled(context)) {
-        WarningCard("Localisation désactivée", "VeVak peut encore reconnaître la connexion Wi-Fi Maison déjà enregistrée pour cette session ou utiliser une ancienne position, mais ne pourra pas obtenir une nouvelle position GPS/réseau.") { openLocationSettings(context) }
+        when {
+            trustedPlaceRecognized -> StatusCard(
+                "Lieu reconnu : ${state.settings.trustedPlaceLabel}",
+                "La localisation précise Android est coupée, mais VeVak reconnaît ce lieu sans lancer de GPS."
+            )
+            state.settings.allowNetworkApproximation -> SimpleInfo(
+                "Localisation précise Android désactivée",
+                "VeVak essaiera d'abord ses positions déjà disponibles. Si elles ne suffisent pas, l'estimation réseau activée pourra fournir une zone approximative via l'adresse IP."
+            )
+            else -> SimpleInfo(
+                "Localisation précise Android désactivée",
+                "VeVak peut encore utiliser un lieu reconnu ou une position mémorisée. L'estimation réseau approximative est actuellement désactivée."
+            )
+        }
     }
 
     if (contacts.isNotEmpty()) {
@@ -427,7 +443,7 @@ private fun HomeTabContent(
     }
 
     if (shareChooser) {
-        SimpleInfo("Choisir le destinataire", "La position sera obtenue une seule fois après votre confirmation.")
+        SimpleInfo("Choisir le destinataire", "VeVak utilisera une seule fois la meilleure source actuellement disponible après votre confirmation.")
         contacts.forEach { contact ->
             OutlinedButton(
                 onClick = { shareChooser = false; vm.requestManualPositionShare(contact.id) },
@@ -443,7 +459,7 @@ private fun HomeTabContent(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Envoyer votre position à ${target.displayLabel()} ?", fontWeight = FontWeight.Bold)
-                    Text("VeVak cherchera une position unique puis confiera le SMS à Android. La réception peut prendre quelques secondes et VeVak ne peut pas confirmer la livraison.")
+                    Text("VeVak choisira la meilleure information disponible : lieu reconnu, position locale récente, estimation réseau si vous l'avez activée, puis ancienne position autorisée. La livraison du SMS n'est pas garantie.")
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedButton(onClick = vm::cancelManualPositionShare, modifier = Modifier.weight(1f)) { Text("Annuler") }
                         Button(onClick = vm::confirmManualPositionShare, modifier = Modifier.weight(1f)) { Text("Envoyer") }
@@ -455,7 +471,7 @@ private fun HomeTabContent(
 
     if (!hasSuccessfulRequest && contacts.isNotEmpty()) {
         val first = contacts.first()
-        SimpleInfo("Premier test recommandé", "Depuis le téléphone de ${first.displayLabel()}, envoyez exactement : « ${first.triggerPhrase} ». Une réponse réussie confirme que SMS + autorisation + localisation fonctionnent ensemble.")
+        SimpleInfo("Premier test recommandé", "Depuis le téléphone de ${first.displayLabel()}, envoyez exactement : « ${first.triggerPhrase} ». Une réponse réussie confirme que SMS + autorisation + résolution de position fonctionnent ensemble.")
     } else if (hasSuccessfulRequest && !state.settings.hasTrustedWifiConfiguration()) {
         ActionCard("Vous utilisez souvent VeVak à la maison ?", "Vous pouvez associer la connexion Wi-Fi actuelle à « Maison » sans activer la localisation. L'autoriser ensuite reste facultatif et permet seulement une reconnaissance plus durable après reconnexion.", "Configurer Maison") {
             selectTab(HomeTab.Places)
@@ -573,7 +589,7 @@ private fun PlacesTabContent(state: AppUiState, vm: AppViewModel) {
     val sessionOnly = state.settings.trustedWifiHash == TrustedNetworkReader.SESSION_ONLY_MARKER
 
     Title("Lieux")
-    Text("Un lieu de confiance est un raccourci local. Il ne prouve pas votre présence et ne remplace jamais la localisation normale.")
+    Text("Un lieu de confiance est un raccourci local. Il ne prouve pas votre présence et ne remplace jamais une position précise lorsqu'elle est disponible.")
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Maison", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -611,7 +627,10 @@ private fun PlacesTabContent(state: AppUiState, vm: AppViewModel) {
         }
     }
 
-    SimpleInfo("Comment VeVak cherche une position", "VeVak utilise d'abord le raccourci Maison lorsqu'il est reconnu. Sinon, elle vérifie les informations de position déjà disponibles puis essaie d'obtenir une nouvelle position. Elle ne suit jamais votre position en continu.")
+    SimpleInfo(
+        "Comment VeVak cherche une position",
+        "VeVak essaie dans cet ordre : lieu reconnu, position Android/cache récente, estimation réseau si vous l'avez explicitement activée, puis ancienne position autorisée. Elle ne suit jamais votre position en continu."
+    )
     state.message?.let { InlineMessage(it) }
 }
 
@@ -636,6 +655,11 @@ private fun SettingsTabContent(
         CheckRow("Inclure la batterie", state.settings.includeBattery) { vm.updateOptions(battery = it); vm.persistDraft() }
         CheckRow("Inclure la précision", state.settings.includeAccuracy) { vm.updateOptions(accuracy = it); vm.persistDraft() }
         CheckRow("Autoriser une position ancienne en dernier recours", state.settings.allowStaleFallback) { vm.updateOptions(staleFallback = it); vm.persistDraft() }
+        CheckRow("Autoriser une estimation réseau approximative en dernier recours", state.settings.allowNetworkApproximation, vm::setNetworkApproximation)
+        SimpleInfo(
+            "Estimation réseau : facultative",
+            "Désactivée par défaut. Si vous l'activez, VeVak peut contacter beaconDB uniquement lorsqu'aucune source locale récente ne suffit. Le service voit alors votre adresse IP ; le SMS indique clairement qu'il s'agit d'une estimation et non d'un GPS."
+        )
         Text("Lien cartographique", fontWeight = FontWeight.SemiBold)
         MapProvider.entries.forEach { provider ->
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -662,12 +686,34 @@ private fun SettingsTabContent(
     SectionToggle("Diagnostic", diagnosticOpen) { diagnosticOpen = !diagnosticOpen }
     if (diagnosticOpen) {
         DiagnosticRow("SMS", hasPermission(context, Manifest.permission.RECEIVE_SMS) && hasPermission(context, Manifest.permission.SEND_SMS))
-        DiagnosticRow("Localisation autorisée", hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) || hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION))
-        DiagnosticRow("Localisation du téléphone activée", systemLocationEnabled(context))
+        DiagnosticRow("Permission de localisation", hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) || hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION))
         DiagnosticRow("Notifications", Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasPermission(context, Manifest.permission.POST_NOTIFICATIONS))
-        if (!systemLocationEnabled(context)) OutlinedButton(onClick = { openLocationSettings(context) }, modifier = Modifier.fillMaxWidth()) { Text("Activer la localisation") }
-        Button(onClick = vm::testLocation, modifier = Modifier.fillMaxWidth(), enabled = !state.testLocationLoading) { Text(if (state.testLocationLoading) "Test en cours…" else "Tester la localisation") }
-        state.testLocation?.let { SimpleInfo("Test réussi", "Une position a été obtenue. Source et coordonnées restent dans le diagnostic interne et ne sont pas affichées ici.") }
+
+        state.diagnostics?.locationCapabilities?.let { lab ->
+            SimpleInfo(
+                "Laboratoire localisation — aucune donnée sensible affichée",
+                "Localisation Android : ${if (lab.locationEnabled) "ON" else "OFF"}\n" +
+                    "Providers Android : ${lab.enabledProviderCount}/${lab.knownProviderCount} actifs\n" +
+                    "Caches providers disponibles : ${lab.cachedProviderFixCount}\n" +
+                    "Enregistrements cellulaires visibles : ${lab.visibleCellRecordCount}\n" +
+                    "Identité Wi-Fi lisible : ${if (lab.wifiIdentityReadable) "oui" else "non/masquée"}\n" +
+                    "Connexion : ${lab.activeTransport}"
+            )
+        }
+
+        if (!systemLocationEnabled(context)) {
+            OutlinedButton(onClick = { openLocationSettings(context) }, modifier = Modifier.fillMaxWidth()) {
+                Text("Ouvrir la localisation précise Android (facultatif)")
+            }
+        }
+        Button(onClick = vm::testLocation, modifier = Modifier.fillMaxWidth(), enabled = !state.testLocationLoading) {
+            Text(if (state.testLocationLoading) "Test du resolver en cours…" else "Tester toutes les sources")
+        }
+        state.testPositionSummary?.let { SimpleInfo("Résultat du resolver", it) }
+        SimpleInfo(
+            "Test ON/OFF conseillé",
+            "Notez les compteurs ci-dessus avec la localisation Android activée, puis désactivez-la, revenez dans VeVak et relancez le test. Cela montre exactement ce que votre modèle de téléphone laisse accessible dans les deux états."
+        )
     }
 
     SectionToggle("Protection avancée", openProtectionSetup || state.settings.duressEnabled) { setOpenProtectionSetup(!(openProtectionSetup || state.settings.duressEnabled)) }
@@ -688,7 +734,7 @@ private fun SettingsTabContent(
 
     HorizontalDivider()
     Text("À propos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-    Text("VeVak fonctionne localement et n'est pas un service d'urgence. Les SMS et la localisation peuvent dépendre du téléphone, de l'opérateur et des réglages Android.")
+    Text("VeVak fonctionne localement par défaut et n'est pas un service d'urgence. Si vous activez volontairement l'estimation réseau, un appel à beaconDB peut être utilisé uniquement comme repli approximatif.")
     SimpleInfo("Projet libre et gratuit", "Si VeVak vous est utile, vous pouvez soutenir volontairement son développement. Un don ne débloque aucune fonction et n'est jamais nécessaire pour utiliser le socle de sécurité.")
     OutlinedButton(onClick = { openSupportPage(context) }, modifier = Modifier.fillMaxWidth()) { Text("Soutenir VeVak 🌱") }
     TextButton(onClick = vm::reset, modifier = Modifier.fillMaxWidth()) { Text("Réinitialiser VeVak") }
