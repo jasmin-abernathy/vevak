@@ -42,6 +42,7 @@ object SettingsBackupSerializer {
             setProperty("maxCachedLocationAgeSeconds", safe.maxCachedLocationAgeSeconds.toString())
             setProperty("locationTimeoutSeconds", safe.locationTimeoutSeconds.toString())
             setProperty("allowStaleFallback", safe.allowStaleFallback.toString())
+            setProperty("allowNetworkApproximation", safe.allowNetworkApproximation.toString())
             setProperty("duressEnabled", safe.duressEnabled.toString())
             setProperty("duressPhrase", safe.duressPhrase)
             safe.fallbackLatitude?.let { setProperty("fallbackLatitude", it.toString()) }
@@ -89,6 +90,7 @@ object SettingsBackupSerializer {
             maxCachedLocationAgeSeconds = properties.int("maxCachedLocationAgeSeconds", 120).coerceIn(30, 3600),
             locationTimeoutSeconds = properties.int("locationTimeoutSeconds", 8).coerceIn(3, 30),
             allowStaleFallback = properties.boolean("allowStaleFallback", true),
+            allowNetworkApproximation = properties.boolean("allowNetworkApproximation", false),
             authorizationGrantedAtEpochMs = 0L,
             authorizationExpiresAtEpochMs = 0L,
             duressEnabled = properties.boolean("duressEnabled", false),
