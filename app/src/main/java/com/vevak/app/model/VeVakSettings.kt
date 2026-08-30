@@ -37,6 +37,9 @@ data class VeVakSettings(
     val maxCachedLocationAgeSeconds: Int = 120,
     val locationTimeoutSeconds: Int = 8,
     val allowStaleFallback: Boolean = true,
+    // Off by default: enabling this permits an IP-only request to the public beaconDB service
+    // when local Android sources cannot provide a usable point.
+    val allowNetworkApproximation: Boolean = false,
     // These timestamps belong to the primary contact. Additional contacts carry their own.
     val authorizationGrantedAtEpochMs: Long = 0L,
     val authorizationExpiresAtEpochMs: Long = 0L,
