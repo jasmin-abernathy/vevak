@@ -11,70 +11,56 @@ object SmsReplyFormatter {
     fun format(
         settings: VeVakSettings,
         location: VeVakLocationSnapshot?,
-        batteryPercent: Int?
+        batteryLabel: String?
     ): String = buildString {
         append("VeVak")
         if (location == null) {
             append("\nPosition indisponible.")
         } else {
-            appendLocationKind(location)
-            appendAddress(location)
+            append("\nDernière position connue")
+            if (location.isApproximateNetworkEstimate()) append(" (estimation réseau)")
+            append(" : ")
+            append(location.ageLabel())
             append('\n')
             append(MapLinkBuilder.build(settings.mapProvider, location.latitude, location.longitude))
-            append("\nPosition: ")
-            append(location.ageLabel())
-            if (settings.includeAccuracy) {
-                append("\nPrecision: ")
-                append(location.accuracyLabel())
-            }
+            append("\nRayon approximatif : ")
+            append(location.accuracyLabel())
         }
-        appendBattery(settings, batteryPercent)
+        appendBattery(settings.includeBattery, batteryLabel)
     }
 
+    /** Manual share intentionally uses the same factual payload as an automatic normal reply. */
     fun formatManualShare(
         settings: VeVakSettings,
         location: VeVakLocationSnapshot,
-        batteryPercent: Int?
+        batteryLabel: String?
+    ): String = format(settings, location, batteryLabel)
+
+    fun formatTrustedPlace(
+        label: String = "Maison",
+        batteryLabel: String? = null,
+        includeBattery: Boolean = true
     ): String = buildString {
-        append("VeVak")
-        append("\nJe partage ma position :")
-        appendLocationKind(location)
-        appendAddress(location)
-        append('\n')
-        append(MapLinkBuilder.build(settings.mapProvider, location.latitude, location.longitude))
-        append("\nPosition: ")
-        append(location.ageLabel())
-        if (settings.includeAccuracy) {
-            append("\nPrecision: ")
-            append(location.accuracyLabel())
+        val cleanLabel = label.trim().ifBlank { "Maison" }
+        if (cleanLabel.equals("Maison", ignoreCase = true)) {
+            append("Je suis chez moi")
+        } else {
+            append("Je suis à : ")
+            append(cleanLabel)
         }
-        appendBattery(settings, batteryPercent)
+        appendBattery(includeBattery, batteryLabel)
     }
 
-    fun formatTrustedPlace(label: String = "Maison"): String =
-        if (label.equals("Maison", ignoreCase = true)) "Je suis à la maison" else "Je suis à : $label"
+    fun formatManualTrustedPlace(
+        label: String,
+        batteryLabel: String? = null,
+        includeBattery: Boolean = true
+    ): String = formatTrustedPlace(label, batteryLabel, includeBattery)
 
-    fun formatManualTrustedPlace(label: String): String =
-        "VeVak\nJe partage mon lieu reconnu : ${label.trim().ifBlank { "Maison" }}"
-
-    private fun StringBuilder.appendLocationKind(location: VeVakLocationSnapshot) {
-        if (location.isApproximateNetworkEstimate()) {
-            append("\nPosition approximative via le réseau (adresse IP), pas une position GPS.")
-        }
-    }
-
-    private fun StringBuilder.appendAddress(location: VeVakLocationSnapshot) {
-        location.address?.trim()?.takeIf { it.isNotBlank() }?.let {
-            append("\nAdresse approx. : ")
-            append(it)
-        }
-    }
-
-    private fun StringBuilder.appendBattery(settings: VeVakSettings, batteryPercent: Int?) {
-        if (settings.includeBattery && batteryPercent != null) {
-            append("\nBatterie: ")
-            append(batteryPercent)
-            append(" %")
+    private fun StringBuilder.appendBattery(includeBattery: Boolean, batteryLabel: String?) {
+        if (includeBattery && !batteryLabel.isNullOrBlank()) {
+            append('\n')
+            append(batteryLabel.trim())
         }
     }
 }
