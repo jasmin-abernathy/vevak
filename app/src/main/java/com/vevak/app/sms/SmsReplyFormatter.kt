@@ -17,6 +17,7 @@ object SmsReplyFormatter {
         if (location == null) {
             append("\nPosition indisponible.")
         } else {
+            appendLocationKind(location)
             appendAddress(location)
             append('\n')
             append(MapLinkBuilder.build(settings.mapProvider, location.latitude, location.longitude))
@@ -37,6 +38,7 @@ object SmsReplyFormatter {
     ): String = buildString {
         append("VeVak")
         append("\nJe partage ma position :")
+        appendLocationKind(location)
         appendAddress(location)
         append('\n')
         append(MapLinkBuilder.build(settings.mapProvider, location.latitude, location.longitude))
@@ -49,7 +51,17 @@ object SmsReplyFormatter {
         appendBattery(settings, batteryPercent)
     }
 
-    fun formatTrustedPlace(): String = "Je suis à la maison"
+    fun formatTrustedPlace(label: String = "Maison"): String =
+        if (label.equals("Maison", ignoreCase = true)) "Je suis à la maison" else "Je suis à : $label"
+
+    fun formatManualTrustedPlace(label: String): String =
+        "VeVak\nJe partage mon lieu reconnu : ${label.trim().ifBlank { "Maison" }}"
+
+    private fun StringBuilder.appendLocationKind(location: VeVakLocationSnapshot) {
+        if (location.isApproximateNetworkEstimate()) {
+            append("\nPosition approximative via le réseau (adresse IP), pas une position GPS.")
+        }
+    }
 
     private fun StringBuilder.appendAddress(location: VeVakLocationSnapshot) {
         location.address?.trim()?.takeIf { it.isNotBlank() }?.let {
