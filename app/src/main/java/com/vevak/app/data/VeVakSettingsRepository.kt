@@ -34,6 +34,7 @@ class VeVakSettingsRepository(private val context: Context) {
         val CACHE_AGE = intPreferencesKey("max_cached_location_age_seconds")
         val TIMEOUT = intPreferencesKey("location_timeout_seconds")
         val STALE_FALLBACK = booleanPreferencesKey("allow_stale_fallback")
+        val NETWORK_APPROXIMATION = booleanPreferencesKey("allow_network_approximation")
         val AUTH_GRANTED_AT = longPreferencesKey("authorization_granted_at_epoch_ms")
         val AUTH_EXPIRES_AT = longPreferencesKey("authorization_expires_at_epoch_ms")
         val DURESS_ENABLED = booleanPreferencesKey("duress_enabled")
@@ -69,6 +70,7 @@ class VeVakSettingsRepository(private val context: Context) {
             prefs[Keys.CACHE_AGE] = settings.maxCachedLocationAgeSeconds.coerceIn(30, 3600)
             prefs[Keys.TIMEOUT] = settings.locationTimeoutSeconds.coerceIn(3, 30)
             prefs[Keys.STALE_FALLBACK] = settings.allowStaleFallback
+            prefs[Keys.NETWORK_APPROXIMATION] = settings.allowNetworkApproximation
             prefs[Keys.AUTH_GRANTED_AT] = settings.authorizationGrantedAtEpochMs.coerceAtLeast(0L)
             prefs[Keys.AUTH_EXPIRES_AT] = settings.authorizationExpiresAtEpochMs.coerceAtLeast(0L)
             prefs[Keys.DURESS_ENABLED] = settings.duressEnabled
@@ -114,6 +116,7 @@ class VeVakSettingsRepository(private val context: Context) {
             maxCachedLocationAgeSeconds = this[Keys.CACHE_AGE] ?: 120,
             locationTimeoutSeconds = this[Keys.TIMEOUT] ?: 8,
             allowStaleFallback = this[Keys.STALE_FALLBACK] ?: true,
+            allowNetworkApproximation = this[Keys.NETWORK_APPROXIMATION] ?: false,
             authorizationGrantedAtEpochMs = this[Keys.AUTH_GRANTED_AT] ?: 0L,
             authorizationExpiresAtEpochMs = this[Keys.AUTH_EXPIRES_AT] ?: 0L,
             duressEnabled = this[Keys.DURESS_ENABLED] ?: false,
