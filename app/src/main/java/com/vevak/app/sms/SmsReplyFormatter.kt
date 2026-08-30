@@ -11,6 +11,16 @@ object SmsReplyFormatter {
     fun format(
         settings: VeVakSettings,
         location: VeVakLocationSnapshot?,
+        batteryPercent: Int?
+    ): String = formatWithBatteryLabel(
+        settings,
+        location,
+        batteryPercent?.let { "Batterie : $it %" }
+    )
+
+    fun formatWithBatteryLabel(
+        settings: VeVakSettings,
+        location: VeVakLocationSnapshot?,
         batteryLabel: String?
     ): String = buildString {
         append("VeVak")
@@ -29,33 +39,45 @@ object SmsReplyFormatter {
         appendBattery(settings.includeBattery, batteryLabel)
     }
 
-    /** Manual share intentionally uses the same factual payload as an automatic normal reply. */
     fun formatManualShare(
         settings: VeVakSettings,
         location: VeVakLocationSnapshot,
-        batteryLabel: String?
-    ): String = format(settings, location, batteryLabel)
+        batteryPercent: Int?
+    ): String = format(settings, location, batteryPercent)
 
-    fun formatTrustedPlace(
-        label: String = "Maison",
-        batteryLabel: String? = null,
-        includeBattery: Boolean = true
+    fun formatManualShareWithBatteryLabel(
+        settings: VeVakSettings,
+        location: VeVakLocationSnapshot,
+        batteryLabel: String?
+    ): String = formatWithBatteryLabel(settings, location, batteryLabel)
+
+    fun formatTrustedPlace(label: String = "Maison"): String = trustedPlaceText(label)
+
+    fun formatTrustedPlaceWithBattery(
+        label: String,
+        batteryLabel: String?,
+        includeBattery: Boolean
     ): String = buildString {
-        val cleanLabel = label.trim().ifBlank { "Maison" }
-        if (cleanLabel.equals("Maison", ignoreCase = true)) {
-            append("Je suis chez moi")
-        } else {
-            append("Je suis à : ")
-            append(cleanLabel)
-        }
+        append(trustedPlaceText(label))
         appendBattery(includeBattery, batteryLabel)
     }
 
-    fun formatManualTrustedPlace(
+    fun formatManualTrustedPlace(label: String): String = trustedPlaceText(label)
+
+    fun formatManualTrustedPlaceWithBattery(
         label: String,
-        batteryLabel: String? = null,
-        includeBattery: Boolean = true
-    ): String = formatTrustedPlace(label, batteryLabel, includeBattery)
+        batteryLabel: String?,
+        includeBattery: Boolean
+    ): String = formatTrustedPlaceWithBattery(label, batteryLabel, includeBattery)
+
+    private fun trustedPlaceText(label: String): String {
+        val cleanLabel = label.trim().ifBlank { "Maison" }
+        return if (cleanLabel.equals("Maison", ignoreCase = true)) {
+            "Je suis chez moi"
+        } else {
+            "Je suis à : $cleanLabel"
+        }
+    }
 
     private fun StringBuilder.appendBattery(includeBattery: Boolean, batteryLabel: String?) {
         if (includeBattery && !batteryLabel.isNullOrBlank()) {
