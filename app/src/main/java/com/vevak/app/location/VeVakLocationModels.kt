@@ -16,6 +16,7 @@ enum class LocationSource(val label: String) {
     AndroidCurrent("Android / actuelle"),
     AndroidLastKnown("Android / cache"),
     VeVakRemembered("VeVak / dernière position mémorisée"),
+    NetworkApproximation("Réseau / estimation IP"),
     SafetyFallback("Repli de sécurité")
 }
 
@@ -50,8 +51,12 @@ data class VeVakLocationSnapshot(
         }
     }
 
-    fun accuracyLabel(): String = accuracyMeters?.let { "env. ${it.roundToInt()} m" } ?: "inconnue"
+    fun accuracyLabel(): String = accuracyMeters?.let {
+        if (it >= 1_000f) "env. ${((it / 1_000f) * 10).roundToInt() / 10f} km" else "env. ${it.roundToInt()} m"
+    } ?: "inconnue"
+
     fun isFresh(maxAgeMillis: Long): Boolean = ageMillis <= maxAgeMillis
+    fun isApproximateNetworkEstimate(): Boolean = source == LocationSource.NetworkApproximation
 }
 
 fun Location.toVeVakSnapshot(source: LocationSource): VeVakLocationSnapshot {
