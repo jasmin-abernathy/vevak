@@ -54,7 +54,37 @@ class LocationReplyTest {
     }
 
     @Test
+    fun networkApproximation_isNeverPresentedAsGps() {
+        val location = VeVakLocationSnapshot(
+            latitude = 49.1,
+            longitude = 6.2,
+            accuracyMeters = 12_000f,
+            source = LocationSource.NetworkApproximation,
+            ageMillis = 0L,
+            isMocked = false
+        )
+
+        val body = SmsReplyFormatter.format(settings, location, null)
+
+        assertTrue(body.contains("Position approximative via le réseau"))
+        assertTrue(body.contains("pas une position GPS"))
+        assertTrue(body.contains("12.0 km"))
+    }
+
+    @Test
+    fun networkApproximation_isOptInByDefault() {
+        assertFalse(VeVakSettings().allowNetworkApproximation)
+    }
+
+    @Test
     fun trustedHomeReply_isExactlyTheRequestedSentence() {
         assertEquals("Je suis à la maison", SmsReplyFormatter.formatTrustedPlace())
+    }
+
+    @Test
+    fun manualTrustedPlace_doesNotInventCoordinates() {
+        val body = SmsReplyFormatter.formatManualTrustedPlace("Maison")
+        assertTrue(body.contains("Maison"))
+        assertFalse(body.contains("http"))
     }
 }
