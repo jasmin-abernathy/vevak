@@ -22,6 +22,8 @@ import com.vevak.app.diagnostics.DiagnosticsSnapshot
 import com.vevak.app.location.LocationRequestPolicy
 import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.location.VeVakLocationSnapshot
+import com.vevak.app.location.VeVakPositionResolution
+import com.vevak.app.location.VeVakPositionResolver
 import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.MapProvider
 import com.vevak.app.model.TrustedContact
@@ -48,6 +50,7 @@ data class AppUiState(
     val settings: VeVakSettings = VeVakSettings(),
     val diagnostics: DiagnosticsSnapshot? = null,
     val testLocation: VeVakLocationSnapshot? = null,
+    val testPositionSummary: String? = null,
     val testLocationLoading: Boolean = false,
     val fallbackLocationLoading: Boolean = false,
     val manualShareConfirmationPending: Boolean = false,
@@ -72,6 +75,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val auditRepository = RequestAuditRepository(application)
     private val diagnosticsRepository = DiagnosticsRepository(application)
     private val locationRepository = VeVakLocationRepository(application)
+    private val positionResolver = VeVakPositionResolver(application)
     private val smsSender = SmsReplySender(application)
     private val batteryReader = BatteryReader(application)
     private val notifier = RequestVisibilityNotifier(application)
@@ -118,13 +122,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         battery: Boolean? = null,
         accuracy: Boolean? = null,
         provider: MapProvider? = null,
-        staleFallback: Boolean? = null
+        staleFallback: Boolean? = null,
+        networkApproximation: Boolean? = null
     ) = updateSettings {
         it.copy(
             includeBattery = battery ?: it.includeBattery,
             includeAccuracy = accuracy ?: it.includeAccuracy,
             mapProvider = provider ?: it.mapProvider,
-            allowStaleFallback = staleFallback ?: it.allowStaleFallback
+            allowStaleFallback = staleFallback ?: it.allowStaleFallback,
+            allowNetworkApproximation = networkApproximation ?: it.allowNetworkApproximation
+        )
+    }
+
+    fun setNetworkApproximation(enabled: Boolean) {
+        val updated = _state.value.settings.copy(allowNetworkApproximation = enabled)
+        persistSettings(
+            updated,
+            if (enabled) {
+                "Estimation réseau activée. En dernier recours, VeVak pourra contacter beaconDB : votre adresse IP sera visible par ce service et la position obtenue restera approximative."
+            } else {
+                "Estimation réseau désactivée. VeVak n'utilisera plus Internet pour chercher votre position."
+            }
         )
     }
 
@@ -293,8 +311,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(message = "Choisissez d'abord un contact de confiance configuré.") }
             ContextCompat.checkSelfPermission(app, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED ->
                 _state.update { it.copy(message = "Autorisez d'abord l'envoi de SMS.") }
-            !hasForegroundLocationPermission(app) ->
-                _state.update { it.copy(message = "Autorisez d'abord la localisation.") }
             defaultSmsSubscriptionId() == null ->
                 _state.update { it.copy(message = "Choisissez une SIM par défaut pour les SMS dans Android avant l'envoi. VeVak n'en choisit jamais une au hasard.") }
             else -> _state.update {
@@ -333,10 +349,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(manualShareConfirmationPending = false, manualShareTargetContactId = null, message = "Autorisation d'envoi de SMS absente.") }
                 return
             }
-            !hasForegroundLocationPermission(app) -> {
-                _state.update { it.copy(manualShareConfirmationPending = false, manualShareTargetContactId = null, message = "Autorisation de localisation absente.") }
-                return
-            }
             subscriptionId == null -> {
                 _state.update { it.copy(manualShareConfirmationPending = false, manualShareTargetContactId = null, message = "Aucune SIM SMS par défaut n'est définie dans Android.") }
                 return
@@ -345,28 +357,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         _state.update { it.copy(manualShareConfirmationPending = false, manualShareLoading = true, message = null) }
         viewModelScope.launch {
-            val location = runCatching {
-                locationRepository.fetchBestLocation(
-                    LocationRequestPolicy(
-                        maxAcceptedCacheAgeMillis = settings.maxCachedLocationAgeSeconds * 1_000L,
-                        currentLocationTimeoutMillis = settings.locationTimeoutSeconds * 1_000L,
-                        allowStaleFallback = settings.allowStaleFallback
-                    )
-                )
-            }.getOrNull()
+            val resolution = runCatching { positionResolver.resolve(settings) }
+                .getOrDefault(VeVakPositionResolution.Unavailable)
 
-            if (location == null) {
+            if (resolution == VeVakPositionResolution.Unavailable) {
                 _state.update {
                     it.copy(
                         manualShareLoading = false,
                         manualShareTargetContactId = null,
-                        message = "Aucune position obtenue : aucun SMS n'a été envoyé."
+                        message = "Aucune position ni aucun lieu reconnu : aucun SMS n'a été envoyé."
                     )
                 }
                 return@launch
             }
 
-            val body = SmsReplyFormatter.formatManualShare(settings, location, batteryReader.percentage())
+            val body = when (resolution) {
+                is VeVakPositionResolution.KnownPlace -> SmsReplyFormatter.formatManualTrustedPlace(resolution.label)
+                is VeVakPositionResolution.Coordinates -> SmsReplyFormatter.formatManualShare(
+                    settings,
+                    resolution.location,
+                    batteryReader.percentage()
+                )
+                VeVakPositionResolution.Unavailable -> return@launch
+            }
             val acceptedByAndroid = runCatching { smsSender.send(contact.phone, body, subscriptionId) }.isSuccess
             _state.update {
                 it.copy(
@@ -525,30 +538,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun testLocation() {
-        val app = getApplication<Application>()
-        if (!hasForegroundLocationPermission(app)) {
-            _state.update { it.copy(message = "Autorisez d'abord la localisation.") }
-            return
-        }
-        _state.update { it.copy(testLocationLoading = true, message = null) }
+        _state.update { it.copy(testLocationLoading = true, testLocation = null, testPositionSummary = null, message = null) }
         viewModelScope.launch {
             val settings = _state.value.settings
-            val result = runCatching {
-                locationRepository.fetchBestLocation(
-                    LocationRequestPolicy(
-                        maxAcceptedCacheAgeMillis = settings.maxCachedLocationAgeSeconds * 1_000L,
-                        currentLocationTimeoutMillis = settings.locationTimeoutSeconds * 1_000L,
-                        allowStaleFallback = settings.allowStaleFallback
-                    )
-                )
-            }.getOrNull()
+            val result = runCatching { positionResolver.resolve(settings) }
+                .getOrDefault(VeVakPositionResolution.Unavailable)
+            val coordinate = (result as? VeVakPositionResolution.Coordinates)?.location
+            val summary = when (result) {
+                is VeVakPositionResolution.KnownPlace -> "Lieu reconnu : ${result.label}. Aucune géolocalisation n'a été lancée."
+                is VeVakPositionResolution.Coordinates -> if (result.location.isApproximateNetworkEstimate()) {
+                    "Estimation réseau obtenue via l'adresse IP (${result.location.accuracyLabel()}). Ce n'est pas une position GPS."
+                } else {
+                    "Position obtenue via ${result.location.source.label}, ${result.location.ageLabel()}, précision ${result.location.accuracyLabel()}."
+                }
+                VeVakPositionResolution.Unavailable -> "Aucune source n'a pu fournir de position ou de lieu reconnu."
+            }
             _state.update {
                 it.copy(
                     testLocationLoading = false,
-                    testLocation = result,
-                    message = if (result == null) "Aucune position obtenue." else "Test terminé."
+                    testLocation = coordinate,
+                    testPositionSummary = summary,
+                    message = "Test terminé."
                 )
             }
+            refreshDiagnostics()
         }
     }
 
@@ -569,8 +582,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
             }.getOrNull()
-            if (result == null) {
-                _state.update { it.copy(fallbackLocationLoading = false, message = "Impossible d'enregistrer une position de repli maintenant.") }
+            if (result == null || result.isApproximateNetworkEstimate()) {
+                _state.update { it.copy(fallbackLocationLoading = false, message = "Impossible d'enregistrer une position de repli précise maintenant.") }
                 return@launch
             }
             updateSettings {
