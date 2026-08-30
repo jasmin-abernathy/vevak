@@ -14,6 +14,7 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
+import com.vevak.app.system.TrustedNetworkReader
 
 /**
  * Privacy-safe capability snapshot for comparing a real device with Android Location ON/OFF.
@@ -27,6 +28,7 @@ data class LocationCapabilitySnapshot(
     val cachedProviderFixCount: Int,
     val visibleCellRecordCount: Int,
     val wifiIdentityReadable: Boolean,
+    val localNetworkFingerprintAvailable: Boolean,
     val activeTransport: String,
     val fineLocationPermission: Boolean
 )
@@ -77,6 +79,10 @@ class LocationCapabilityProbe(private val context: Context) {
             false
         }
 
+        val localFingerprintAvailable = runCatching {
+            TrustedNetworkReader(appContext).currentLocalNetworkFingerprint() != null
+        }.getOrDefault(false)
+
         return LocationCapabilitySnapshot(
             locationEnabled = locationEnabled,
             knownProviderCount = providers.size,
@@ -84,6 +90,7 @@ class LocationCapabilityProbe(private val context: Context) {
             cachedProviderFixCount = cachedFixes,
             visibleCellRecordCount = visibleCells,
             wifiIdentityReadable = wifiReadable,
+            localNetworkFingerprintAvailable = localFingerprintAvailable,
             activeTransport = activeTransport(),
             fineLocationPermission = fineGranted
         )
