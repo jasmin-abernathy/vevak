@@ -69,6 +69,24 @@ class DiagnosticsRepository(private val context: Context) {
             else -> ReadinessCheck("Moteur Android", backend.detail, CheckState.Error)
         }
 
+        val homeFingerprintCheck = when {
+            capabilities.localNetworkFingerprintAvailable -> ReadinessCheck(
+                "Empreinte locale Maison",
+                "Disponible sur cette connexion Wi-Fi sans lire le nom du réseau. Une reconnexion peut être reconnue tant que l'empreinte réseau reste stable.",
+                CheckState.Ok
+            )
+            capabilities.activeTransport == "wifi" -> ReadinessCheck(
+                "Empreinte locale Maison",
+                "Non disponible sur cette connexion. Sans SSID lisible, VeVak doit rester sur une reconnaissance limitée à la session réseau.",
+                CheckState.Warning
+            )
+            else -> ReadinessCheck(
+                "Empreinte locale Maison",
+                "Aucune connexion Wi-Fi active pour tester cette capacité.",
+                CheckState.Warning
+            )
+        }
+
         val checks = listOf(
             check(configuredContacts.isNotEmpty(), "Contacts autorisés", "${configuredContacts.size} contact(s) configuré(s).", "Ajoutez au moins un numéro pouvant interroger VeVak."),
             check(configuredContacts.all { it.triggerPhrase.isNotBlank() }, "Phrases de déclenchement", "Toutes les phrases sont configurées.", "Chaque contact doit avoir une phrase non vide."),
@@ -80,6 +98,7 @@ class DiagnosticsRepository(private val context: Context) {
             check(send, "Envoi des SMS", "Autorisation accordée.", "Autorisation SEND_SMS manquante."),
             check(foreground, "Permission de localisation", "Accès Android accordé.", "Autorisez la localisation pour permettre les sources précises lorsqu'elles sont activées."),
             check(background, "Localisation en arrière-plan", "Accès permanent accordé.", "Choisissez « Toujours autoriser » pour les demandes automatiques précises."),
+            homeFingerprintCheck,
             locationServiceCheck,
             backendCheck
         )
@@ -101,6 +120,7 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("locationLab.cachedProviderFixes=${capabilities.cachedProviderFixCount}")
             appendLine("locationLab.visibleCellRecords=${capabilities.visibleCellRecordCount}")
             appendLine("locationLab.wifiIdentityReadable=${capabilities.wifiIdentityReadable}")
+            appendLine("locationLab.localNetworkFingerprintAvailable=${capabilities.localNetworkFingerprintAvailable}")
             appendLine("locationLab.activeTransport=${capabilities.activeTransport}")
             appendLine("locationLab.finePermission=${capabilities.fineLocationPermission}")
             appendLine("rememberedLocationRetentionHours=${RememberedLocationPolicy.MAX_RETENTION_MILLIS / 3_600_000L}")
