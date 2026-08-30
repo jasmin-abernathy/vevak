@@ -196,7 +196,7 @@ private fun SafetyCenter(
                                     trustedWifiHash = capture.storedHash,
                                     trustedPlaceLabel = base.trustedPlaceLabel.trim().ifBlank { "Maison" }
                                 )
-                                settingsRepository.save(updated)
+                                settingsRepository.saveWithTrustedNetworkReplacement(updated)
                                 settings = updated
                                 replacementArmed = false
                                 message = "Nouveau réseau Maison enregistré."
