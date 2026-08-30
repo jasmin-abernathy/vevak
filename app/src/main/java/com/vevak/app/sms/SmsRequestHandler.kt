@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import com.vevak.app.BuildConfig
 import com.vevak.app.data.ProtectionPromptRepository
 import com.vevak.app.data.RequestAuditOutcome
 import com.vevak.app.data.RequestAuditRepository
@@ -65,10 +66,16 @@ class SmsRequestHandler(private val context: Context) {
             return
         }
 
-        // Global limiter: adding contacts must never multiply tracking capacity.
+        // Keep the production anti-tracking limit, but make debug builds usable for repeated
+        // real-device tests. This never changes the release behaviour.
+        val configuredIntervalMillis = settings.minRequestIntervalSeconds * 1_000L
         val allowed = runtimeRepository.tryAcquire(
             nowMillis = now,
-            minimumIntervalMillis = settings.minRequestIntervalSeconds * 1_000L
+            minimumIntervalMillis = if (BuildConfig.DEBUG) {
+                minOf(configuredIntervalMillis, DEBUG_REQUEST_INTERVAL_MILLIS)
+            } else {
+                configuredIntervalMillis
+            }
         )
         if (!allowed) {
             auditRepository.append(now, RequestAuditOutcome.BlockedRate)
@@ -84,17 +91,22 @@ class SmsRequestHandler(private val context: Context) {
             IncomingRequestMode.Normal -> positionResolver.resolve(settings)
         }
 
+        val batteryLabel = batteryReader.label()
         val reply = when (resolution) {
-            is VeVakPositionResolution.KnownPlace -> SmsReplyFormatter.formatTrustedPlace(resolution.label)
+            is VeVakPositionResolution.KnownPlace -> SmsReplyFormatter.formatTrustedPlace(
+                label = resolution.label,
+                batteryLabel = batteryLabel,
+                includeBattery = settings.includeBattery
+            )
             is VeVakPositionResolution.Coordinates -> SmsReplyFormatter.format(
                 settings,
                 resolution.location,
-                batteryReader.percentage()
+                batteryLabel
             )
             VeVakPositionResolution.Unavailable -> SmsReplyFormatter.format(
                 settings,
                 null,
-                batteryReader.percentage()
+                batteryLabel
             )
         }
 
@@ -151,4 +163,8 @@ class SmsRequestHandler(private val context: Context) {
 
     private fun hasPermission(permission: String): Boolean =
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+
+    private companion object {
+        const val DEBUG_REQUEST_INTERVAL_MILLIS = 10_000L
+    }
 }
