@@ -60,6 +60,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -81,9 +82,9 @@ import java.util.Date
 import kotlinx.coroutines.launch
 
 private enum class HomeTab(val label: String, val glyph: String) {
-    Home("Accueil", "●"),
+    Home("Accueil", "⌂"),
     Contacts("Contacts", "◎"),
-    Places("Lieux", "⌂"),
+    Places("Lieux", "⌖"),
     Settings("Réglages", "⚙")
 }
 
@@ -102,15 +103,33 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
         }
 
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 if (state.step == OnboardingStep.Home) {
-                    NavigationBar {
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 6.dp
+                    ) {
                         HomeTab.entries.forEach { tab ->
+                            val selected = homeTab == tab
                             NavigationBarItem(
-                                selected = homeTab == tab,
+                                selected = selected,
                                 onClick = { homeTabName = tab.name },
-                                icon = { Text(tab.glyph, fontWeight = FontWeight.Bold) },
-                                label = { Text(tab.label) }
+                                icon = {
+                                    Text(
+                                        tab.glyph,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 32.sp,
+                                        lineHeight = 34.sp,
+                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        tab.label,
+                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+                                    )
+                                }
                             )
                         }
                     }
@@ -149,19 +168,35 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
 
 @Composable
 private fun BrandHeader(compact: Boolean) {
-    Row(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        androidx.compose.foundation.Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = "Logo VeVak",
-            modifier = Modifier.size(if (compact) 50.dp else 76.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = if (compact) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
         )
-        Column {
-            Text("VeVak", style = if (compact) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            if (!compact) Text("Localisation à la demande, par SMS", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            androidx.compose.foundation.Image(
+                painter = painterResource(R.drawable.ic_launcher_foreground),
+                contentDescription = "Logo VeVak",
+                modifier = Modifier.size(if (compact) 50.dp else 76.dp)
+            )
+            Column {
+                Text(
+                    "VeVak",
+                    style = if (compact) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    if (compact) "Local • privé • à la demande" else "Localisation à la demande, par SMS",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyLarge
+                )
+            }
         }
     }
 }
@@ -238,6 +273,24 @@ private fun OptionsScreen(state: AppUiState, vm: AppViewModel) {
     CheckRow("Ajouter le niveau de batterie", state.settings.includeBattery) { vm.updateOptions(battery = it) }
     CheckRow("Ajouter la précision de la position", state.settings.includeAccuracy) { vm.updateOptions(accuracy = it) }
     CheckRow("Utiliser une ancienne position si aucune nouvelle n'est disponible", state.settings.allowStaleFallback) { vm.updateOptions(staleFallback = it) }
+    CheckRow(
+        "Autoriser la localisation alternative réseau/IP en dernier recours",
+        state.settings.allowNetworkApproximation
+    ) { vm.updateOptions(networkApproximation = it) }
+    SimpleInfo(
+        "Localisation alternative",
+        "Facultative. Si vous l'activez et qu'aucune source locale exploitable n'est disponible, VeVak peut demander une zone approximative à beaconDB via votre adresse IP. Le SMS la présente comme une estimation, jamais comme un GPS."
+    )
+    Text("Moteur du lien cartographique", fontWeight = FontWeight.SemiBold)
+    MapProvider.entries.forEach { provider ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(
+                selected = provider == state.settings.mapProvider,
+                onClick = { vm.updateOptions(provider = provider) }
+            )
+            Text(provider.label)
+        }
+    }
     SimpleInfo("Protection anti-suivi abusif", "Les réponses automatiques sont limitées à une toutes les 15 minutes et à 4 maximum sur 24 heures, pour l'ensemble des contacts.")
     NavigationButtons(vm, canContinue = true)
 }
@@ -299,9 +352,12 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
         Primary("Autoriser ce qui manque") { permissionLauncher.launch(mainPermissions) }
     }
 
+    OutlinedButton(onClick = { openAppSettings(context) }, modifier = Modifier.fillMaxWidth()) {
+        Text("Ouvrir les paramètres Android de VeVak")
+    }
+
     if (!(receiveSms && sendSms)) {
         SimpleInfo("Version de test installée manuellement", "Android peut protéger l'accès aux SMS avec une confirmation supplémentaire. Si le bouton SMS reste bloqué : ouvrez les réglages de VeVak, utilisez le menu ⋮ puis « Autoriser les paramètres restreints » lorsqu'Android propose cette option.")
-        OutlinedButton(onClick = { openAppSettings(context) }, modifier = Modifier.fillMaxWidth()) { Text("Ouvrir les réglages de VeVak") }
     }
 
     if (!backgroundLocation && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -312,7 +368,7 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
     if (!locationEnabled) {
         SimpleInfo(
             "Localisation précise actuellement désactivée",
-            "Ce réglage empêche Android de produire un nouveau point GPS/réseau précis, mais il n'empêche pas VeVak d'utiliser un lieu déjà reconnu, une position mémorisée ou — si vous l'activez plus tard — une estimation réseau approximative."
+            "Ce réglage empêche Android de produire un nouveau point GPS/réseau précis, mais il n'empêche pas VeVak d'utiliser un lieu déjà reconnu, une position mémorisée ou une estimation réseau approximative si vous l'avez activée."
         )
     }
 
