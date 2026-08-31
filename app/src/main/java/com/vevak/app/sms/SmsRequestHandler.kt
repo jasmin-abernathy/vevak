@@ -66,8 +66,9 @@ class SmsRequestHandler(private val context: Context) {
             return
         }
 
-        // Keep the production anti-tracking limit, but make debug builds usable for repeated
-        // real-device tests. This never changes the release behaviour.
+        // Production keeps the non-negotiable anti-tracking floor. Debug builds intentionally
+        // relax only the interval so a tester can repeat the same end-to-end SMS scenario quickly;
+        // the 24-hour request cap remains enforced in both variants.
         val configuredIntervalMillis = settings.minRequestIntervalSeconds * 1_000L
         val allowed = runtimeRepository.tryAcquire(
             nowMillis = now,
@@ -75,7 +76,8 @@ class SmsRequestHandler(private val context: Context) {
                 minOf(configuredIntervalMillis, DEBUG_REQUEST_INTERVAL_MILLIS)
             } else {
                 configuredIntervalMillis
-            }
+            },
+            enforceHardMinimum = !BuildConfig.DEBUG
         )
         if (!allowed) {
             auditRepository.append(now, RequestAuditOutcome.BlockedRate)
