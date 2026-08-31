@@ -21,7 +21,11 @@ class RuntimeStateRepository(private val context: Context) {
         val WINDOW_COUNT = intPreferencesKey("request_window_count")
     }
 
-    suspend fun tryAcquire(nowMillis: Long, minimumIntervalMillis: Long): Boolean {
+    suspend fun tryAcquire(
+        nowMillis: Long,
+        minimumIntervalMillis: Long,
+        enforceHardMinimum: Boolean = true
+    ): Boolean {
         var acquired = false
         context.runtimeDataStore.edit { prefs ->
             val current = RequestRateState(
@@ -29,7 +33,12 @@ class RuntimeStateRepository(private val context: Context) {
                 windowStartMillis = prefs[Keys.WINDOW_START] ?: 0L,
                 acceptedInWindow = prefs[Keys.WINDOW_COUNT] ?: 0
             )
-            val evaluation = RequestRatePolicy.evaluate(current, nowMillis, minimumIntervalMillis)
+            val evaluation = RequestRatePolicy.evaluate(
+                state = current,
+                nowMillis = nowMillis,
+                configuredMinimumIntervalMillis = minimumIntervalMillis,
+                enforceHardMinimum = enforceHardMinimum
+            )
             if (evaluation.allowed) {
                 prefs[Keys.LAST_ACCEPTED_REQUEST] = evaluation.state.lastAcceptedMillis
                 prefs[Keys.WINDOW_START] = evaluation.state.windowStartMillis
