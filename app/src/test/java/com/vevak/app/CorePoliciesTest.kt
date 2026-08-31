@@ -51,6 +51,33 @@ class CorePoliciesTest {
     }
 
     @Test
+    fun rateLimit_canExplicitlyRelaxOnlyTheIntervalForDebugTesting() {
+        val first = RequestRatePolicy.evaluate(
+            state = RequestRateState(),
+            nowMillis = 1_000L,
+            configuredMinimumIntervalMillis = 10_000L,
+            enforceHardMinimum = false
+        )
+        assertTrue(first.allowed)
+        assertFalse(
+            RequestRatePolicy.evaluate(
+                state = first.state,
+                nowMillis = 10_999L,
+                configuredMinimumIntervalMillis = 10_000L,
+                enforceHardMinimum = false
+            ).allowed
+        )
+        assertTrue(
+            RequestRatePolicy.evaluate(
+                state = first.state,
+                nowMillis = 11_000L,
+                configuredMinimumIntervalMillis = 10_000L,
+                enforceHardMinimum = false
+            ).allowed
+        )
+    }
+
+    @Test
     fun rateLimit_capsAutomaticRepliesInside24Hours() {
         var state = RequestRateState()
         var now = 1_000L
