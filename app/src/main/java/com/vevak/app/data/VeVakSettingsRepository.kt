@@ -14,6 +14,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.vevak.app.model.MapProvider
 import com.vevak.app.model.VeVakSettings
+import com.vevak.app.system.TrustedNetworkReader
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -52,8 +53,38 @@ class VeVakSettingsRepository(private val context: Context) {
 
     suspend fun current(): VeVakSettings = settingsFlow.first()
 
+    /**
+     * Normal settings writes are not allowed to replace an already established durable Maison
+     * identity. This keeps the home-network safety boundary intact even if a future UI accidentally
+     * attempts to overwrite it.
+     */
     suspend fun save(settings: VeVakSettings) {
+        saveInternal(settings, allowTrustedNetworkReplacement = false)
+    }
+
+    /**
+     * Dedicated local-only path for a deliberately confirmed Maison replacement.
+     * Callers must provide their own explicit confirmation UX before invoking this method.
+     */
+    suspend fun saveWithTrustedNetworkReplacement(settings: VeVakSettings) {
+        saveInternal(settings, allowTrustedNetworkReplacement = true)
+    }
+
+    private suspend fun saveInternal(settings: VeVakSettings, allowTrustedNetworkReplacement: Boolean) {
         context.settingsDataStore.edit { prefs ->
+            val requestedTrustedHash = settings.trustedWifiHash.trim()
+            val existingTrustedHash = prefs[Keys.TRUSTED_WIFI_HASH].orEmpty()
+            val canWriteTrustedIdentity = allowTrustedNetworkReplacement ||
+                existingTrustedHash.isBlank() ||
+                existingTrustedHash == requestedTrustedHash ||
+                existingTrustedHash == TrustedNetworkReader.SESSION_ONLY_MARKER
+            val effectiveTrustedHash = if (canWriteTrustedIdentity) requestedTrustedHash else existingTrustedHash
+            val effectiveTrustedEnabled = if (canWriteTrustedIdentity) {
+                settings.trustedWifiEnabled
+            } else {
+                prefs[Keys.TRUSTED_WIFI_ENABLED] ?: true
+            }
+
             prefs[Keys.COMPLETED] = settings.completedOnboarding
             prefs[Keys.CONTACT_NAME] = settings.contactName.trim()
             prefs[Keys.CONTACT_PHONE] = settings.contactPhone.trim()
@@ -78,8 +109,8 @@ class VeVakSettingsRepository(private val context: Context) {
             settings.fallbackLatitude?.let { prefs[Keys.FALLBACK_LAT] = it.toString() } ?: prefs.remove(Keys.FALLBACK_LAT)
             settings.fallbackLongitude?.let { prefs[Keys.FALLBACK_LON] = it.toString() } ?: prefs.remove(Keys.FALLBACK_LON)
             settings.fallbackAccuracyMeters?.let { prefs[Keys.FALLBACK_ACCURACY] = it.toString() } ?: prefs.remove(Keys.FALLBACK_ACCURACY)
-            prefs[Keys.TRUSTED_WIFI_ENABLED] = settings.trustedWifiEnabled
-            prefs[Keys.TRUSTED_WIFI_HASH] = settings.trustedWifiHash.trim()
+            prefs[Keys.TRUSTED_WIFI_ENABLED] = effectiveTrustedEnabled
+            prefs[Keys.TRUSTED_WIFI_HASH] = effectiveTrustedHash
             prefs[Keys.TRUSTED_PLACE_LABEL] = settings.trustedPlaceLabel.trim().ifBlank { "Maison" }
             prefs[Keys.DISCREET_MODE_UNTIL] = settings.discreetModeUntilEpochMs.coerceAtLeast(0L)
         }

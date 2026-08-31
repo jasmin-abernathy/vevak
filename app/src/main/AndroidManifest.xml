@@ -37,7 +37,7 @@
         android:usesCleartextTraffic="false">
 
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.HomeNetworkGateActivity"
             android:exported="true"
             android:theme="@style/Theme.VeVak">
             <intent-filter>
@@ -45,6 +45,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.VeVak" />
+
+        <activity
+            android:name=".ui.SafetyCenterActivity"
+            android:exported="false"
+            android:theme="@style/Theme.VeVak" />
 
         <receiver
             android:name=".sms.SmsReceiver"
@@ -55,6 +65,11 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".emergency.EmergencyShareReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
     </application>
 </manifest>

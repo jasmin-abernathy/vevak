@@ -154,13 +154,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun captureTrustedWifi() {
+        val settings = _state.value.settings
+        if (settings.hasTrustedWifiConfiguration() && !trustedNetworkReader.matches(settings)) {
+            _state.update {
+                it.copy(message = "Le réseau Maison est verrouillé contre les remplacements accidentels. Ouvrez « Sécurité » depuis la notification VeVak pour changer de réseau avec une double confirmation locale.")
+            }
+            return
+        }
+
         val capture = trustedNetworkReader.captureCurrentNetwork()
         if (capture == null) {
             _state.update { it.copy(message = "Impossible d'identifier une connexion Wi-Fi active. Connectez d'abord le téléphone au Wi-Fi de la maison.") }
             return
         }
 
-        val settings = _state.value.settings
         val message = if (capture.durable) {
             "Wi-Fi maison mémorisé. VeVak conserve seulement une empreinte de son nom, jamais le nom en clair."
         } else {
@@ -177,11 +184,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearTrustedWifi() {
-        trustedNetworkReader.clearRuntimeCapture()
-        persistSettings(
-            _state.value.settings.copy(trustedWifiEnabled = false, trustedWifiHash = ""),
-            "Lieu de confiance Wi-Fi désactivé."
-        )
+        _state.update {
+            it.copy(message = "Le réseau Maison ne peut plus être supprimé ou remplacé depuis cet écran. Utilisez « Sécurité » dans la notification VeVak afin que le changement soit explicitement confirmé.")
+        }
     }
 
     fun setDiscreetMode(hours: Int) {
@@ -357,41 +362,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         _state.update { it.copy(manualShareConfirmationPending = false, manualShareLoading = true, message = null) }
         viewModelScope.launch {
-            val resolution = runCatching { positionResolver.resolve(settings) }
-                .getOrDefault(VeVakPositionResolution.Unavailable)
-
-            if (resolution == VeVakPositionResolution.Unavailable) {
+            val lastKnown = runCatching { locationRepository.fetchLastKnownLocation() }.getOrNull()
+            if (lastKnown == null) {
                 _state.update {
                     it.copy(
                         manualShareLoading = false,
                         manualShareTargetContactId = null,
-                        message = "Aucune position ni aucun lieu reconnu : aucun SMS n'a été envoyé."
+                        message = "Aucune dernière position connue : aucun SMS n'a été envoyé."
                     )
                 }
                 return@launch
             }
 
-            val batteryLabel = batteryReader.label()
-            val body = when (resolution) {
-                is VeVakPositionResolution.KnownPlace -> SmsReplyFormatter.formatManualTrustedPlaceWithBattery(
-                    label = resolution.label,
-                    batteryLabel = batteryLabel,
-                    includeBattery = settings.includeBattery
-                )
-                is VeVakPositionResolution.Coordinates -> SmsReplyFormatter.formatManualShareWithBatteryLabel(
-                    settings,
-                    resolution.location,
-                    batteryLabel
-                )
-                VeVakPositionResolution.Unavailable -> return@launch
-            }
+            val body = SmsReplyFormatter.formatManualShareWithBatteryLabel(
+                settings,
+                lastKnown,
+                batteryReader.label()
+            )
             val acceptedByAndroid = runCatching { smsSender.send(contact.phone, body, subscriptionId) }.isSuccess
             _state.update {
                 it.copy(
                     manualShareLoading = false,
                     manualShareTargetContactId = null,
                     message = if (acceptedByAndroid) {
-                        "SMS transmis à Android pour envoi à ${contact.displayLabel()}. La livraison n'est pas garantie."
+                        "Dernière position connue (${lastKnown.ageLabel()}) transmise à Android pour envoi à ${contact.displayLabel()}. La livraison n'est pas garantie."
                     } else {
                         "Échec de l'envoi du SMS. Rien ne permet de confirmer sa livraison."
                     }

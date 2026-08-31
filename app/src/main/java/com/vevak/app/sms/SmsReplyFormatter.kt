@@ -46,6 +46,25 @@ object SmsReplyFormatter {
         batteryLabel: String?
     ): String = formatWithBatteryLabel(settings, location, batteryLabel)
 
+    fun formatEmergencyShareWithBatteryLabel(
+        settings: VeVakSettings,
+        location: VeVakLocationSnapshot,
+        batteryLabel: String?
+    ): String = buildString {
+        append("URGENCE VeVak")
+        appendRealLocation(settings, location)
+        appendBattery(settings.includeBattery, batteryLabel)
+    }
+
+    fun formatEmergencyUnavailableWithBatteryLabel(
+        settings: VeVakSettings,
+        batteryLabel: String?
+    ): String = buildString {
+        append("URGENCE VeVak")
+        append("\nAucune dernière position connue n'est disponible sur le téléphone.")
+        appendBattery(settings.includeBattery, batteryLabel)
+    }
+
     fun formatTrustedPlace(label: String = "Maison"): String = trustedPlaceText(label)
 
     fun formatTrustedPlaceWithBattery(

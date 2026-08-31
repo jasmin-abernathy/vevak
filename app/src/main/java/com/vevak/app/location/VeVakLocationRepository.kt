@@ -13,6 +13,25 @@ class VeVakLocationRepository(context: Context) {
     private val rememberedLocationStore = RememberedLocationStore(appContext)
 
     /**
+     * Returns only the freshest real location that is already known locally.
+     *
+     * This method never starts a new positioning request, never resolves a trusted Wi-Fi place and
+     * never calls the optional IP approximation service. It is used by explicit/manual and
+     * emergency sharing so "last known" means exactly that. The returned snapshot carries its age.
+     */
+    suspend fun fetchLastKnownLocation(): VeVakLocationSnapshot? {
+        val androidCached = runCatching { provider.lastKnownLocation() }
+            .getOrNull()
+            ?.toVeVakSnapshot(provider.lastKnownSource)
+            ?.takeUnless { it.isMocked }
+        val rememberedCached = runCatching { rememberedLocationStore.read() }.getOrNull()
+        val bestCached = freshest(androidCached, rememberedCached) ?: return null
+
+        rememberPlatformLocation(bestCached)
+        return enrich(bestCached)
+    }
+
+    /**
      * Resolution order:
      * 1. freshest cache available from Android or VeVak's own bounded local memory;
      * 2. a bounded fresh Android location request;

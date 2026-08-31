@@ -16,7 +16,9 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import com.vevak.app.MainActivity
 import com.vevak.app.R
+import com.vevak.app.emergency.EmergencyShareReceiver
 import com.vevak.app.model.VeVakSettings
+import com.vevak.app.ui.SafetyCenterActivity
 import java.text.DateFormat
 import java.util.Date
 
@@ -31,7 +33,7 @@ class RequestVisibilityNotifier(private val context: Context) {
                     "VeVak actif",
                     NotificationManager.IMPORTANCE_LOW
                 ).apply {
-                    description = "Indique visiblement qu'au moins un contact est autorisé à demander une position."
+                    description = "Indique visiblement qu'au moins un contact est autorisé à demander une position et donne accès à l'alerte d'urgence locale."
                     lockscreenVisibility = Notification.VISIBILITY_PRIVATE
                 },
                 NotificationChannel(
@@ -79,11 +81,15 @@ class RequestVisibilityNotifier(private val context: Context) {
             "${activeContacts.size} contacts peuvent demander votre position ; dernière autorisation jusqu'au $expiry."
         }
         val discreetSuffix = if (settings.isDiscreetModeActive()) " Mode discret temporaire actif." else ""
+        val safetyText = "$accessText$discreetSuffix Anti-suivi actif : 15 min minimum entre réponses et 4 maximum sur 24 h."
         val notification = Notification.Builder(context, STATUS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("VeVak est actif")
-            .setContentText(accessText + discreetSuffix)
+            .setContentText(safetyText)
+            .setStyle(Notification.BigTextStyle().bigText(safetyText))
             .setContentIntent(openAppIntent())
+            .addAction(R.drawable.ic_notification, "URGENCE", emergencyIntent())
+            .addAction(R.drawable.ic_notification, "Sécurité", safetyCenterIntent())
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_STATUS)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
@@ -118,6 +124,27 @@ class RequestVisibilityNotifier(private val context: Context) {
         }.isSuccess
     }
 
+    fun showEmergencyResult(sentCount: Int, targetCount: Int, detail: String) {
+        if (!statusNotificationsAllowed()) return
+        val summary = when {
+            targetCount <= 0 -> detail
+            sentCount == targetCount -> "Alerte transmise à Android pour $sentCount contact${if (sentCount > 1) "s" else ""}. $detail"
+            sentCount > 0 -> "$sentCount/$targetCount alertes transmises à Android. $detail"
+            else -> "Aucune alerte n'a pu être transmise. $detail"
+        }
+        val notification = Notification.Builder(context, STATUS_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("VeVak — envoi d'urgence")
+            .setContentText(summary)
+            .setStyle(Notification.BigTextStyle().bigText(summary))
+            .setContentIntent(openAppIntent())
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_STATUS)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .build()
+        manager.notify(EMERGENCY_RESULT_NOTIFICATION_ID, notification)
+    }
+
     fun cancelActiveStatus() {
         manager.cancel(ACTIVE_NOTIFICATION_ID)
     }
@@ -150,11 +177,38 @@ class RequestVisibilityNotifier(private val context: Context) {
         )
     }
 
+    private fun emergencyIntent(): PendingIntent {
+        val intent = Intent(context, EmergencyShareReceiver::class.java).apply {
+            action = EmergencyShareReceiver.ACTION_SEND_EMERGENCY_LOCATION
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            EMERGENCY_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun safetyCenterIntent(): PendingIntent {
+        val intent = Intent(context, SafetyCenterActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        return PendingIntent.getActivity(
+            context,
+            SAFETY_CENTER_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
     private companion object {
         const val STATUS_CHANNEL_ID = "vevak_active_status"
         const val REQUEST_CHANNEL_ID = "vevak_requests"
         const val DISCREET_REQUEST_CHANNEL_ID = "vevak_requests_discreet"
         const val ACTIVE_NOTIFICATION_ID = 4101
         const val REQUEST_NOTIFICATION_ID = 4102
+        const val EMERGENCY_RESULT_NOTIFICATION_ID = 4103
+        const val EMERGENCY_REQUEST_CODE = 4104
+        const val SAFETY_CENTER_REQUEST_CODE = 4105
     }
 }

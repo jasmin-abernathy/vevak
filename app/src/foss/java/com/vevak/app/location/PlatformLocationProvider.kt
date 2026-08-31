@@ -13,7 +13,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.Looper
-import android.os.SystemClock
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -45,16 +44,19 @@ class PlatformLocationProvider(context: Context) : LocationProvider {
     }
 
     /**
-     * Keep the whole acquisition bounded. Non-GNSS providers are attempted first and in parallel
-     * (system fused, Wi-Fi/cellular network provider and vendor providers). GNSS is kept as the
-     * final fresh-location fallback instead of letting the network provider consume most of the
-     * eight-second budget on its own.
+     * Keep the whole acquisition bounded while avoiding a cold-GNSS penalty when Wi-Fi/mobile data
+     * are unavailable. Non-GNSS providers remain the preferred quick answer, but GNSS is started in
+     * parallel as a warm fallback instead of waiting for the first half of the timeout to expire.
+     *
+     * If fused/network positioning succeeds, VeVak returns it immediately and cancels GNSS. If it
+     * fails, GNSS has already had the full elapsed time to search for a fix. Requests remain rare and
+     * globally rate-limited by VeVak, so this favours reliability without introducing tracking.
      */
     @SuppressLint("MissingPermission")
-    override suspend fun currentLocation(timeoutMillis: Long): Location? {
-        if (timeoutMillis <= 0L) return null
+    override suspend fun currentLocation(timeoutMillis: Long): Location? = coroutineScope {
+        if (timeoutMillis <= 0L) return@coroutineScope null
         val enabled = enabledProviders()
-        if (enabled.isEmpty()) return null
+        if (enabled.isEmpty()) return@coroutineScope null
 
         val gpsEnabled = LocationManager.GPS_PROVIDER in enabled
         val primaryProviders = enabled
@@ -62,22 +64,28 @@ class PlatformLocationProvider(context: Context) : LocationProvider {
             .sortedBy(::providerPriority)
             .take(MAX_PARALLEL_PRIMARY_PROVIDERS)
 
-        val startedAt = SystemClock.elapsedRealtime()
-        if (primaryProviders.isNotEmpty()) {
-            val primaryBudget = if (gpsEnabled) {
-                minOf(PRIMARY_MAX_BUDGET_MILLIS, (timeoutMillis / 2).coerceAtLeast(PRIMARY_MIN_BUDGET_MILLIS))
-            } else {
-                timeoutMillis
-            }
-            requestBest(primaryProviders, primaryBudget)?.let { return it }
-        }
-
-        val elapsed = SystemClock.elapsedRealtime() - startedAt
-        val remaining = (timeoutMillis - elapsed).coerceAtLeast(0L)
-        return if (gpsEnabled && remaining >= MIN_GPS_BUDGET_MILLIS) {
-            requestOne(LocationManager.GPS_PROVIDER, remaining)
+        val gpsFallback = if (gpsEnabled) {
+            async { requestOne(LocationManager.GPS_PROVIDER, timeoutMillis) }
         } else {
             null
+        }
+
+        try {
+            if (primaryProviders.isNotEmpty()) {
+                val primaryBudget = if (gpsEnabled) {
+                    minOf(PRIMARY_MAX_BUDGET_MILLIS, (timeoutMillis / 2).coerceAtLeast(PRIMARY_MIN_BUDGET_MILLIS))
+                } else {
+                    timeoutMillis
+                }
+                requestBest(primaryProviders, primaryBudget)?.let { primary ->
+                    gpsFallback?.cancel()
+                    return@coroutineScope primary
+                }
+            }
+
+            gpsFallback?.await()
+        } finally {
+            if (gpsFallback?.isActive == true) gpsFallback.cancel()
         }
     }
 
@@ -191,6 +199,5 @@ class PlatformLocationProvider(context: Context) : LocationProvider {
         private const val MAX_PARALLEL_PRIMARY_PROVIDERS = 3
         private const val PRIMARY_MIN_BUDGET_MILLIS = 1_500L
         private const val PRIMARY_MAX_BUDGET_MILLIS = 3_500L
-        private const val MIN_GPS_BUDGET_MILLIS = 500L
     }
 }

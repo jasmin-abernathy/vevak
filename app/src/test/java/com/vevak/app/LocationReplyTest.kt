@@ -47,16 +47,60 @@ class LocationReplyTest {
             latitude = 49.1193,
             longitude = 6.1757,
             accuracyMeters = 24f,
-            source = LocationSource.AndroidCurrent,
-            ageMillis = 0L,
+            source = LocationSource.AndroidLastKnown,
+            ageMillis = 7 * 60_000L,
             isMocked = false
         )
 
         val body = SmsReplyFormatter.formatManualShareWithBatteryLabel(settings, location, "Batterie en charge")
 
-        assertTrue(body.contains("Dernière position connue"))
+        assertTrue(body.contains("Dernière position connue : il y a 7 min"))
         assertTrue(body.contains("Rayon approximatif : env. 24 m"))
         assertTrue(body.contains("Batterie en charge"))
+    }
+
+    @Test
+    fun emergencyReply_isExplicitAndIncludesLastKnownAge() {
+        val location = VeVakLocationSnapshot(
+            latitude = 49.1193,
+            longitude = 6.1757,
+            accuracyMeters = 38f,
+            source = LocationSource.VeVakRemembered,
+            ageMillis = 2 * 60 * 60_000L,
+            isMocked = false
+        )
+
+        val body = SmsReplyFormatter.formatEmergencyShareWithBatteryLabel(settings, location, "Batterie : 31 %")
+
+        assertTrue(body.startsWith("URGENCE VeVak"))
+        assertTrue(body.contains("Dernière position connue : il y a 2 h"))
+        assertTrue(body.contains("openstreetmap.org"))
+        assertTrue(body.contains("Batterie : 31 %"))
+        assertFalse(body.contains("Zone estimée via le réseau"))
+    }
+
+    @Test
+    fun emergencyUnavailable_doesNotInventCoordinates() {
+        val body = SmsReplyFormatter.formatEmergencyUnavailableWithBatteryLabel(settings, "Batterie : 18 %")
+
+        assertTrue(body.startsWith("URGENCE VeVak"))
+        assertTrue(body.contains("Aucune dernière position connue"))
+        assertTrue(body.contains("Batterie : 18 %"))
+        assertFalse(body.contains("http"))
+    }
+
+    @Test
+    fun ageLabel_usesDaysWhenNeeded() {
+        val location = VeVakLocationSnapshot(
+            latitude = 49.1193,
+            longitude = 6.1757,
+            accuracyMeters = null,
+            source = LocationSource.AndroidLastKnown,
+            ageMillis = 2 * 24 * 60 * 60_000L,
+            isMocked = false
+        )
+
+        assertEquals("il y a 2 jours", location.ageLabel())
     }
 
     @Test
