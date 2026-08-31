@@ -25,7 +25,8 @@ object RequestRatePolicy {
     fun evaluate(
         state: RequestRateState,
         nowMillis: Long,
-        configuredMinimumIntervalMillis: Long
+        configuredMinimumIntervalMillis: Long,
+        enforceHardMinimum: Boolean = true
     ): RequestRateEvaluation {
         if (nowMillis <= 0L) return RequestRateEvaluation(false, state)
         if (state.lastAcceptedMillis > 0L && nowMillis < state.lastAcceptedMillis) {
@@ -35,7 +36,12 @@ object RequestRatePolicy {
             return RequestRateEvaluation(false, state)
         }
 
-        val minimumInterval = max(configuredMinimumIntervalMillis, HARD_MIN_INTERVAL_MILLIS)
+        val requestedMinimum = configuredMinimumIntervalMillis.coerceAtLeast(0L)
+        val minimumInterval = if (enforceHardMinimum) {
+            max(requestedMinimum, HARD_MIN_INTERVAL_MILLIS)
+        } else {
+            requestedMinimum
+        }
         val windowExpired = state.windowStartMillis <= 0L ||
             nowMillis - state.windowStartMillis >= WINDOW_MILLIS
         val windowStart = if (windowExpired) nowMillis else state.windowStartMillis
