@@ -10,6 +10,7 @@ import com.vevak.app.security.IncomingRequestMode
 import com.vevak.app.security.RequestModeResolver
 import com.vevak.app.sms.SmsCommandParser
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -32,6 +33,11 @@ class SmsPhraseContainsRegressionTest {
                 "où est l'app ?"
             )
         )
+    }
+
+    @Test
+    fun phraseKey_doesNotMatchInsideAnotherWord() {
+        assertFalse(SmsCommandParser.matches("J'ai fait un booking pour demain", "ok"))
     }
 
     @Test
