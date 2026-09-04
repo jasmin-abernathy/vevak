@@ -45,6 +45,19 @@ if build_budget.get("releaseResourceShrinking") and "isShrinkResources = true" n
 if "android.permission.ACCESS_BACKGROUND_LOCATION" in manifest:
     errors.append("Background location permission must not be declared: VeVak uses opportunistic foreground acquisition.")
 
+# The explicit local emergency action must never be throttled by the anti-tracking protections that
+# apply to remote automatic requests. Keep the emergency receiver independent from the global
+# request-rate state so a user can trigger several alerts in a genuine emergency.
+emergency_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShareReceiver.kt"
+if emergency_path.exists():
+    emergency_text = emergency_path.read_text(encoding="utf-8")
+    for forbidden in ("RuntimeStateRepository", "RequestRatePolicy", "tryAcquire("):
+        if forbidden in emergency_text:
+            errors.append(
+                "Emergency anti-tracking boundary violated: "
+                f"EmergencyShareReceiver must not use {forbidden}."
+            )
+
 # The core must not introduce periodic schedulers/background polling frameworks.
 for path in (ROOT / "app/src/main").rglob("*.kt"):
     text = path.read_text(encoding="utf-8")
