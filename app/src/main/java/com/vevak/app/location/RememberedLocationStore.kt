@@ -51,15 +51,23 @@ class RememberedLocationStore(context: Context) {
 
         val capturedAt = (nowMillis - snapshot.ageMillis.coerceAtLeast(0L)).coerceAtLeast(1L)
         appContext.locationMemoryDataStore.edit { prefs ->
-            prefs[Keys.LATITUDE] = snapshot.latitude.toString()
-            prefs[Keys.LONGITUDE] = snapshot.longitude.toString()
-            snapshot.accuracyMeters?.takeIf { it.isFinite() && it > 0f }?.let {
-                prefs[Keys.ACCURACY] = it.toString()
-            } ?: prefs.remove(Keys.ACCURACY)
-            prefs[Keys.CAPTURED_AT] = capturedAt
-            prefs[Keys.SOURCE] = snapshot.source.name
+            // Android provider caches can surface an older fix after VeVak has already remembered a
+            // newer point from another source. Never let the act of reading that cache move the
+            // canonical "last position" backwards in time.
+            if (RememberedLocationPolicy.shouldReplace(prefs[Keys.CAPTURED_AT], capturedAt)) {
+                prefs[Keys.LATITUDE] = snapshot.latitude.toString()
+                prefs[Keys.LONGITUDE] = snapshot.longitude.toString()
+                snapshot.accuracyMeters?.takeIf { it.isFinite() && it > 0f }?.let {
+                    prefs[Keys.ACCURACY] = it.toString()
+                } ?: prefs.remove(Keys.ACCURACY)
+                prefs[Keys.CAPTURED_AT] = capturedAt
+                prefs[Keys.SOURCE] = snapshot.source.name
+            }
 
-            if (RememberedLocationPolicy.isRealLocal(snapshot)) {
+            if (
+                RememberedLocationPolicy.isRealLocal(snapshot) &&
+                RememberedLocationPolicy.shouldReplace(prefs[Keys.REAL_CAPTURED_AT], capturedAt)
+            ) {
                 prefs[Keys.REAL_LATITUDE] = snapshot.latitude.toString()
                 prefs[Keys.REAL_LONGITUDE] = snapshot.longitude.toString()
                 snapshot.accuracyMeters?.takeIf { it.isFinite() && it > 0f }?.let {
@@ -156,6 +164,10 @@ object RememberedLocationPolicy {
 
     fun isRealLocal(snapshot: VeVakLocationSnapshot): Boolean =
         canPersist(snapshot) && !snapshot.isApproximateNetworkEstimate()
+
+    fun shouldReplace(storedCapturedAtEpochMs: Long?, candidateCapturedAtEpochMs: Long): Boolean =
+        candidateCapturedAtEpochMs > 0L &&
+            (storedCapturedAtEpochMs == null || candidateCapturedAtEpochMs >= storedCapturedAtEpochMs)
 
     fun ageMillis(capturedAtEpochMs: Long, nowEpochMs: Long): Long? {
         if (capturedAtEpochMs <= 0L || nowEpochMs < capturedAtEpochMs) return null
