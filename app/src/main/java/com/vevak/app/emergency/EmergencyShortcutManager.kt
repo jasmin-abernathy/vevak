@@ -50,7 +50,9 @@ class EmergencyShortcutManager(context: Context) {
         val shortcut = ShortcutInfo.Builder(appContext, SHORTCUT_ID)
             .setShortLabel(preset.label)
             .setLongLabel(preset.label)
-            .setDisabledMessage("Ouvrez VeVak pour recréer ce raccourci.")
+            // Keep the launcher-facing failure message generic so the discreet shortcut does not
+            // disclose its association with VeVak if Android ever marks it disabled.
+            .setDisabledMessage("Raccourci indisponible.")
             .setIcon(Icon.createWithResource(appContext, preset.iconRes))
             .setIntent(target)
             .build()
