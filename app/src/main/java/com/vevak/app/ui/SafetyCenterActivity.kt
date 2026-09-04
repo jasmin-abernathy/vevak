@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.vevak.app.background.PositionRefreshScheduler
 import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.VeVakSettingsRepository
 import com.vevak.app.emergency.EmergencyShortcutManager
@@ -73,6 +74,7 @@ private fun SafetyCenter(
 ) {
     val context = LocalContext.current
     val shortcutManager = remember { EmergencyShortcutManager(context.applicationContext) }
+    val refreshScheduler = remember { PositionRefreshScheduler(context.applicationContext) }
     var settings by remember { mutableStateOf<VeVakSettings?>(null) }
     var allRecipients by remember { mutableStateOf(recipientStore.usesAllActiveContacts()) }
     var selectedIds by remember { mutableStateOf(recipientStore.selectedContactIds()) }
@@ -80,6 +82,15 @@ private fun SafetyCenter(
     var replacementArmed by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    fun saveRefreshSettings(updated: VeVakSettings, confirmation: String) {
+        scope.launch {
+            settingsRepository.save(updated)
+            settings = updated
+            refreshScheduler.sync(updated)
+            message = confirmation
+        }
+    }
 
     LaunchedEffect(Unit) { settings = settingsRepository.current() }
     val current = settings
@@ -199,6 +210,73 @@ private fun SafetyCenter(
 
         if (activeContacts.isEmpty()) {
             Text("Autorisez au moins un contact avant de créer le raccourci d'urgence.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        HorizontalDivider()
+        Text("Mémoire de position", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("VeVak peut essayer périodiquement de rafraîchir une seule dernière position locale. Chaque nouveau point remplace le précédent : aucun trajet ni historique de positions n'est conservé.")
+        if (current != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = current.backgroundRefreshEnabled,
+                    onCheckedChange = { enabled ->
+                        saveRefreshSettings(
+                            current.copy(
+                                backgroundRefreshEnabled = enabled,
+                                startOnBoot = if (enabled) current.startOnBoot else false
+                            ),
+                            if (enabled) {
+                                "Rafraîchissement périodique activé. Android peut décaler certains passages pour économiser la batterie."
+                            } else {
+                                "Rafraîchissement périodique désactivé. La dernière position déjà mémorisée reste disponible."
+                            }
+                        )
+                    }
+                )
+                Text("Essayer de garder une dernière position récente")
+            }
+
+            if (current.backgroundRefreshEnabled) {
+                Text("Fréquence cible", fontWeight = FontWeight.SemiBold)
+                VeVakSettings.BACKGROUND_REFRESH_INTERVAL_CHOICES_MINUTES.forEach { minutes ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = current.normalizedBackgroundRefreshIntervalMinutes() == minutes,
+                            onClick = {
+                                saveRefreshSettings(
+                                    current.copy(backgroundRefreshIntervalMinutes = minutes),
+                                    "Fréquence cible réglée sur environ $minutes minutes."
+                                )
+                            }
+                        )
+                        Text("Environ $minutes min")
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = current.startOnBoot,
+                        onCheckedChange = { enabled ->
+                            saveRefreshSettings(
+                                current.copy(startOnBoot = enabled),
+                                if (enabled) {
+                                    "VeVak reprogrammera cette mémoire de position après le redémarrage du téléphone."
+                                } else {
+                                    "Relance automatique au démarrage désactivée."
+                                }
+                            )
+                        }
+                    )
+                    Text("Relancer VeVak au démarrage du téléphone")
+                }
+
+                Card {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Fonctionnement économe", fontWeight = FontWeight.Bold)
+                        Text("La fréquence est une cible, pas une horloge exacte : Android peut retarder un passage en veille profonde. VeVak n'utilise ni alarme répétitive exacte, ni historique de déplacement, ni notification permanente pour forcer le téléphone à rester éveillé.")
+                    }
+                }
+            }
         }
 
         HorizontalDivider()
