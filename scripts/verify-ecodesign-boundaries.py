@@ -45,6 +45,19 @@ if build_budget.get("releaseResourceShrinking") and "isShrinkResources = true" n
 if "android.permission.ACCESS_BACKGROUND_LOCATION" in manifest:
     errors.append("Background location permission must not be declared.")
 
+# 0.3.11 deliberately removes notification permission and all normal notification surfaces. A
+# future refactor must not silently make request replies or the discreet emergency shortcut depend on
+# POST_NOTIFICATIONS again.
+if "android.permission.POST_NOTIFICATIONS" in manifest:
+    errors.append("POST_NOTIFICATIONS must not be declared: VeVak 0.3.11 core is notification-free.")
+
+notifier_path = ROOT / "app/src/main/java/com/vevak/app/system/RequestVisibilityNotifier.kt"
+if notifier_path.exists():
+    notifier_text = notifier_path.read_text(encoding="utf-8")
+    for forbidden in ("NotificationManager", "Notification.Builder", ".notify(", "NotificationChannel"):
+        if forbidden in notifier_text:
+            errors.append(f"Notification-free boundary violated by RequestVisibilityNotifier: {forbidden}")
+
 # Notification permission/channels must never gate the core incoming-SMS path.
 sms_handler_path = ROOT / "app/src/main/java/com/vevak/app/sms/SmsRequestHandler.kt"
 if sms_handler_path.exists():
@@ -75,20 +88,25 @@ if emergency_path.exists():
                 f"EmergencyShareReceiver must not use {forbidden}."
             )
 
-# The discreet shortcut may only arm/cancel the canonical local emergency action. Neither its tiny
-# launcher activity nor the arm controller may become a second location resolver.
-shortcut_paths = [
-    ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutActivity.kt",
-    ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutArmController.kt",
-]
-shortcut_texts = [path.read_text(encoding="utf-8") for path in shortcut_paths if path.exists()]
-if shortcut_texts:
-    combined_shortcut = "\n".join(shortcut_texts)
-    if "EmergencyShareReceiver" not in combined_shortcut:
-        errors.append("Emergency shortcut must dispatch the canonical EmergencyShareReceiver.")
+# The discreet shortcut may arm/cancel the existing local emergency action, but it must not become a
+# second location resolver or bypass the carefully separated emergency last-real-only contract.
+shortcut_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutActivity.kt"
+if shortcut_path.exists():
+    shortcut_text = shortcut_path.read_text(encoding="utf-8")
+    if "EmergencyShortcutArmController" not in shortcut_text:
+        errors.append("Emergency shortcut must delegate timing to EmergencyShortcutArmController.")
     for forbidden in ("VeVakPositionResolver", "VeVakLocationRepository", "OnlineApproximateLocationProvider"):
-        if forbidden in combined_shortcut:
+        if forbidden in shortcut_text:
             errors.append(f"Emergency shortcut location boundary violated: {forbidden}")
+
+arm_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutArmController.kt"
+if arm_path.exists():
+    arm_text = arm_path.read_text(encoding="utf-8")
+    if "EmergencyShareReceiver" not in arm_text:
+        errors.append("Emergency arm controller must dispatch the canonical EmergencyShareReceiver.")
+    for forbidden in ("VeVakPositionResolver", "VeVakLocationRepository", "OnlineApproximateLocationProvider"):
+        if forbidden in arm_text:
+            errors.append(f"Emergency arm controller location boundary violated: {forbidden}")
 
 # Best-effort periodic memory is allowed, but VeVak still rejects repeating/exact polling frameworks
 # and WorkManager loops. The implementation must schedule one future tick at a time instead.
