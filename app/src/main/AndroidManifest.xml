@@ -18,9 +18,11 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- INTERNET is used only by the explicit opt-in coarse network fallback. VeVak performs no
          network request while that setting remains disabled. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Optional only: the core automatic SMS path never depends on this permission. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
@@ -69,6 +71,20 @@
             android:name=".emergency.EmergencyShareReceiver"
             android:enabled="true"
             android:exported="false" />
+
+        <receiver
+            android:name=".background.PositionRefreshReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".background.BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>
