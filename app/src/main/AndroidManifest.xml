@@ -22,8 +22,6 @@
     <!-- INTERNET is used only by the explicit opt-in coarse network fallback. VeVak performs no
          network request while that setting remains disabled. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Optional only: the core automatic SMS path never depends on this permission. -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".VeVakApplication"
