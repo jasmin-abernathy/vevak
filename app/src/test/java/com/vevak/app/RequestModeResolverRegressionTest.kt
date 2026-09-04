@@ -4,6 +4,7 @@
  */
 package com.vevak.app
 
+import com.vevak.app.model.TrustedContact
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.IncomingRequestMode
 import com.vevak.app.security.RequestModeResolver
@@ -22,7 +23,7 @@ class RequestModeResolverRegressionTest {
     }
 
     @Test
-    fun duressPhrase_routesIgnoringCapitalizationWithoutFallingThrough() {
+    fun legacyDuressPhrase_routesIgnoringCapitalizationWithoutFallingThrough() {
         val settings = VeVakSettings(
             triggerPhrase = "position maintenant",
             duressEnabled = true,
@@ -32,6 +33,28 @@ class RequestModeResolverRegressionTest {
         assertEquals(
             IncomingRequestMode.Duress,
             RequestModeResolver.resolve("APPELLE-MOI TOUT DE SUITE", settings)
+        )
+    }
+
+    @Test
+    fun protectedContact_usesItsExistingPhraseIgnoringCapitalization() {
+        val protected = TrustedContact(
+            id = "protected",
+            phone = "+33600000000",
+            triggerPhrase = "où es-tu maintenant"
+        )
+        val settings = VeVakSettings(
+            triggerPhrase = "phrase principale",
+            additionalTrustedContacts = listOf(protected),
+            duressEnabled = true,
+            protectedContactId = protected.id,
+            fallbackLatitude = 48.0,
+            fallbackLongitude = 2.0
+        )
+
+        assertEquals(
+            IncomingRequestMode.Duress,
+            RequestModeResolver.resolve("OÙ ES-TU MAINTENANT", protected, settings)
         )
     }
 }

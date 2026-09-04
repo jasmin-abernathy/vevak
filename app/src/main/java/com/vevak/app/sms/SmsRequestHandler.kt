@@ -140,7 +140,7 @@ class SmsRequestHandler(private val context: Context) {
         return settings.trustedContacts().asSequence()
             .filter { phoneMatcher.matches(sender, it.phone) }
             .mapNotNull { contact ->
-                RequestModeResolver.resolve(body, contact.triggerPhrase, settings)?.let { mode -> contact to mode }
+                RequestModeResolver.resolve(body, contact, settings)?.let { mode -> contact to mode }
             }
             .firstOrNull()
     }

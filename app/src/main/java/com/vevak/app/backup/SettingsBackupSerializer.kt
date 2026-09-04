@@ -44,6 +44,8 @@ object SettingsBackupSerializer {
             setProperty("allowStaleFallback", safe.allowStaleFallback.toString())
             setProperty("allowNetworkApproximation", safe.allowNetworkApproximation.toString())
             setProperty("duressEnabled", safe.duressEnabled.toString())
+            setProperty("protectedContactId", safe.protectedContactId)
+            // Kept for backward compatibility with backups created by the former second-phrase UI.
             setProperty("duressPhrase", safe.duressPhrase)
             safe.fallbackLatitude?.let { setProperty("fallbackLatitude", it.toString()) }
             safe.fallbackLongitude?.let { setProperty("fallbackLongitude", it.toString()) }
@@ -70,8 +72,8 @@ object SettingsBackupSerializer {
         require(properties.getProperty("format") == FORMAT_VERSION) { "Unsupported backup format" }
 
         val provider = runCatching {
-            MapProvider.valueOf(properties.getProperty("mapProvider") ?: MapProvider.CoMaps.name)
-        }.getOrDefault(MapProvider.CoMaps)
+            MapProvider.valueOf(properties.getProperty("mapProvider") ?: MapProvider.GoogleMaps.name)
+        }.getOrDefault(MapProvider.GoogleMaps)
 
         val restored = VeVakSettings(
             completedOnboarding = properties.boolean("completedOnboarding", true),
@@ -94,6 +96,7 @@ object SettingsBackupSerializer {
             authorizationGrantedAtEpochMs = 0L,
             authorizationExpiresAtEpochMs = 0L,
             duressEnabled = properties.boolean("duressEnabled", false),
+            protectedContactId = properties.getProperty("protectedContactId").orEmpty(),
             duressPhrase = properties.getProperty("duressPhrase").orEmpty(),
             fallbackLatitude = properties.getProperty("fallbackLatitude")?.toDoubleOrNull(),
             fallbackLongitude = properties.getProperty("fallbackLongitude")?.toDoubleOrNull(),

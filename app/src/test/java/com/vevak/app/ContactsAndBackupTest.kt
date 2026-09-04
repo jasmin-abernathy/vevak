@@ -7,6 +7,7 @@ package com.vevak.app
 import com.vevak.app.backup.EncryptedBackupCodec
 import com.vevak.app.backup.SettingsBackupSerializer
 import com.vevak.app.data.TrustedContactStorageCodec
+import com.vevak.app.model.MapProvider
 import com.vevak.app.model.TrustedContact
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
@@ -30,6 +31,12 @@ class ContactsAndBackupTest {
             authorizationExpiresAtEpochMs = 2_000L
         )
         assertEquals(listOf(contact), TrustedContactStorageCodec.decode(TrustedContactStorageCodec.encode(listOf(contact))))
+    }
+
+    @Test
+    fun googleMaps_isFirstAndDefaultWithoutChangingStoredChoices() {
+        assertEquals(MapProvider.GoogleMaps, MapProvider.entries.first())
+        assertEquals(MapProvider.GoogleMaps, VeVakSettings().mapProvider)
     }
 
     @Test
@@ -70,13 +77,55 @@ class ContactsAndBackupTest {
         val second = settings.contactById("second")!!
         assertEquals(
             IncomingRequestMode.Normal,
-            RequestModeResolver.resolve("phrase secondaire", second.triggerPhrase, settings)
+            RequestModeResolver.resolve("phrase secondaire", second, settings)
         )
-        assertEquals(null, RequestModeResolver.resolve("phrase principale", second.triggerPhrase, settings))
+        assertEquals(null, RequestModeResolver.resolve("phrase principale", second, settings))
     }
 
     @Test
-    fun duressPhrase_mustBeDistinctFromEveryNormalContactPhrase() {
+    fun contactTargetedProtection_keepsTheContactsExistingPhrase() {
+        val settings = VeVakSettings(
+            contactPhone = "+33111111111",
+            triggerPhrase = "phrase principale",
+            additionalTrustedContacts = listOf(
+                TrustedContact(id = "second", phone = "+33222222222", triggerPhrase = "où es-tu")
+            ),
+            duressEnabled = true,
+            protectedContactId = "second",
+            fallbackLatitude = 48.0,
+            fallbackLongitude = 2.0
+        )
+        val primary = settings.primaryTrustedContact()
+        val second = settings.contactById("second")!!
+
+        assertEquals(IncomingRequestMode.Normal, RequestModeResolver.resolve("PHRASE PRINCIPALE", primary, settings))
+        assertEquals(IncomingRequestMode.Duress, RequestModeResolver.resolve("OÙ ES-TU", second, settings))
+        assertEquals("où es-tu", settings.protectedContact()!!.triggerPhrase)
+        assertTrue(DuressPolicy.configurationIsValid(settings))
+    }
+
+    @Test
+    fun deletingProtectedContact_disablesOnlyThatProtectionConfiguration() {
+        val settings = VeVakSettings(
+            contactPhone = "+33111111111",
+            triggerPhrase = "primaire",
+            additionalTrustedContacts = listOf(
+                TrustedContact(id = "second", phone = "+33222222222", triggerPhrase = "secondaire")
+            ),
+            duressEnabled = true,
+            protectedContactId = "second",
+            fallbackLatitude = 48.0,
+            fallbackLongitude = 2.0
+        )
+
+        val updated = settings.withoutContact("second")
+        assertFalse(updated.duressEnabled)
+        assertEquals("", updated.protectedContactId)
+        assertEquals(1, updated.trustedContacts().size)
+    }
+
+    @Test
+    fun legacyDuressPhrase_mustRemainDistinctFromEveryNormalContactPhrase() {
         val settings = VeVakSettings(
             contactPhone = "+33111111111",
             triggerPhrase = "besoin position",
@@ -92,7 +141,7 @@ class ContactsAndBackupTest {
     }
 
     @Test
-    fun encryptedBackup_roundTripsButRevokesAllAuthorisations() {
+    fun encryptedBackup_roundTripsProtectionButRevokesAllAuthorisations() {
         val original = VeVakSettings(
             completedOnboarding = true,
             contactName = "Alice",
@@ -111,6 +160,10 @@ class ContactsAndBackupTest {
                 )
             ),
             allowNetworkApproximation = true,
+            duressEnabled = true,
+            protectedContactId = "second",
+            fallbackLatitude = 48.0,
+            fallbackLongitude = 2.0,
             trustedWifiEnabled = true,
             trustedWifiHash = "deadbeef",
             trustedPlaceLabel = "Maison",
@@ -126,6 +179,9 @@ class ContactsAndBackupTest {
         assertEquals(original.additionalTrustedContacts.first().phone, restored.additionalTrustedContacts.first().phone)
         assertEquals("deadbeef", restored.trustedWifiHash)
         assertTrue(restored.allowNetworkApproximation)
+        assertTrue(restored.duressEnabled)
+        assertEquals("second", restored.protectedContactId)
+        assertTrue(DuressPolicy.configurationIsValid(restored))
         assertFalse(restored.primaryTrustedContact().hasActiveAuthorization(10_000L))
         assertFalse(restored.additionalTrustedContacts.first().hasActiveAuthorization(10_000L))
         assertEquals(0L, restored.discreetModeUntilEpochMs)
