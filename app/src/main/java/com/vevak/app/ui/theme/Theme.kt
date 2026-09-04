@@ -14,6 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
+// VeVak keeps its own blue/teal/warm identity. The new surfaces borrow the visual rhythm of a
+// modern safety dashboard (large status cards, deep layered dark surfaces) without copying the
+// reference application's palette or component layout.
 val VeVakBlue = Color(0xFF3567C8)
 val VeVakTeal = Color(0xFF1E9F9A)
 val VeVakWarm = Color(0xFFD77A5C)
@@ -25,45 +28,49 @@ private val Light = lightColorScheme(
     onSecondary = Color.White,
     tertiary = VeVakWarm,
     onTertiary = Color.White,
-    primaryContainer = Color(0xFFE7EEFF),
-    onPrimaryContainer = Color(0xFF18366E),
-    secondaryContainer = Color(0xFFDDF5F2),
-    onSecondaryContainer = Color(0xFF124A48),
-    tertiaryContainer = Color(0xFFFFE9E1),
-    onTertiaryContainer = Color(0xFF6B3425),
-    background = Color(0xFFF8FAFD),
+    primaryContainer = Color(0xFFDDE7FF),
+    onPrimaryContainer = Color(0xFF18325F),
+    secondaryContainer = Color(0xFFD9F3EF),
+    onSecondaryContainer = Color(0xFF123F3D),
+    tertiaryContainer = Color(0xFFFFE4DA),
+    onTertiaryContainer = Color(0xFF633326),
+    background = Color(0xFFF4F7FB),
+    onBackground = Color(0xFF17202B),
     surface = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFFF0F4F8),
-    onSurface = Color(0xFF17212B),
-    onSurfaceVariant = Color(0xFF52606D),
-    outline = Color(0xFF84909C)
+    surfaceVariant = Color(0xFFEBF0F6),
+    onSurface = Color(0xFF17202B),
+    onSurfaceVariant = Color(0xFF526171),
+    outline = Color(0xFF7D8A99),
+    outlineVariant = Color(0xFFD4DCE5)
 )
 
 private val Dark = darkColorScheme(
     primary = Color(0xFFAFC7FF),
-    onPrimary = Color(0xFF12366F),
-    secondary = Color(0xFF7ADBD5),
-    onSecondary = Color(0xFF073C3A),
-    tertiary = Color(0xFFFFB59D),
-    onTertiary = Color(0xFF5C2819),
-    primaryContainer = Color(0xFF233F70),
-    onPrimaryContainer = Color(0xFFE0E8FF),
-    secondaryContainer = Color(0xFF154E4C),
-    onSecondaryContainer = Color(0xFFC5F3EF),
-    tertiaryContainer = Color(0xFF673727),
-    onTertiaryContainer = Color(0xFFFFDBCF),
-    background = Color(0xFF101820),
-    surface = Color(0xFF17212B),
-    surfaceVariant = Color(0xFF222E39),
-    onSurface = Color(0xFFE7EDF5),
-    onSurfaceVariant = Color(0xFFC2CCD6),
-    outline = Color(0xFF8E9AA6)
+    onPrimary = Color(0xFF14376D),
+    secondary = Color(0xFF78D8D1),
+    onSecondary = Color(0xFF073B39),
+    tertiary = Color(0xFFFFB7A0),
+    onTertiary = Color(0xFF5B291B),
+    primaryContainer = Color(0xFF233C68),
+    onPrimaryContainer = Color(0xFFE2EBFF),
+    secondaryContainer = Color(0xFF153D3B),
+    onSecondaryContainer = Color(0xFFC9F3EF),
+    tertiaryContainer = Color(0xFF563328),
+    onTertiaryContainer = Color(0xFFFFE0D5),
+    background = Color(0xFF0D1118),
+    onBackground = Color(0xFFE8EDF5),
+    surface = Color(0xFF151B25),
+    surfaceVariant = Color(0xFF1D2633),
+    onSurface = Color(0xFFE8EDF5),
+    onSurfaceVariant = Color(0xFFBBC6D3),
+    outline = Color(0xFF667487),
+    outlineVariant = Color(0xFF2D3948)
 )
 
 private val VeVakShapes = Shapes(
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(26.dp)
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(20.dp),
+    large = RoundedCornerShape(30.dp)
 )
 
 @Composable

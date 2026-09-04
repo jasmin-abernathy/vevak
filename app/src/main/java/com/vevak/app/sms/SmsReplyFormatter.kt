@@ -89,20 +89,26 @@ object SmsReplyFormatter {
         append(location.ageLabel())
         append('\n')
         append(MapLinkBuilder.build(settings.mapProvider, location.latitude, location.longitude))
-        append("\nRayon approximatif : ")
-        append(location.accuracyLabel())
+        if (settings.includeAccuracy) {
+            append("\nRayon approximatif : ")
+            append(location.accuracyLabel())
+        }
     }
 
     private fun StringBuilder.appendNetworkEstimate(settings: VeVakSettings, location: VeVakLocationSnapshot) {
         val accuracy = location.accuracyMeters
-        append("\nZone estimée via le réseau — pas une position exacte.")
-        if (accuracy != null && accuracy > VERY_COARSE_NETWORK_RADIUS_METERS) {
-            append("\nPrécision faible : la zone peut s'étendre sur ")
-            append(location.accuracyLabel())
-            append(" autour du centre estimé.")
-        } else {
-            append("\nRayon approximatif : ")
-            append(location.accuracyLabel())
+        append("\nDernière zone connue : ")
+        append(location.ageLabel())
+        append("\nEstimation via le réseau — pas une position exacte.")
+        if (settings.includeAccuracy) {
+            if (accuracy != null && accuracy > VERY_COARSE_NETWORK_RADIUS_METERS) {
+                append("\nPrécision faible : la zone peut s'étendre sur ")
+                append(location.accuracyLabel())
+                append(" autour du centre estimé.")
+            } else {
+                append("\nRayon approximatif : ")
+                append(location.accuracyLabel())
+            }
         }
         append("\nCarte de la zone : ")
         append(

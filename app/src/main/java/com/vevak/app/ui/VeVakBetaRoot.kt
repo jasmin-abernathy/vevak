@@ -171,25 +171,25 @@ private fun BrandHeader(compact: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (compact) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
+            containerColor = if (compact) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.secondaryContainer
         )
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 11.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = if (compact) 9.dp else 11.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             androidx.compose.foundation.Image(
                 painter = painterResource(R.drawable.ic_launcher_foreground),
                 contentDescription = "Logo VeVak",
-                modifier = Modifier.size(if (compact) 50.dp else 76.dp)
+                modifier = Modifier.size(if (compact) 44.dp else 76.dp)
             )
             Column {
                 Text(
                     "VeVak",
-                    style = if (compact) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineLarge,
+                    style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = if (compact) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary
                 )
                 Text(
                     if (compact) "Local • privé • à la demande" else "Localisation à la demande, par SMS",
@@ -254,7 +254,7 @@ private fun ContactScreen(state: AppUiState, vm: AppViewModel) {
 private fun TriggerScreen(state: AppUiState, vm: AppViewModel) {
     StepLabel("Étape 2 sur 5")
     Title("Choisissez une phrase-clé")
-    Text("Votre contact devra envoyer cette phrase par SMS pour demander votre position. Choisissez quelque chose de simple à retenir mais pas trop banal.")
+    Text("Votre contact devra envoyer cette phrase par SMS pour demander votre position. Majuscules, minuscules, espaces insécables et apostrophes typographiques courantes sont normalisés.")
     OutlinedTextField(
         value = state.settings.triggerPhrase,
         onValueChange = vm::updateTrigger,
@@ -272,7 +272,10 @@ private fun OptionsScreen(state: AppUiState, vm: AppViewModel) {
     Title("Que doit contenir la réponse ?")
     CheckRow("Ajouter le niveau de batterie", state.settings.includeBattery) { vm.updateOptions(battery = it) }
     CheckRow("Ajouter la précision de la position", state.settings.includeAccuracy) { vm.updateOptions(accuracy = it) }
-    CheckRow("Utiliser une ancienne position si aucune nouvelle n'est disponible", state.settings.allowStaleFallback) { vm.updateOptions(staleFallback = it) }
+    SimpleInfo(
+        "Dernière position toujours disponible",
+        "Si aucune position plus récente ne peut être obtenue, VeVak renvoie la dernière position mémorisée et indique depuis combien de temps elle date. Ce comportement fait partie du fonctionnement de base et n'a plus besoin d'une option séparée."
+    )
     CheckRow(
         "Autoriser la localisation alternative réseau/IP en dernier recours",
         state.settings.allowNetworkApproximation
@@ -331,8 +334,7 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
     val sendSms = hasPermission(context, Manifest.permission.SEND_SMS)
     val foregroundLocation = hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) || hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
     val notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-    val backgroundLocation = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || hasPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-    val allGranted = receiveSms && sendSms && foregroundLocation && notifications && backgroundLocation
+    val allGranted = receiveSms && sendSms && foregroundLocation && notifications
     val locationEnabled = systemLocationEnabled(context)
 
     LaunchedEffect(allGranted) {
@@ -341,14 +343,13 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
 
     StepLabel("Étape 4 sur 5")
     Title("Autorisations nécessaires")
-    Text("VeVak vous explique chaque accès avant de le demander. Dès que tout est autorisé, cette étape se valide toute seule.")
+    Text("VeVak vous explique chaque accès avant de le demander. Dès que tout ce qui est réellement nécessaire est autorisé, cette étape se valide toute seule.")
 
     PermissionCard("SMS", receiveSms && sendSms, "Reconnaître la phrase-clé d'un contact autorisé et lui répondre.")
-    PermissionCard("Localisation", foregroundLocation, "Chercher une position uniquement lorsqu'une demande valide arrive ou lorsque vous partagez volontairement votre position.")
+    PermissionCard("Localisation ponctuelle", foregroundLocation, "Mémoriser une position lorsque VeVak peut y accéder. Elle n'a pas besoin de rester disponible en permanence.")
     PermissionCard("Notifications", notifications, "Rendre les demandes automatiques visibles sur votre propre téléphone.")
-    PermissionCard("Localisation lorsque VeVak est fermée", backgroundLocation, "Permettre une réponse à une demande reçue en arrière-plan.")
 
-    if (!(receiveSms && sendSms && foregroundLocation && notifications)) {
+    if (!allGranted) {
         Primary("Autoriser ce qui manque") { permissionLauncher.launch(mainPermissions) }
     }
 
@@ -360,15 +361,10 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
         SimpleInfo("Version de test installée manuellement", "Android peut protéger l'accès aux SMS avec une confirmation supplémentaire. Si le bouton SMS reste bloqué : ouvrez les réglages de VeVak, utilisez le menu ⋮ puis « Autoriser les paramètres restreints » lorsqu'Android propose cette option.")
     }
 
-    if (!backgroundLocation && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        SimpleInfo("Dernière autorisation", "Dans les réglages de VeVak, ouvrez « Autorisations » → « Localisation » et choisissez « Toujours autoriser » lorsque votre version d'Android le propose.")
-        OutlinedButton(onClick = { openAppSettings(context) }, modifier = Modifier.fillMaxWidth()) { Text("Régler la localisation en arrière-plan") }
-    }
-
     if (!locationEnabled) {
         SimpleInfo(
             "Localisation précise actuellement désactivée",
-            "Ce réglage empêche Android de produire un nouveau point GPS/réseau précis, mais il n'empêche pas VeVak d'utiliser un lieu déjà reconnu, une position mémorisée ou une estimation réseau approximative si vous l'avez activée."
+            "Android ne peut pas produire un nouveau point précis pour le moment. VeVak peut toutefois utiliser un lieu reconnu, la dernière position mémorisée ou une estimation réseau approximative si vous l'avez activée."
         )
     }
 
@@ -469,11 +465,7 @@ private fun HomeTabContent(
     val hasSuccessfulRequest = state.auditEvents.any { it.outcome == RequestAuditOutcome.Replied }
     val trustedPlaceRecognized = state.settings.hasTrustedWifiConfiguration() && trustedNetworkReader.matches(state.settings)
 
-    Title(if (active.isNotEmpty()) "VeVak est actif" else "VeVak est en pause")
-    StatusCard(
-        if (active.isNotEmpty()) "${active.size} contact${if (active.size > 1) "s" else ""} autorisé${if (active.size > 1) "s" else ""}" else "Aucun contact autorisé",
-        if (active.isNotEmpty()) "Les accès restent limités dans le temps et peuvent être révoqués à tout moment." else "Aucune demande ne peut actuellement recevoir votre position."
-    )
+    MonitoringHeroCard(state, active, context, trustedPlaceRecognized)
 
     if (!systemLocationEnabled(context)) {
         when {
@@ -483,18 +475,24 @@ private fun HomeTabContent(
             )
             state.settings.allowNetworkApproximation -> SimpleInfo(
                 "Localisation précise Android désactivée",
-                "VeVak essaiera d'abord ses positions déjà disponibles. Si elles ne suffisent pas, l'estimation réseau activée pourra fournir une zone approximative via l'adresse IP."
+                "La dernière position mémorisée reste disponible. VeVak peut aussi demander une nouvelle zone réseau approximative si cette option est activée."
             )
             else -> SimpleInfo(
                 "Localisation précise Android désactivée",
-                "VeVak peut encore utiliser un lieu reconnu ou une position mémorisée. L'estimation réseau approximative est actuellement désactivée."
+                "La dernière position mémorisée reste disponible avec son ancienneté. L'estimation réseau approximative est actuellement désactivée."
             )
         }
     }
 
     if (contacts.isNotEmpty()) {
-        Primary(if (state.manualShareLoading) "Lecture de la dernière position…" else "Partager ma position") {
-            if (contacts.size == 1) vm.requestManualPositionShare(contacts.first().id) else shareChooser = true
+        ActionCard(
+            title = "Partager volontairement ma position",
+            detail = "Envoie uniquement la dernière position réelle déjà connue. VeVak ne lance pas un suivi pour cette action.",
+            actionLabel = if (state.manualShareLoading) "Lecture en cours…" else "Choisir un destinataire"
+        ) {
+            if (!state.manualShareLoading) {
+                if (contacts.size == 1) vm.requestManualPositionShare(contacts.first().id) else shareChooser = true
+            }
         }
     }
 
@@ -525,9 +523,22 @@ private fun HomeTabContent(
         }
     }
 
+    if (contacts.isNotEmpty()) {
+        Text("Contacts autorisés", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        active.take(3).forEach { contact ->
+            CompactTrustedContactCard(contact)
+        }
+        if (active.isEmpty()) {
+            SimpleInfo("Aucun accès actif", "Vos contacts restent configurés, mais leurs autorisations sont expirées ou révoquées.")
+        }
+        OutlinedButton(onClick = { selectTab(HomeTab.Contacts) }, modifier = Modifier.fillMaxWidth()) {
+            Text("Gérer les contacts")
+        }
+    }
+
     if (!hasSuccessfulRequest && contacts.isNotEmpty()) {
         val first = contacts.first()
-        SimpleInfo("Premier test recommandé", "Depuis le téléphone de ${first.displayLabel()}, envoyez exactement : « ${first.triggerPhrase} ». Une réponse réussie confirme que SMS + autorisation + résolution de position fonctionnent ensemble.")
+        SimpleInfo("Premier test recommandé", "Depuis le téléphone de ${first.displayLabel()}, envoyez : « ${first.triggerPhrase} ». La casse n'a pas d'importance. Une réponse réussie confirme que SMS + autorisation + résolution de position fonctionnent ensemble.")
     } else if (hasSuccessfulRequest && !state.settings.hasTrustedWifiConfiguration()) {
         ActionCard("Réseau Maison manquant", "Le réseau Maison fait désormais partie de la configuration de sécurité initiale. Fermez puis rouvrez VeVak pour compléter cette étape.", "Compris") { }
     }
@@ -560,6 +571,108 @@ private fun HomeTabContent(
     }
 
     state.message?.let { InlineMessage(it) }
+}
+
+@Composable
+private fun MonitoringHeroCard(
+    state: AppUiState,
+    active: List<TrustedContact>,
+    context: Context,
+    trustedPlaceRecognized: Boolean
+) {
+    val smsReady = hasPermission(context, Manifest.permission.RECEIVE_SMS) && hasPermission(context, Manifest.permission.SEND_SMS)
+    val notificationsReady = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+    val enabled = active.isNotEmpty()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("ACCÈS DE CONFIANCE", color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (enabled) "VeVak actif" else "VeVak en pause",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        if (enabled) {
+                            "${active.size} contact${if (active.size > 1) "s" else ""} autorisé${if (active.size > 1) "s" else ""}"
+                        } else {
+                            "Aucun contact ne peut recevoir de réponse automatique"
+                        },
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                Text(
+                    if (enabled) "●" else "○",
+                    fontSize = 38.sp,
+                    color = if (enabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.18f))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MiniStatus("SMS", smsReady, Modifier.weight(1f))
+                MiniStatus("Visible", notificationsReady, Modifier.weight(1f))
+                MiniStatus("Anti-suivi", true, Modifier.weight(1f))
+            }
+
+            Text(
+                when {
+                    trustedPlaceRecognized -> "Lieu reconnu : ${state.settings.trustedPlaceLabel}. Aucun GPS permanent n'est nécessaire."
+                    systemLocationEnabled(context) -> "La localisation Android est disponible : VeVak peut actualiser sa mémoire ponctuellement."
+                    else -> "La localisation Android est coupée : VeVak conserve et renvoie la dernière position mémorisée avec son ancienneté."
+                },
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun MiniStatus(label: String, ok: Boolean, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+    ) {
+        Text(
+            text = if (ok) "✓ $label" else "○ $label",
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelMedium
+        )
+    }
+}
+
+@Composable
+private fun CompactTrustedContactCard(contact: TrustedContact) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(contact.displayLabel(), fontWeight = FontWeight.Bold)
+                Text(
+                    "Autorisé jusqu'au ${formatDate(contact.authorizationExpiresAtEpochMs)}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Text("✓", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        }
+    }
 }
 
 @Composable
@@ -685,8 +798,8 @@ private fun PlacesTabContent(state: AppUiState, vm: AppViewModel) {
     }
 
     SimpleInfo(
-        "Comment VeVak cherche une position automatique",
-        "Pour une demande reçue par SMS, VeVak peut utiliser un lieu reconnu, une position Android/cache récente, une ancienne position autorisée et, uniquement si vous l'avez activée, une estimation réseau. Le partage manuel et l'urgence utilisent uniquement la dernière position réelle déjà connue."
+        "Comment VeVak répond à une phrase-clé",
+        "VeVak cherche d'abord un point Android récent s'il est accessible, puis un lieu de confiance reconnu, puis une estimation réseau fraîche si vous l'avez activée. À défaut, il renvoie la dernière coordonnée mémorisée quelle que soit sa source et indique toujours son ancienneté. Le partage manuel et l'urgence conservent séparément le dernier point réel."
     )
     state.message?.let { InlineMessage(it) }
 }
@@ -715,11 +828,14 @@ private fun SettingsTabContent(
     if (responseOpen) {
         CheckRow("Inclure la batterie", state.settings.includeBattery) { vm.updateOptions(battery = it); vm.persistDraft() }
         CheckRow("Inclure la précision", state.settings.includeAccuracy) { vm.updateOptions(accuracy = it); vm.persistDraft() }
-        CheckRow("Autoriser une position ancienne en dernier recours", state.settings.allowStaleFallback) { vm.updateOptions(staleFallback = it); vm.persistDraft() }
+        SimpleInfo(
+            "Dernière position",
+            "La dernière position connue est toujours utilisée lorsque VeVak ne peut pas en obtenir une plus récente. Son ancienneté est indiquée : ce comportement de sécurité n'est plus désactivable par erreur."
+        )
         CheckRow("Autoriser une estimation réseau approximative en dernier recours", state.settings.allowNetworkApproximation, vm::setNetworkApproximation)
         SimpleInfo(
             "Estimation réseau : facultative",
-            "Désactivée par défaut. Si vous l'activez, VeVak peut contacter beaconDB uniquement lorsqu'aucune source locale récente ne suffit. Le service voit alors votre adresse IP ; le SMS indique clairement qu'il s'agit d'une estimation et non d'un GPS."
+            "Désactivée par défaut. Si vous l'activez, VeVak peut contacter beaconDB lorsqu'aucune source Android ou lieu reconnu ne fournit une information plus utile. Le service voit alors votre adresse IP ; le SMS indique clairement qu'il s'agit d'une estimation et non d'un GPS."
         )
         Text("Lien cartographique", fontWeight = FontWeight.SemiBold)
         MapProvider.entries.forEach { provider ->
@@ -747,7 +863,7 @@ private fun SettingsTabContent(
     SectionToggle("Diagnostic", diagnosticOpen) { diagnosticOpen = !diagnosticOpen }
     if (diagnosticOpen) {
         DiagnosticRow("SMS", hasPermission(context, Manifest.permission.RECEIVE_SMS) && hasPermission(context, Manifest.permission.SEND_SMS))
-        DiagnosticRow("Permission de localisation", hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) || hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION))
+        DiagnosticRow("Permission de localisation ponctuelle", hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) || hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION))
         DiagnosticRow("Notifications", Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasPermission(context, Manifest.permission.POST_NOTIFICATIONS))
 
         state.diagnostics?.locationCapabilities?.let { lab ->

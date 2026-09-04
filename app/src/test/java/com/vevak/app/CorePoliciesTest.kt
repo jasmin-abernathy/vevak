@@ -32,6 +32,17 @@ class CorePoliciesTest {
     }
 
     @Test
+    fun smsCommand_isCaseInsensitiveInBothDirections() {
+        assertTrue(SmsCommandParser.matches("POSITION MAINTENANT", "position maintenant"))
+        assertTrue(SmsCommandParser.matches("position maintenant", "POSITION MAINTENANT"))
+    }
+
+    @Test
+    fun smsCommand_normalizesSmsTypography() {
+        assertTrue(SmsCommandParser.matches("OÙ\u202Fest\u00A0l’app ?", "où est l'app ?"))
+    }
+
+    @Test
     fun smsCommand_rejectsEmptyConfiguredPhrase() {
         assertFalse(SmsCommandParser.matches("anything", "   "))
     }
@@ -209,6 +220,42 @@ class CorePoliciesTest {
     }
 
     @Test
+    fun replyFormatter_respectsDisabledOptionalInformation() {
+        val settings = VeVakSettings(includeBattery = false, includeAccuracy = false)
+        val location = VeVakLocationSnapshot(
+            latitude = 49.1193,
+            longitude = 6.1757,
+            accuracyMeters = 24f,
+            source = LocationSource.AndroidLastKnown,
+            ageMillis = 90_000L,
+            isMocked = false
+        )
+        val body = SmsReplyFormatter.format(settings, location, 73)
+        assertTrue(body.contains("Dernière position connue"))
+        assertFalse(body.contains("Rayon approximatif"))
+        assertFalse(body.contains("Batterie"))
+    }
+
+    @Test
+    fun networkEstimateFormatter_keepsSourceHonestAndCanHideAccuracy() {
+        val settings = VeVakSettings(includeBattery = false, includeAccuracy = false)
+        val location = VeVakLocationSnapshot(
+            latitude = 49.0,
+            longitude = 6.0,
+            accuracyMeters = 15_000f,
+            source = LocationSource.NetworkApproximation,
+            ageMillis = 7_200_000L,
+            isMocked = false
+        )
+        val body = SmsReplyFormatter.format(settings, location, null)
+        assertTrue(body.contains("Dernière zone connue"))
+        assertTrue(body.contains("Estimation via le réseau"))
+        assertTrue(body.contains("il y a 2 h"))
+        assertFalse(body.contains("15"))
+        assertFalse(body.contains("Rayon approximatif"))
+    }
+
+    @Test
     fun locationCache_acceptsOnlyBoundedNonNegativeAge() {
         assertTrue(LocationSelectionPolicy.acceptsCache(0L, 120_000L))
         assertTrue(LocationSelectionPolicy.acceptsCache(120_000L, 120_000L))
@@ -217,7 +264,7 @@ class CorePoliciesTest {
     }
 
     @Test
-    fun rememberedLocation_acceptsOnlyRealValidCoordinates() {
+    fun rememberedLocation_policySeparatesAnySourceFromRealLocal() {
         val real = VeVakLocationSnapshot(
             latitude = 49.1193,
             longitude = 6.1757,
@@ -226,22 +273,25 @@ class CorePoliciesTest {
             ageMillis = 1_000L,
             isMocked = false
         )
+        val network = real.copy(source = LocationSource.NetworkApproximation)
+        val safety = real.copy(source = LocationSource.SafetyFallback)
+
         assertTrue(RememberedLocationPolicy.canPersist(real))
+        assertTrue(RememberedLocationPolicy.isRealLocal(real))
+        assertTrue(RememberedLocationPolicy.canPersist(network))
+        assertFalse(RememberedLocationPolicy.isRealLocal(network))
+        assertFalse(RememberedLocationPolicy.canPersist(safety))
         assertFalse(RememberedLocationPolicy.canPersist(real.copy(latitude = 91.0)))
         assertFalse(RememberedLocationPolicy.canPersist(real.copy(isMocked = true)))
     }
 
     @Test
-    fun rememberedLocation_ageRejectsClockRollbackAndExpiresAfter24Hours() {
+    fun rememberedLocation_ageSupportsLongLivedLastKnownAndRejectsClockRollback() {
         val captured = 1_000_000L
         assertEquals(60_000L, RememberedLocationPolicy.ageMillis(captured, captured + 60_000L))
         assertNull(RememberedLocationPolicy.ageMillis(captured, captured - 1L))
-        assertTrue(RememberedLocationPolicy.MAX_RETENTION_MILLIS == 24L * 60L * 60L * 1_000L)
-        assertTrue(
-            RememberedLocationPolicy.ageMillis(
-                captured,
-                captured + RememberedLocationPolicy.MAX_RETENTION_MILLIS + 1L
-            )!! > RememberedLocationPolicy.MAX_RETENTION_MILLIS
-        )
+
+        val ninetyDays = 90L * 24L * 60L * 60L * 1_000L
+        assertEquals(ninetyDays, RememberedLocationPolicy.ageMillis(captured, captured + ninetyDays))
     }
 }

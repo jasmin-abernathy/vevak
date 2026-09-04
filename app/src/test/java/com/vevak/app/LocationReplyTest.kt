@@ -76,7 +76,7 @@ class LocationReplyTest {
         assertTrue(body.contains("Dernière position connue : il y a 2 h"))
         assertTrue(body.contains("openstreetmap.org"))
         assertTrue(body.contains("Batterie : 31 %"))
-        assertFalse(body.contains("Zone estimée via le réseau"))
+        assertFalse(body.contains("Estimation via le réseau"))
     }
 
     @Test
@@ -104,7 +104,7 @@ class LocationReplyTest {
     }
 
     @Test
-    fun networkApproximation_isPresentedAsAnAreaNotALastKnownFix() {
+    fun networkApproximation_isPresentedAsAnAgedAreaNotAnExactFix() {
         val location = VeVakLocationSnapshot(
             latitude = 47.7427,
             longitude = 6.82733,
@@ -116,7 +116,8 @@ class LocationReplyTest {
 
         val body = SmsReplyFormatter.format(settings, location, null)
 
-        assertTrue(body.contains("Zone estimée via le réseau"))
+        assertTrue(body.contains("Dernière zone connue : maintenant"))
+        assertTrue(body.contains("Estimation via le réseau"))
         assertTrue(body.contains("pas une position exacte"))
         assertTrue(body.contains("Précision faible"))
         assertTrue(body.contains("25.0 km"))
