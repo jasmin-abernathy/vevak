@@ -75,15 +75,19 @@ if emergency_path.exists():
                 f"EmergencyShareReceiver must not use {forbidden}."
             )
 
-# The discreet shortcut may arm/cancel the existing local emergency action, but it must not become a
-# second location resolver or bypass the carefully separated emergency last-real-only contract.
-shortcut_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutActivity.kt"
-if shortcut_path.exists():
-    shortcut_text = shortcut_path.read_text(encoding="utf-8")
-    if "EmergencyShareReceiver" not in shortcut_text:
+# The discreet shortcut may only arm/cancel the canonical local emergency action. Neither its tiny
+# launcher activity nor the arm controller may become a second location resolver.
+shortcut_paths = [
+    ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutActivity.kt",
+    ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutArmController.kt",
+]
+shortcut_texts = [path.read_text(encoding="utf-8") for path in shortcut_paths if path.exists()]
+if shortcut_texts:
+    combined_shortcut = "\n".join(shortcut_texts)
+    if "EmergencyShareReceiver" not in combined_shortcut:
         errors.append("Emergency shortcut must dispatch the canonical EmergencyShareReceiver.")
     for forbidden in ("VeVakPositionResolver", "VeVakLocationRepository", "OnlineApproximateLocationProvider"):
-        if forbidden in shortcut_text:
+        if forbidden in combined_shortcut:
             errors.append(f"Emergency shortcut location boundary violated: {forbidden}")
 
 # Best-effort periodic memory is allowed, but VeVak still rejects repeating/exact polling frameworks
