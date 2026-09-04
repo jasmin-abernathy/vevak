@@ -57,6 +57,17 @@
             android:exported="false"
             android:theme="@style/Theme.VeVak" />
 
+        <!-- The launcher must be able to invoke the pinned shortcut, so this tiny translucent
+             activity is exported. A per-install random token embedded in the shortcut is validated
+             before it can arm the emergency action. -->
+        <activity
+            android:name=".emergency.EmergencyShortcutActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.VeVak.ShortcutInvisible" />
+
         <receiver
             android:name=".sms.SmsReceiver"
             android:enabled="true"
