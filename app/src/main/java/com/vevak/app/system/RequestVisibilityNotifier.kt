@@ -11,7 +11,7 @@ import com.vevak.app.model.VeVakSettings
  * Compatibility shim retained for code and migration stability.
  *
  * Since 0.3.11 VeVak has no request notification and no permanent status notification. Automatic
- * SMS replies are therefore completely independent from POST_NOTIFICATIONS. Emergency shortcut
+ * SMS replies are completely independent from Android notification permission. Emergency shortcut
  * feedback is also intentionally silent so a discreet shortcut cannot reveal VeVak after use.
  *
  * The methods remain as no-ops because older UI/view-model paths still call them; keeping this shim
