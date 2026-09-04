@@ -101,7 +101,7 @@ class VeVakLocationRepository(context: Context) {
         return enrich(bestCached)
     }
 
-    private fun platformCachedLocation(): VeVakLocationSnapshot? = runCatching {
+    private suspend fun platformCachedLocation(): VeVakLocationSnapshot? = runCatching {
         provider.lastKnownLocation()
             ?.toVeVakSnapshot(provider.lastKnownSource)
             ?.takeUnless { it.isMocked }
