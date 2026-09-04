@@ -39,24 +39,34 @@ class PositionRefreshScheduler(context: Context) {
         manager.setAndAllowWhileIdle(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
             triggerAt,
-            refreshPendingIntent(PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            createRefreshPendingIntent()
         )
     }
 
     fun cancel() {
-        alarmManager?.cancel(
-            refreshPendingIntent(PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
-                ?: return
-        )
+        val existing = existingRefreshPendingIntent() ?: return
+        alarmManager?.cancel(existing)
+        existing.cancel()
     }
 
-    private fun refreshPendingIntent(flags: Int): PendingIntent? =
+    private fun createRefreshPendingIntent(): PendingIntent =
         PendingIntent.getBroadcast(
             appContext,
             REQUEST_CODE,
-            Intent(appContext, PositionRefreshReceiver::class.java).apply { action = ACTION_REFRESH_POSITION },
-            flags
+            refreshIntent(),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+    private fun existingRefreshPendingIntent(): PendingIntent? =
+        PendingIntent.getBroadcast(
+            appContext,
+            REQUEST_CODE,
+            refreshIntent(),
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    private fun refreshIntent(): Intent =
+        Intent(appContext, PositionRefreshReceiver::class.java).apply { action = ACTION_REFRESH_POSITION }
 
     private fun normalizeInterval(value: Int): Int = when {
         value <= 15 -> 15
