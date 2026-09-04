@@ -121,11 +121,13 @@ data class VeVakSettings(
             triggerPhrase = "",
             authorizationGrantedAtEpochMs = 0L,
             authorizationExpiresAtEpochMs = 0L,
-            duressEnabled = if (protectedContactId == id) false else duressEnabled
+            duressEnabled = if (protectedContactId == id) false else duressEnabled,
+            protectedContactId = if (protectedContactId == id) "" else protectedContactId
         )
         else -> copy(
             additionalTrustedContacts = additionalTrustedContacts.filterNot { it.id == id },
-            duressEnabled = if (protectedContactId == id) false else duressEnabled
+            duressEnabled = if (protectedContactId == id) false else duressEnabled,
+            protectedContactId = if (protectedContactId == id) "" else protectedContactId
         )
     }
 
