@@ -36,6 +36,9 @@ class VeVakSettingsRepository(private val context: Context) {
         val TIMEOUT = intPreferencesKey("location_timeout_seconds")
         val STALE_FALLBACK = booleanPreferencesKey("allow_stale_fallback")
         val NETWORK_APPROXIMATION = booleanPreferencesKey("allow_network_approximation")
+        val BACKGROUND_REFRESH_ENABLED = booleanPreferencesKey("background_refresh_enabled")
+        val BACKGROUND_REFRESH_INTERVAL_MINUTES = intPreferencesKey("background_refresh_interval_minutes")
+        val START_ON_BOOT = booleanPreferencesKey("start_on_boot")
         val AUTH_GRANTED_AT = longPreferencesKey("authorization_granted_at_epoch_ms")
         val AUTH_EXPIRES_AT = longPreferencesKey("authorization_expires_at_epoch_ms")
         val DURESS_ENABLED = booleanPreferencesKey("duress_enabled")
@@ -103,6 +106,9 @@ class VeVakSettingsRepository(private val context: Context) {
             prefs[Keys.TIMEOUT] = settings.locationTimeoutSeconds.coerceIn(3, 30)
             prefs[Keys.STALE_FALLBACK] = settings.allowStaleFallback
             prefs[Keys.NETWORK_APPROXIMATION] = settings.allowNetworkApproximation
+            prefs[Keys.BACKGROUND_REFRESH_ENABLED] = settings.backgroundRefreshEnabled
+            prefs[Keys.BACKGROUND_REFRESH_INTERVAL_MINUTES] = settings.normalizedBackgroundRefreshIntervalMinutes()
+            prefs[Keys.START_ON_BOOT] = settings.startOnBoot
             prefs[Keys.AUTH_GRANTED_AT] = settings.authorizationGrantedAtEpochMs.coerceAtLeast(0L)
             prefs[Keys.AUTH_EXPIRES_AT] = settings.authorizationExpiresAtEpochMs.coerceAtLeast(0L)
             prefs[Keys.DURESS_ENABLED] = settings.duressEnabled
@@ -150,6 +156,10 @@ class VeVakSettingsRepository(private val context: Context) {
             locationTimeoutSeconds = this[Keys.TIMEOUT] ?: 8,
             allowStaleFallback = this[Keys.STALE_FALLBACK] ?: true,
             allowNetworkApproximation = this[Keys.NETWORK_APPROXIMATION] ?: false,
+            backgroundRefreshEnabled = this[Keys.BACKGROUND_REFRESH_ENABLED] ?: false,
+            backgroundRefreshIntervalMinutes = (this[Keys.BACKGROUND_REFRESH_INTERVAL_MINUTES] ?: 30)
+                .let { stored -> VeVakSettings.BACKGROUND_REFRESH_INTERVAL_CHOICES_MINUTES.minByOrNull { kotlin.math.abs(it - stored) } ?: 30 },
+            startOnBoot = this[Keys.START_ON_BOOT] ?: false,
             authorizationGrantedAtEpochMs = this[Keys.AUTH_GRANTED_AT] ?: 0L,
             authorizationExpiresAtEpochMs = this[Keys.AUTH_EXPIRES_AT] ?: 0L,
             duressEnabled = this[Keys.DURESS_ENABLED] ?: false,

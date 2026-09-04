@@ -40,6 +40,17 @@ class ContactsAndBackupTest {
     }
 
     @Test
+    fun backgroundRefresh_defaultsOffAndNormalizesToSupportedIntervals() {
+        val defaults = VeVakSettings()
+        assertFalse(defaults.backgroundRefreshEnabled)
+        assertFalse(defaults.startOnBoot)
+        assertEquals(30, defaults.normalizedBackgroundRefreshIntervalMinutes())
+        assertEquals(15, defaults.copy(backgroundRefreshIntervalMinutes = 1).normalizedBackgroundRefreshIntervalMinutes())
+        assertEquals(30, defaults.copy(backgroundRefreshIntervalMinutes = 29).normalizedBackgroundRefreshIntervalMinutes())
+        assertEquals(60, defaults.copy(backgroundRefreshIntervalMinutes = 59).normalizedBackgroundRefreshIntervalMinutes())
+    }
+
+    @Test
     fun authorisation_isEvaluatedPerContact() {
         val now = 10_000L
         val settings = VeVakSettings(
@@ -141,7 +152,7 @@ class ContactsAndBackupTest {
     }
 
     @Test
-    fun encryptedBackup_roundTripsProtectionButRevokesAllAuthorisations() {
+    fun encryptedBackup_roundTripsProtectionAndRefreshPreferencesButRevokesAllAuthorisations() {
         val original = VeVakSettings(
             completedOnboarding = true,
             contactName = "Alice",
@@ -160,6 +171,9 @@ class ContactsAndBackupTest {
                 )
             ),
             allowNetworkApproximation = true,
+            backgroundRefreshEnabled = true,
+            backgroundRefreshIntervalMinutes = 60,
+            startOnBoot = true,
             duressEnabled = true,
             protectedContactId = "second",
             fallbackLatitude = 48.0,
@@ -179,6 +193,9 @@ class ContactsAndBackupTest {
         assertEquals(original.additionalTrustedContacts.first().phone, restored.additionalTrustedContacts.first().phone)
         assertEquals("deadbeef", restored.trustedWifiHash)
         assertTrue(restored.allowNetworkApproximation)
+        assertTrue(restored.backgroundRefreshEnabled)
+        assertEquals(60, restored.backgroundRefreshIntervalMinutes)
+        assertTrue(restored.startOnBoot)
         assertTrue(restored.duressEnabled)
         assertEquals("second", restored.protectedContactId)
         assertTrue(DuressPolicy.configurationIsValid(restored))

@@ -4,211 +4,33 @@
  */
 package com.vevak.app.system
 
-import android.Manifest
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.core.content.ContextCompat
-import com.vevak.app.MainActivity
-import com.vevak.app.R
-import com.vevak.app.emergency.EmergencyShareReceiver
 import com.vevak.app.model.VeVakSettings
-import com.vevak.app.ui.SafetyCenterActivity
-import java.text.DateFormat
-import java.util.Date
 
-class RequestVisibilityNotifier(private val context: Context) {
-    private val manager: NotificationManager = context.getSystemService(NotificationManager::class.java)
+/**
+ * Compatibility shim retained for code and migration stability.
+ *
+ * Since 0.3.11 VeVak has no request notification and no permanent status notification. Automatic
+ * SMS replies are completely independent from Android notification permission. Emergency shortcut
+ * feedback is also intentionally silent so a discreet shortcut cannot reveal VeVak after use.
+ *
+ * The methods remain as no-ops because older UI/view-model paths still call them; keeping this shim
+ * avoids a risky broad refactor while making the new privacy contract explicit and testable.
+ */
+class RequestVisibilityNotifier(@Suppress("UNUSED_PARAMETER") context: Context) {
+    fun ensureChannels() = Unit
 
-    fun ensureChannels() {
-        manager.createNotificationChannels(
-            listOf(
-                NotificationChannel(
-                    STATUS_CHANNEL_ID,
-                    "VeVak actif",
-                    NotificationManager.IMPORTANCE_LOW
-                ).apply {
-                    description = "Indique visiblement qu'au moins un contact est autorisé à demander une position et donne accès à l'alerte d'urgence locale."
-                    lockscreenVisibility = Notification.VISIBILITY_PRIVATE
-                },
-                NotificationChannel(
-                    REQUEST_CHANNEL_ID,
-                    "Demandes VeVak",
-                    NotificationManager.IMPORTANCE_DEFAULT
-                ).apply {
-                    description = "Prévient le propriétaire du téléphone lorsqu'une demande VeVak est reçue."
-                    lockscreenVisibility = Notification.VISIBILITY_PRIVATE
-                },
-                NotificationChannel(
-                    DISCREET_REQUEST_CHANNEL_ID,
-                    "Demandes VeVak discrètes",
-                    NotificationManager.IMPORTANCE_LOW
-                ).apply {
-                    description = "Demandes VeVak sans son ni vibration pendant un mode discret activé localement et limité dans le temps."
-                    lockscreenVisibility = Notification.VISIBILITY_PRIVATE
-                    setSound(null, null)
-                    enableVibration(false)
-                    setShowBadge(false)
-                }
-            )
-        )
-    }
+    fun notificationsAllowedForRequests(@Suppress("UNUSED_PARAMETER") discreet: Boolean = false): Boolean = true
 
-    fun notificationsAllowedForRequests(discreet: Boolean = false): Boolean {
-        ensureChannels()
-        if (!notificationPermissionAndGlobalStateAllowed()) return false
-        val channelId = if (discreet) DISCREET_REQUEST_CHANNEL_ID else REQUEST_CHANNEL_ID
-        val requestChannel = manager.getNotificationChannel(channelId) ?: return false
-        return requestChannel.importance != NotificationManager.IMPORTANCE_NONE
-    }
+    fun syncActiveStatus(@Suppress("UNUSED_PARAMETER") settings: VeVakSettings) = Unit
 
-    fun syncActiveStatus(settings: VeVakSettings) {
-        val activeContacts = settings.activeTrustedContacts()
-        if (activeContacts.isEmpty() || !statusNotificationsAllowed()) {
-            cancelActiveStatus()
-            return
-        }
-        val latestExpiry = activeContacts.maxOf { it.authorizationExpiresAtEpochMs }
-        val expiry = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(latestExpiry))
-        val accessText = if (activeContacts.size == 1) {
-            "${activeContacts.first().displayLabel()} peut demander votre position jusqu'au $expiry."
-        } else {
-            "${activeContacts.size} contacts peuvent demander votre position ; dernière autorisation jusqu'au $expiry."
-        }
-        val discreetSuffix = if (settings.isDiscreetModeActive()) " Mode discret temporaire actif." else ""
-        val safetyText = "$accessText$discreetSuffix Anti-suivi actif : 15 min minimum entre réponses et 4 maximum sur 24 h."
-        val notification = Notification.Builder(context, STATUS_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("VeVak est actif")
-            .setContentText(safetyText)
-            .setStyle(Notification.BigTextStyle().bigText(safetyText))
-            .setContentIntent(openAppIntent())
-            .addAction(R.drawable.ic_notification, "URGENCE", emergencyIntent())
-            .addAction(R.drawable.ic_notification, "Sécurité", safetyCenterIntent())
-            .setOngoing(true)
-            .setCategory(Notification.CATEGORY_STATUS)
-            .setVisibility(Notification.VISIBILITY_PRIVATE)
-            .build()
-        manager.notify(ACTIVE_NOTIFICATION_ID, notification)
-    }
+    fun showRequestReceived(@Suppress("UNUSED_PARAMETER") discreet: Boolean = false): Boolean = true
 
-    /**
-     * Returns false if VeVak cannot make the request visible. Even in discreet mode a local,
-     * low-importance notification remains visible in the notification shade; there is no covert mode.
-     * Sound/vibration are disabled at the discreet notification-channel level.
-     */
-    fun showRequestReceived(discreet: Boolean = false): Boolean {
-        if (!notificationsAllowedForRequests(discreet)) return false
-        return runCatching {
-            val channelId = if (discreet) DISCREET_REQUEST_CHANNEL_ID else REQUEST_CHANNEL_ID
-            val notification = Notification.Builder(context, channelId)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(if (discreet) "VeVak" else "Demande VeVak reçue")
-                .setContentText(
-                    if (discreet) "Une demande a été traitée."
-                    else "Une demande de position a été reçue. Ouvrez VeVak pour voir l'historique."
-                )
-                .setContentIntent(openAppIntent())
-                .setAutoCancel(true)
-                .setCategory(Notification.CATEGORY_STATUS)
-                .setVisibility(Notification.VISIBILITY_PRIVATE)
-                .setWhen(System.currentTimeMillis())
-                .setShowWhen(!discreet)
-                .build()
-            manager.notify(REQUEST_NOTIFICATION_ID, notification)
-        }.isSuccess
-    }
+    fun showEmergencyResult(
+        @Suppress("UNUSED_PARAMETER") sentCount: Int,
+        @Suppress("UNUSED_PARAMETER") targetCount: Int,
+        @Suppress("UNUSED_PARAMETER") detail: String
+    ) = Unit
 
-    fun showEmergencyResult(sentCount: Int, targetCount: Int, detail: String) {
-        if (!statusNotificationsAllowed()) return
-        val summary = when {
-            targetCount <= 0 -> detail
-            sentCount == targetCount -> "Alerte transmise à Android pour $sentCount contact${if (sentCount > 1) "s" else ""}. $detail"
-            sentCount > 0 -> "$sentCount/$targetCount alertes transmises à Android. $detail"
-            else -> "Aucune alerte n'a pu être transmise. $detail"
-        }
-        val notification = Notification.Builder(context, STATUS_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("VeVak — envoi d'urgence")
-            .setContentText(summary)
-            .setStyle(Notification.BigTextStyle().bigText(summary))
-            .setContentIntent(openAppIntent())
-            .setAutoCancel(true)
-            .setCategory(Notification.CATEGORY_STATUS)
-            .setVisibility(Notification.VISIBILITY_PRIVATE)
-            .build()
-        manager.notify(EMERGENCY_RESULT_NOTIFICATION_ID, notification)
-    }
-
-    fun cancelActiveStatus() {
-        manager.cancel(ACTIVE_NOTIFICATION_ID)
-    }
-
-    private fun statusNotificationsAllowed(): Boolean {
-        ensureChannels()
-        if (!notificationPermissionAndGlobalStateAllowed()) return false
-        val statusChannel = manager.getNotificationChannel(STATUS_CHANNEL_ID) ?: return false
-        return statusChannel.importance != NotificationManager.IMPORTANCE_NONE
-    }
-
-    private fun notificationPermissionAndGlobalStateAllowed(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return false
-        }
-        return manager.areNotificationsEnabled()
-    }
-
-    private fun openAppIntent(): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        return PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-    }
-
-    private fun emergencyIntent(): PendingIntent {
-        val intent = Intent(context, EmergencyShareReceiver::class.java).apply {
-            action = EmergencyShareReceiver.ACTION_SEND_EMERGENCY_LOCATION
-        }
-        return PendingIntent.getBroadcast(
-            context,
-            EMERGENCY_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-    }
-
-    private fun safetyCenterIntent(): PendingIntent {
-        val intent = Intent(context, SafetyCenterActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        return PendingIntent.getActivity(
-            context,
-            SAFETY_CENTER_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-    }
-
-    private companion object {
-        const val STATUS_CHANNEL_ID = "vevak_active_status"
-        const val REQUEST_CHANNEL_ID = "vevak_requests"
-        const val DISCREET_REQUEST_CHANNEL_ID = "vevak_requests_discreet"
-        const val ACTIVE_NOTIFICATION_ID = 4101
-        const val REQUEST_NOTIFICATION_ID = 4102
-        const val EMERGENCY_RESULT_NOTIFICATION_ID = 4103
-        const val EMERGENCY_REQUEST_CODE = 4104
-        const val SAFETY_CENTER_REQUEST_CODE = 4105
-    }
+    fun cancelActiveStatus() = Unit
 }

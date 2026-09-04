@@ -40,10 +40,48 @@ if build_budget.get("releaseMinification") and "isMinifyEnabled = true" not in b
 if build_budget.get("releaseResourceShrinking") and "isShrinkResources = true" not in build:
     errors.append("Release resource shrinking budget is not enforced.")
 
-# VeVak deliberately relies on foreground/opportunistic acquisition plus local last-position memory.
-# Reintroducing background location would undo that privacy and product contract.
+# VeVak must not require permanent background-location permission. Optional last-position refresh is
+# a best-effort one-shot scheduler and may only use sources Android legitimately exposes at each tick.
 if "android.permission.ACCESS_BACKGROUND_LOCATION" in manifest:
-    errors.append("Background location permission must not be declared: VeVak uses opportunistic foreground acquisition.")
+    errors.append("Background location permission must not be declared.")
+
+# 0.3.11 deliberately removes notification permission and all normal notification surfaces. A
+# future refactor must not silently make request replies or the discreet emergency shortcut depend on
+# POST_NOTIFICATIONS again.
+if "android.permission.POST_NOTIFICATIONS" in manifest:
+    errors.append("POST_NOTIFICATIONS must not be declared: VeVak 0.3.11 core is notification-free.")
+
+main_kotlin_paths = list((ROOT / "app/src/main").rglob("*.kt"))
+for path in main_kotlin_paths:
+    text = path.read_text(encoding="utf-8")
+    if "POST_NOTIFICATIONS" in text:
+        errors.append(
+            "Notification-permission reference reintroduced in main source: "
+            f"{path.relative_to(ROOT)}"
+        )
+
+notifier_path = ROOT / "app/src/main/java/com/vevak/app/system/RequestVisibilityNotifier.kt"
+if notifier_path.exists():
+    notifier_text = notifier_path.read_text(encoding="utf-8")
+    for forbidden in ("NotificationManager", "Notification.Builder", ".notify(", "NotificationChannel"):
+        if forbidden in notifier_text:
+            errors.append(f"Notification-free boundary violated by RequestVisibilityNotifier: {forbidden}")
+
+# Notification permission/channels must never gate the core incoming-SMS path.
+sms_handler_path = ROOT / "app/src/main/java/com/vevak/app/sms/SmsRequestHandler.kt"
+if sms_handler_path.exists():
+    sms_handler = sms_handler_path.read_text(encoding="utf-8")
+    for forbidden in (
+        "RequestVisibilityNotifier",
+        "showRequestReceived(",
+        "notificationsAllowedForRequests(",
+        "RequestAuditOutcome.BlockedVisibility",
+    ):
+        if forbidden in sms_handler:
+            errors.append(
+                "Silent core-SMS boundary violated: "
+                f"SmsRequestHandler must not depend on {forbidden}."
+            )
 
 # The explicit local emergency action must never be throttled by the anti-tracking protections that
 # apply to remote automatic requests. Keep the emergency receiver independent from the global
@@ -58,10 +96,37 @@ if emergency_path.exists():
                 f"EmergencyShareReceiver must not use {forbidden}."
             )
 
-# The core must not introduce periodic schedulers/background polling frameworks.
-for path in (ROOT / "app/src/main").rglob("*.kt"):
+# The discreet shortcut may arm/cancel the existing local emergency action, but it must not become a
+# second location resolver or bypass the carefully separated emergency last-real-only contract.
+shortcut_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutActivity.kt"
+if shortcut_path.exists():
+    shortcut_text = shortcut_path.read_text(encoding="utf-8")
+    if "EmergencyShortcutArmController" not in shortcut_text:
+        errors.append("Emergency shortcut must delegate timing to EmergencyShortcutArmController.")
+    for forbidden in ("VeVakPositionResolver", "VeVakLocationRepository", "OnlineApproximateLocationProvider"):
+        if forbidden in shortcut_text:
+            errors.append(f"Emergency shortcut location boundary violated: {forbidden}")
+
+arm_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutArmController.kt"
+if arm_path.exists():
+    arm_text = arm_path.read_text(encoding="utf-8")
+    if "EmergencyShareReceiver" not in arm_text:
+        errors.append("Emergency arm controller must dispatch the canonical EmergencyShareReceiver.")
+    for forbidden in ("VeVakPositionResolver", "VeVakLocationRepository", "OnlineApproximateLocationProvider"):
+        if forbidden in arm_text:
+            errors.append(f"Emergency arm controller location boundary violated: {forbidden}")
+
+# Best-effort periodic memory is allowed, but VeVak still rejects repeating/exact polling frameworks
+# and WorkManager loops. The implementation must schedule one future tick at a time instead.
+for path in main_kotlin_paths:
     text = path.read_text(encoding="utf-8")
-    for forbidden in ("PeriodicWorkRequest", "WorkManager.getInstance", "AlarmManager.setRepeating"):
+    for forbidden in (
+        "PeriodicWorkRequest",
+        "WorkManager.getInstance",
+        "AlarmManager.setRepeating",
+        "AlarmManager.setExact",
+        "AlarmManager.setExactAndAllowWhileIdle",
+    ):
         if forbidden in text:
             errors.append(f"Periodic/background scheduling boundary violated by {path.relative_to(ROOT)}: {forbidden}")
 

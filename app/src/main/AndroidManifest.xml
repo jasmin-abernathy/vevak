@@ -18,10 +18,10 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- INTERNET is used only by the explicit opt-in coarse network fallback. VeVak performs no
          network request while that setting remains disabled. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".VeVakApplication"
@@ -55,6 +55,17 @@
             android:exported="false"
             android:theme="@style/Theme.VeVak" />
 
+        <!-- The launcher must be able to invoke the pinned shortcut, so this tiny translucent
+             activity is exported. A per-install random token embedded in the shortcut is validated
+             before it can arm the emergency action. -->
+        <activity
+            android:name=".emergency.EmergencyShortcutActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.VeVak.ShortcutInvisible" />
+
         <receiver
             android:name=".sms.SmsReceiver"
             android:enabled="true"
@@ -69,6 +80,20 @@
             android:name=".emergency.EmergencyShareReceiver"
             android:enabled="true"
             android:exported="false" />
+
+        <receiver
+            android:name=".background.PositionRefreshReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".background.BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>

@@ -253,7 +253,7 @@ private fun ContactScreen(state: AppUiState, vm: AppViewModel) {
 private fun TriggerScreen(state: AppUiState, vm: AppViewModel) {
     StepLabel("Étape 2 sur 5")
     Title("Choisissez une phrase-clé")
-    Text("Votre contact devra envoyer cette phrase par SMS pour demander votre position. Majuscules, minuscules, espaces insécables et apostrophes typographiques courantes sont normalisés.")
+    Text("Votre contact peut inclure cette phrase n'importe où dans un SMS normal. Majuscules, minuscules, espaces insécables et apostrophes typographiques courantes sont normalisés.")
     OutlinedTextField(
         value = state.settings.triggerPhrase,
         onValueChange = vm::updateTrigger,
@@ -297,6 +297,10 @@ private fun OptionsScreen(state: AppUiState, vm: AppViewModel) {
     NavigationButtons(vm, canContinue = true)
 }
 
+/**
+ * Kept for direct-preview/backward routing only. MainActivity 0.3.11 routes this step through
+ * VeVakFinalRoot, but this fallback deliberately follows the same notification-free contract.
+ */
 @Composable
 private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
     val context = LocalContext.current
@@ -315,13 +319,12 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
     }
 
     val mainPermissions = remember {
-        buildList {
-            add(Manifest.permission.RECEIVE_SMS)
-            add(Manifest.permission.SEND_SMS)
-            add(Manifest.permission.ACCESS_COARSE_LOCATION)
-            add(Manifest.permission.ACCESS_FINE_LOCATION)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
-        }.toTypedArray()
+        arrayOf(
+            Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         refreshTick++
@@ -332,8 +335,7 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
     val receiveSms = hasPermission(context, Manifest.permission.RECEIVE_SMS)
     val sendSms = hasPermission(context, Manifest.permission.SEND_SMS)
     val foregroundLocation = hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) || hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
-    val notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-    val allGranted = receiveSms && sendSms && foregroundLocation && notifications
+    val allGranted = receiveSms && sendSms && foregroundLocation
     val locationEnabled = systemLocationEnabled(context)
 
     LaunchedEffect(allGranted) {
@@ -342,22 +344,13 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
 
     StepLabel("Étape 4 sur 5")
     Title("Autorisations nécessaires")
-    Text("VeVak vous explique chaque accès avant de le demander. Dès que tout ce qui est réellement nécessaire est autorisé, cette étape se valide toute seule.")
+    Text("VeVak a besoin des SMS et d'une localisation ponctuelle. Les notifications ne sont pas nécessaires et ne conditionnent jamais une réponse automatique.")
 
     PermissionCard("SMS", receiveSms && sendSms, "Reconnaître la phrase-clé d'un contact autorisé et lui répondre.")
     PermissionCard("Localisation ponctuelle", foregroundLocation, "Mémoriser une position lorsque VeVak peut y accéder. Elle n'a pas besoin de rester disponible en permanence.")
-    PermissionCard("Notifications", notifications, "Rendre les demandes automatiques visibles sur votre propre téléphone.")
 
     if (!allGranted) {
         Primary("Autoriser ce qui manque") { permissionLauncher.launch(mainPermissions) }
-    }
-
-    OutlinedButton(onClick = { openAppSettings(context) }, modifier = Modifier.fillMaxWidth()) {
-        Text("Ouvrir les paramètres Android de VeVak")
-    }
-
-    if (!(receiveSms && sendSms)) {
-        SimpleInfo("Version de test installée manuellement", "Android peut protéger l'accès aux SMS avec une confirmation supplémentaire. Si le bouton SMS reste bloqué : ouvrez les réglages de VeVak, utilisez le menu ⋮ puis « Autoriser les paramètres restreints » lorsqu'Android propose cette option.")
     }
 
     if (!locationEnabled) {
@@ -537,7 +530,7 @@ private fun HomeTabContent(
 
     if (!hasSuccessfulRequest && contacts.isNotEmpty()) {
         val first = contacts.first()
-        SimpleInfo("Premier test recommandé", "Depuis le téléphone de ${first.displayLabel()}, envoyez : « ${first.triggerPhrase} ». La casse n'a pas d'importance. Une réponse réussie confirme que SMS + autorisation + résolution de position fonctionnent ensemble.")
+        SimpleInfo("Premier test recommandé", "Depuis le téléphone de ${first.displayLabel()}, envoyez un SMS contenant « ${first.triggerPhrase} ». La phrase peut être entourée d'autres mots et la casse n'a pas d'importance. Une réponse réussie confirme que SMS + autorisation + résolution de position fonctionnent ensemble.")
     } else if (hasSuccessfulRequest && !state.settings.hasTrustedWifiConfiguration()) {
         ActionCard("Réseau Maison manquant", "Le réseau Maison fait désormais partie de la configuration de sécurité initiale. Fermez puis rouvrez VeVak pour compléter cette étape.", "Compris") { }
     }
@@ -581,7 +574,6 @@ private fun MonitoringHeroCard(
     trustedPlaceRecognized: Boolean
 ) {
     val smsReady = hasPermission(context, Manifest.permission.RECEIVE_SMS) && hasPermission(context, Manifest.permission.SEND_SMS)
-    val notificationsReady = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
     val enabled = active.isNotEmpty()
 
     Card(
@@ -622,7 +614,7 @@ private fun MonitoringHeroCard(
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MiniStatus("SMS", smsReady, Modifier.weight(1f))
-                MiniStatus("Visible", notificationsReady, Modifier.weight(1f))
+                MiniStatus("Silencieux", true, Modifier.weight(1f))
                 MiniStatus("Anti-suivi", true, Modifier.weight(1f))
             }
 
@@ -706,6 +698,7 @@ private fun ContactsTabContent(state: AppUiState, vm: AppViewModel) {
             OutlinedTextField(value = state.newContactName, onValueChange = vm::updateNewContactName, label = { Text("Nom") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             OutlinedTextField(value = state.newContactPhone, onValueChange = vm::updateNewContactPhone, label = { Text("Numéro") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             OutlinedTextField(value = state.newContactTriggerPhrase, onValueChange = vm::updateNewContactTrigger, label = { Text("Phrase-clé") }, placeholder = { Text("Ex. : Où es-tu ?") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Text("La phrase peut apparaître au milieu d'un SMS plus long ; elle n'a pas besoin d'être envoyée seule.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Durée", fontWeight = FontWeight.SemiBold)
             AuthorizationDuration.entries.forEach { duration ->
                 DurationCard(duration, duration == state.newContactAuthorizationDuration) { vm.setNewContactAuthorizationDuration(duration) }
@@ -822,7 +815,7 @@ private fun SettingsTabContent(
     OutlinedButton(
         onClick = { context.startActivity(Intent(context, SafetyCenterActivity::class.java)) },
         modifier = Modifier.fillMaxWidth()
-    ) { Text("Sécurité, urgence et réseau Maison") }
+    ) { Text("Sécurité, urgence et mémoire de position") }
 
     SectionToggle("Réponse et carte", responseOpen) { responseOpen = !responseOpen }
     if (responseOpen) {
@@ -846,15 +839,14 @@ private fun SettingsTabContent(
         }
     }
 
-    SectionToggle("Notifications discrètes", state.settings.isDiscreetModeActive()) { if (state.settings.isDiscreetModeActive()) vm.disableDiscreetMode() else vm.setDiscreetMode(1) }
-    Text("Le mode discret réduit temporairement le bruit des notifications mais ne rend jamais VeVak invisible.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf(1, 8, 24).forEach { hours -> TextButton(onClick = { vm.setDiscreetMode(hours) }, modifier = Modifier.weight(1f)) { Text("${hours} h") } }
-    }
+    SimpleInfo(
+        "Demandes silencieuses",
+        "VeVak n'affiche plus de notification à chaque demande et ne garde plus de notification permanente. Les réponses SMS continuent de fonctionner même si les notifications Android sont refusées ou désactivées."
+    )
 
     SectionToggle("Sauvegarde chiffrée", backupOpen) { backupOpen = !backupOpen }
     if (backupOpen) {
-        Text("La sauvegarde contient votre configuration, jamais l'historique des demandes. Après restauration, tous les accès sont révoqués par sécurité.")
+        Text("La sauvegarde contient votre configuration, jamais l'historique des demandes ni les positions mémorisées. Après restauration, tous les accès sont révoqués par sécurité.")
         OutlinedTextField(value = state.backupPassword, onValueChange = vm::updateBackupPassword, label = { Text("Mot de passe") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
         Button(onClick = { exportLauncher.launch("VeVak-config.vvk") }, modifier = Modifier.fillMaxWidth(), enabled = !state.backupBusy) { Text("Créer une sauvegarde") }
         OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/octet-stream", "application/*")) }, modifier = Modifier.fillMaxWidth(), enabled = !state.backupBusy) { Text("Restaurer une sauvegarde") }
@@ -864,7 +856,7 @@ private fun SettingsTabContent(
     if (diagnosticOpen) {
         DiagnosticRow("SMS", hasPermission(context, Manifest.permission.RECEIVE_SMS) && hasPermission(context, Manifest.permission.SEND_SMS))
         DiagnosticRow("Permission de localisation ponctuelle", hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) || hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION))
-        DiagnosticRow("Notifications", Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasPermission(context, Manifest.permission.POST_NOTIFICATIONS))
+        DiagnosticRow("Demandes silencieuses", true)
 
         state.diagnostics?.locationCapabilities?.let { lab ->
             SimpleInfo(
@@ -918,7 +910,7 @@ private fun SettingsTabContent(
         if (protectedContact != null) {
             SimpleInfo(
                 "Phrase utilisée",
-                "${protectedContact.displayLabel()} continuera d'envoyer exactement sa phrase-clé habituelle : « ${protectedContact.triggerPhrase} ». Vous n'avez rien d'autre à lui communiquer."
+                "${protectedContact.displayLabel()} continuera d'envoyer sa phrase-clé habituelle : « ${protectedContact.triggerPhrase} ». Elle peut apparaître au milieu d'un SMS normal, comme pour les autres contacts."
             )
             CheckRow(
                 "Activer la protection pour ${protectedContact.displayLabel()}",
@@ -933,7 +925,7 @@ private fun SettingsTabContent(
             }
             SimpleInfo(
                 "Ce qui se passera",
-                "Si ${protectedContact.displayLabel()} envoie sa phrase-clé habituelle, VeVak n'ira pas lire votre position réelle : la réponse utilisera uniquement le lieu de repli enregistré. Les autres contacts gardent leur fonctionnement normal."
+                "Si ${protectedContact.displayLabel()} envoie un SMS contenant sa phrase-clé habituelle, VeVak n'ira pas lire votre position réelle : la réponse utilisera uniquement le lieu de repli enregistré. Les autres contacts gardent leur fonctionnement normal."
             )
             SimpleInfo("Discrétion", "L'accueil, le diagnostic standard et l'historique visible n'indiquent pas que cette protection existe ou qu'elle a été utilisée.")
             OutlinedButton(onClick = vm::persistDraft, modifier = Modifier.fillMaxWidth(), enabled = vm.duressConfigurationValid()) {

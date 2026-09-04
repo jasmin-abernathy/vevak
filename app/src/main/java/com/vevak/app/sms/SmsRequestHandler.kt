@@ -24,7 +24,6 @@ import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.IncomingRequestMode
 import com.vevak.app.security.RequestModeResolver
 import com.vevak.app.system.BatteryReader
-import com.vevak.app.system.RequestVisibilityNotifier
 
 class SmsRequestHandler(private val context: Context) {
     private val settingsRepository = VeVakSettingsRepository(context)
@@ -35,7 +34,6 @@ class SmsRequestHandler(private val context: Context) {
     private val positionResolver = VeVakPositionResolver(context)
     private val replySender = SmsReplySender(context)
     private val batteryReader = BatteryReader(context)
-    private val notifier = RequestVisibilityNotifier(context)
 
     suspend fun handle(intent: Intent) {
         val incoming = SmsIntentReader.read(intent) ?: return
@@ -46,21 +44,16 @@ class SmsRequestHandler(private val context: Context) {
         val contact = resolved.first
         val mode = resolved.second
         val now = System.currentTimeMillis()
-        val discreet = settings.isDiscreetModeActive(now)
 
         if (!contact.hasActiveAuthorization(now)) {
             auditRepository.append(now, RequestAuditOutcome.BlockedAuthorization)
-            if (notifier.notificationsAllowedForRequests(discreet)) notifier.showRequestReceived(discreet)
-            notifier.syncActiveStatus(settings)
             return
         }
 
-        if (!notifier.showRequestReceived(discreet)) {
-            auditRepository.append(now, RequestAuditOutcome.BlockedVisibility)
-            return
-        }
-        notifier.syncActiveStatus(settings)
-
+        // Android notification permission and channels are deliberately not preconditions for the
+        // core SMS path. An already-authorised contact's phrase-key may therefore receive a reply
+        // even when every VeVak notification surface is absent. The owner can inspect the minimal
+        // local audit later by opening VeVak voluntarily.
         if (!hasPermission(Manifest.permission.SEND_SMS)) {
             auditRepository.append(now, RequestAuditOutcome.SendFailed)
             return

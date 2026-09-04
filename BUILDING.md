@@ -57,7 +57,7 @@ vevak-foss-debug-<commit SHA>
 
 as a GitHub Actions artifact with a short retention period. This artifact is deliberately published **only after all FOSS and Play verification steps have succeeded**, so the APK used for a real-device regression test can be tied to an exact validated commit.
 
-For the 0.3.1 resilience beta, verify the app reports version `0.3.1` / versionCode `4` before using test results to close the location-off regression.
+For the 0.3.11 hardening candidate, verify the app reports version `0.3.11` / versionCode `14` before using test results to validate the notification-free SMS path, the contains-phrase matching, the one-slot position refresh and the discreet emergency shortcut.
 
 An Actions artifact is a test build, not a signed production release. Do not present it as the future stable/F-Droid release.
 
@@ -85,4 +85,4 @@ Examples include:
 
 ## Release note
 
-A successful desktop/CI build does not prove that SMS reception/reply, trusted-Wi-Fi continuity, remembered-location fallback, background execution or dual-SIM behaviour works on a real device. These paths still require physical-device tests.
+A successful desktop/CI build does not prove that SMS reception/reply, trusted-Wi-Fi continuity, remembered-location fallback, one-slot background refresh, boot re-scheduling, pinned-shortcut cancellation or dual-SIM behaviour works on a real device. These paths still require physical-device tests before a stable public release.

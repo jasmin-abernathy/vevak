@@ -32,10 +32,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.vevak.app.background.PositionRefreshScheduler
 import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.VeVakSettingsRepository
+import com.vevak.app.emergency.EmergencyShortcutManager
+import com.vevak.app.emergency.EmergencyShortcutPreset
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.system.TrustedNetworkReader
 import com.vevak.app.ui.theme.VeVakTheme
@@ -68,12 +72,25 @@ private fun SafetyCenter(
     networkReader: TrustedNetworkReader,
     close: () -> Unit
 ) {
+    val context = LocalContext.current
+    val shortcutManager = remember { EmergencyShortcutManager(context.applicationContext) }
+    val refreshScheduler = remember { PositionRefreshScheduler(context.applicationContext) }
     var settings by remember { mutableStateOf<VeVakSettings?>(null) }
     var allRecipients by remember { mutableStateOf(recipientStore.usesAllActiveContacts()) }
     var selectedIds by remember { mutableStateOf(recipientStore.selectedContactIds()) }
+    var selectedShortcutPreset by remember { mutableStateOf(shortcutManager.selectedPreset()) }
     var replacementArmed by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    fun saveRefreshSettings(updated: VeVakSettings, confirmation: String) {
+        scope.launch {
+            settingsRepository.save(updated)
+            settings = updated
+            refreshScheduler.sync(updated)
+            message = confirmation
+        }
+    }
 
     LaunchedEffect(Unit) { settings = settingsRepository.current() }
     val current = settings
@@ -93,13 +110,13 @@ private fun SafetyCenter(
                 Text("Protection anti-suivi abusif", fontWeight = FontWeight.Bold)
                 Text("Les réponses automatiques sont limitées à une toutes les 15 minutes et à 4 maximum sur 24 heures.")
                 Text("La limite est globale à tous les contacts : ajouter plusieurs personnes ne multiplie pas la capacité de suivi.")
-                Text("Une alerte d'urgence déclenchée volontairement depuis la notification n'est pas soumise à cette limite.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Une alerte d'urgence déclenchée volontairement depuis le téléphone n'est pas soumise à cette limite.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
         HorizontalDivider()
         Text("Destinataires de l'urgence", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Un appui sur « URGENCE » dans la notification envoie immédiatement la dernière position connue et son ancienneté, sans confirmation supplémentaire.")
+        Text("Choisissez maintenant qui recevra le SMS. Le déclenchement d'urgence n'affichera ensuite aucun choix de destinataire ni écran de confirmation.")
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(
@@ -151,6 +168,113 @@ private fun SafetyCenter(
                         }
                     )
                     Text(contact.displayLabel())
+                }
+            }
+        }
+
+        HorizontalDivider()
+        Text("Raccourci discret d'envoi d'urgence", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("VeVak peut ajouter sur l'écran d'accueil une icône qui ressemble à un petit utilitaire banal. Les noms et logos proposés sont génériques et ne copient aucune application existante.")
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("Protection contre l'appui accidentel", fontWeight = FontWeight.Bold)
+                Text("Premier appui : l'envoi est armé pendant 4 secondes. Un deuxième appui sur le même raccourci pendant ce délai annule l'envoi. Sans deuxième appui, le SMS d'urgence part automatiquement aux destinataires choisis ci-dessus.")
+            }
+        }
+
+        Text("Nom et icône du raccourci", fontWeight = FontWeight.SemiBold)
+        EmergencyShortcutPreset.entries.forEach { preset ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = preset == selectedShortcutPreset,
+                    onClick = { selectedShortcutPreset = preset }
+                )
+                Column {
+                    Text(preset.label, fontWeight = FontWeight.SemiBold)
+                    Text(preset.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        Button(
+            enabled = activeContacts.isNotEmpty() && shortcutManager.isSupported(),
+            onClick = {
+                message = if (shortcutManager.requestPin(selectedShortcutPreset)) {
+                    "Android va vous proposer d'ajouter « ${selectedShortcutPreset.label} » à l'écran d'accueil. Une fois ajouté, ses destinataires d'urgence resteront ceux définis ci-dessus."
+                } else {
+                    "Ce lanceur Android ne permet pas à VeVak d'ajouter automatiquement ce raccourci."
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Créer ce raccourci") }
+
+        if (activeContacts.isEmpty()) {
+            Text("Autorisez au moins un contact avant de créer le raccourci d'urgence.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        HorizontalDivider()
+        Text("Mémoire de position", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("VeVak peut essayer périodiquement de rafraîchir une seule dernière position locale. Chaque nouveau point remplace le précédent : aucun trajet ni historique de positions n'est conservé.")
+        if (current != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = current.backgroundRefreshEnabled,
+                    onCheckedChange = { enabled ->
+                        saveRefreshSettings(
+                            current.copy(
+                                backgroundRefreshEnabled = enabled,
+                                startOnBoot = if (enabled) current.startOnBoot else false
+                            ),
+                            if (enabled) {
+                                "Rafraîchissement périodique activé. Android peut décaler certains passages pour économiser la batterie."
+                            } else {
+                                "Rafraîchissement périodique désactivé. La dernière position déjà mémorisée reste disponible."
+                            }
+                        )
+                    }
+                )
+                Text("Essayer de garder une dernière position récente")
+            }
+
+            if (current.backgroundRefreshEnabled) {
+                Text("Fréquence cible", fontWeight = FontWeight.SemiBold)
+                VeVakSettings.BACKGROUND_REFRESH_INTERVAL_CHOICES_MINUTES.forEach { minutes ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = current.normalizedBackgroundRefreshIntervalMinutes() == minutes,
+                            onClick = {
+                                saveRefreshSettings(
+                                    current.copy(backgroundRefreshIntervalMinutes = minutes),
+                                    "Fréquence cible réglée sur environ $minutes minutes."
+                                )
+                            }
+                        )
+                        Text("Environ $minutes min")
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = current.startOnBoot,
+                        onCheckedChange = { enabled ->
+                            saveRefreshSettings(
+                                current.copy(startOnBoot = enabled),
+                                if (enabled) {
+                                    "VeVak reprogrammera cette mémoire de position après le redémarrage du téléphone."
+                                } else {
+                                    "Relance automatique au démarrage désactivée."
+                                }
+                            )
+                        }
+                    )
+                    Text("Relancer VeVak au démarrage du téléphone")
+                }
+
+                Card {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Fonctionnement économe", fontWeight = FontWeight.Bold)
+                        Text("La fréquence est une cible, pas une horloge exacte : Android peut retarder un passage en veille profonde. VeVak n'utilise ni alarme répétitive exacte, ni historique de déplacement, ni notification permanente pour forcer le téléphone à rester éveillé.")
+                    }
                 }
             }
         }

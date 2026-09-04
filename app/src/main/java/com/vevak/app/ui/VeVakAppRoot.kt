@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,11 +31,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -58,8 +61,8 @@ import com.vevak.app.ui.theme.VeVakTheme
  * Stable outer setup root.
  *
  * The options and permission steps are intentionally kept here so later home-screen refactors cannot
- * silently drop reply choices or make background location mandatory again. All other screens remain
- * implemented by VeVakBetaRoot.
+ * silently drop reply choices or make background location mandatory again. Optional periodic
+ * last-position refresh remains a separate, explicit setting after onboarding.
  */
 @Composable
 fun VeVakAppRoot(viewModel: AppViewModel = viewModel()) {
@@ -70,8 +73,8 @@ fun VeVakAppRoot(viewModel: AppViewModel = viewModel()) {
     LaunchedEffect(state.settings.completedOnboarding) {
         if (state.settings.completedOnboarding) {
             // One opportunistic refresh when VeVak becomes operational (or is opened again). This
-            // is foreground work only: no periodic/background tracker is started. includeTrustedPlace
-            // is false because the goal here is to populate coordinate memory when possible.
+            // particular refresh is foreground work. includeTrustedPlace is false because the goal
+            // here is to populate coordinate memory when possible.
             runCatching {
                 VeVakPositionResolver(appContext).resolve(
                     settings = state.settings,
@@ -103,7 +106,7 @@ private fun VeVakOptionsStep(state: AppUiState, viewModel: AppViewModel) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Dernière position toujours disponible", fontWeight = FontWeight.Bold)
                     Text(
-                        "Dès qu'une source fournit une position, VeVak en garde localement la dernière copie. Si Android ne peut plus actualiser la localisation au moment d'une demande, cette dernière position est utilisée et son ancienneté est indiquée. Aucun suivi continu n'est lancé.",
+                        "Dès qu'une source fournit une position, VeVak en garde localement la dernière copie. Si Android ne peut plus actualiser la localisation au moment d'une demande, cette dernière position est utilisée et son ancienneté est indiquée. Aucun historique de déplacement n'est construit.",
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
@@ -189,17 +192,15 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
         BackHandler { viewModel.previous() }
         val context = LocalContext.current
         val lifecycleOwner = LocalLifecycleOwner.current
+        var showSettingsHelp by remember { mutableStateOf(false) }
 
         val permissions = remember {
-            buildList {
-                add(Manifest.permission.RECEIVE_SMS)
-                add(Manifest.permission.SEND_SMS)
-                add(Manifest.permission.ACCESS_COARSE_LOCATION)
-                add(Manifest.permission.ACCESS_FINE_LOCATION)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    add(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }.toTypedArray()
+            arrayOf(
+                Manifest.permission.RECEIVE_SMS,
+                Manifest.permission.SEND_SMS,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            )
         }
         val permissionLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
@@ -213,9 +214,7 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
         val sendSms = hasPermission(context, Manifest.permission.SEND_SMS)
         val foregroundLocation = hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ||
             hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
-        val notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-        val allNeededGranted = receiveSms && sendSms && foregroundLocation && notifications
+        val allNeededGranted = receiveSms && sendSms && foregroundLocation
 
         LaunchedEffect(allNeededGranted) {
             if (allNeededGranted) viewModel.next()
@@ -239,16 +238,16 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
                 detail = "Permet de mettre à jour la dernière position lorsque VeVak est au premier plan ou qu'Android autorise une acquisition ponctuelle."
             )
             PermissionStatusCard(
-                title = "Notifications",
-                ready = notifications,
-                detail = "Rendre visibles sur votre téléphone les demandes automatiques et l'état de VeVak."
+                title = "Demandes silencieuses",
+                ready = true,
+                detail = "Aucune permission de notification n'est demandée : les réponses SMS fonctionnent sans notification de demande ni notification permanente."
             )
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Pas de localisation permanente", fontWeight = FontWeight.Bold)
+                    Text("Pas de permission de localisation permanente imposée", fontWeight = FontWeight.Bold)
                     Text(
-                        "VeVak ne demande plus la localisation en arrière-plan comme condition de fonctionnement. Une position obtenue lorsque l'application est ouverte est mémorisée localement et peut être renvoyée plus tard si la localisation Android est coupée ou inaccessible."
+                        "VeVak mémorise localement les positions qu'Android lui permet d'obtenir. Le rafraîchissement périodique de cette mémoire, s'il est utilisé, reste une option distincte et n'est jamais nécessaire pour terminer cette configuration."
                     )
                 }
             }
@@ -261,7 +260,7 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
                     Text("Autoriser ce qui manque")
                 }
                 OutlinedButton(
-                    onClick = { openAppSettings(context) },
+                    onClick = { showSettingsHelp = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Ouvrir les paramètres Android de VeVak")
@@ -279,6 +278,29 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
                     Text("Retour")
                 }
             }
+        }
+
+        if (showSettingsHelp) {
+            AlertDialog(
+                onDismissRequest = { showSettingsHelp = false },
+                title = { Text("Autoriser les paramètres Android") },
+                text = {
+                    Text(
+                        "Android peut bloquer certaines autorisations d'une application installée manuellement. Dans la fiche de VeVak, ouvrez le menu ⋮ puis choisissez « Autoriser les paramètres restreints » si cette option apparaît. Accordez ensuite les autorisations nécessaires et revenez simplement dans VeVak : l'application les revérifiera automatiquement et validera cette étape dès qu'elles sont actives."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showSettingsHelp = false
+                            openAppSettings(context)
+                        }
+                    ) { Text("Ouvrir les paramètres") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSettingsHelp = false }) { Text("Annuler") }
+                }
+            )
         }
     }
 }
