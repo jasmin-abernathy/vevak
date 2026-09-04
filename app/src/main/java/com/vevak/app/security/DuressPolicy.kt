@@ -4,6 +4,7 @@
  */
 package com.vevak.app.security
 
+import com.vevak.app.model.TrustedContact
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.sms.SmsCommandParser
 
@@ -23,11 +24,15 @@ object DuressPolicy {
         latitude?.let { it in -90.0..90.0 } == true &&
             longitude?.let { it in -180.0..180.0 } == true
 
-    fun configurationIsValid(settings: VeVakSettings): Boolean =
-        !settings.duressEnabled ||
-            (settings.normalTriggerPhrases().isNotEmpty() &&
-                settings.normalTriggerPhrases().all { phrasesAreDistinctEnough(it, settings.duressPhrase) } &&
-                coordinatesAreValid(settings.fallbackLatitude, settings.fallbackLongitude))
+    fun configurationIsValid(settings: VeVakSettings): Boolean = when {
+        !settings.duressEnabled -> true
+        !coordinatesAreValid(settings.fallbackLatitude, settings.fallbackLongitude) -> false
+        settings.usesContactTargetedProtection() -> settings.protectedContact() != null
+        settings.usesLegacyProtectionPhrase() ->
+            settings.normalTriggerPhrases().isNotEmpty() &&
+                settings.normalTriggerPhrases().all { phrasesAreDistinctEnough(it, settings.duressPhrase) }
+        else -> false
+    }
 
     private fun editDistance(left: String, right: String): Int {
         if (left.isEmpty()) return right.length
@@ -54,17 +59,49 @@ object DuressPolicy {
 enum class IncomingRequestMode { Normal, Duress }
 
 object RequestModeResolver {
-    fun resolve(messageBody: String, settings: VeVakSettings): IncomingRequestMode? =
-        resolve(messageBody, settings.triggerPhrase, settings)
+    /**
+     * Preferred contact-aware path. In the current protection model, the protected contact keeps
+     * exactly the normal phrase already assigned to them; only the reply path changes for that
+     * sender. This avoids teaching or exposing a second phrase.
+     */
+    fun resolve(
+        messageBody: String,
+        contact: TrustedContact,
+        settings: VeVakSettings
+    ): IncomingRequestMode? {
+        val matchesNormal = SmsCommandParser.matches(messageBody, contact.triggerPhrase)
 
+        if (
+            settings.usesContactTargetedProtection() &&
+            settings.protectedContactId == contact.id &&
+            matchesNormal
+        ) {
+            return IncomingRequestMode.Duress
+        }
+
+        // Migration compatibility only: installations configured with the earlier beta's separate
+        // protection phrase keep working until the owner explicitly switches to contact targeting.
+        if (settings.usesLegacyProtectionPhrase() && SmsCommandParser.matches(messageBody, settings.duressPhrase)) {
+            return IncomingRequestMode.Duress
+        }
+
+        return if (matchesNormal) IncomingRequestMode.Normal else null
+    }
+
+    fun resolve(messageBody: String, settings: VeVakSettings): IncomingRequestMode? =
+        resolve(messageBody, settings.primaryTrustedContact(), settings)
+
+    /**
+     * Compatibility overload used by existing unit tests and callers that only know the phrase.
+     * Contact-targeted protection cannot be inferred without a contact id, so this path preserves
+     * the former normal/legacy-phrase semantics only.
+     */
     fun resolve(
         messageBody: String,
         normalTriggerPhrase: String,
         settings: VeVakSettings
     ): IncomingRequestMode? {
-        // Fail safe: the safety phrase always wins if any normal phrase ever collides through
-        // corrupted/legacy settings. The handler will then refuse to touch the real GPS path.
-        if (settings.duressEnabled && SmsCommandParser.matches(messageBody, settings.duressPhrase)) {
+        if (settings.usesLegacyProtectionPhrase() && SmsCommandParser.matches(messageBody, settings.duressPhrase)) {
             return IncomingRequestMode.Duress
         }
         if (SmsCommandParser.matches(messageBody, normalTriggerPhrase)) {
