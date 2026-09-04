@@ -17,20 +17,22 @@ sealed interface VeVakPositionResolution {
 }
 
 /**
- * Single location decision engine shared by automatic SMS replies and diagnostic/test flows.
+ * Canonical position decision engine shared by authorised automatic replies and diagnostic flows.
  *
- * When Android location is enabled, the normal local location stack always gets first chance.
- * Alternative sources are fallbacks and must never prevent VeVak from acquiring and remembering
- * a real device position:
- * 1. fresh/cached local Android or VeVak point while Android location is enabled;
- * 2. already-recognised trusted place (for example Maison);
- * 3. an older real local point when stale fallback is allowed;
- * 4. explicit opt-in IP-only approximation via beaconDB as absolute last resort.
+ * VeVak does not continuously track the device and does not require Android location to stay on.
+ * Whenever a coordinate-bearing source succeeds, the repository remembers that point locally. A
+ * later request can therefore return the last position even when Android can no longer acquire a
+ * new one.
  *
- * This ordering is important for safety as well as reliability: a trusted Wi-Fi match remains a
- * useful low-cost fallback, but it no longer short-circuits Android positioning while location is
- * enabled. That also lets VeVak keep its bounded local remembered-position cache populated for the
- * moment when Wi-Fi later becomes unavailable.
+ * Normal resolution order:
+ * 1. while Android location is currently usable, try a recent/current local device point;
+ * 2. recognise the configured trusted place if the current network matches;
+ * 3. if explicitly enabled, request a fresh coarse IP/network estimate and remember it;
+ * 4. return the newest coordinate-bearing point VeVak/Android already knows, whatever its source
+ *    or age, with that age made explicit in the SMS;
+ * 5. unavailable only when no source has ever produced usable information.
+ *
+ * The duress/protection path deliberately bypasses this resolver in SmsRequestHandler.
  */
 class VeVakPositionResolver(context: Context) {
     private val appContext = context.applicationContext
@@ -49,33 +51,27 @@ class VeVakPositionResolver(context: Context) {
                 currentLocationTimeoutMillis = settings.locationTimeoutSeconds * 1_000L,
                 allowStaleFallback = false
             )
-            locationRepository.fetchBestLocation(freshPolicy)?.let {
-                return VeVakPositionResolution.Coordinates(it)
-            }
+            runCatching { locationRepository.fetchBestLocation(freshPolicy) }
+                .getOrNull()
+                ?.let { return VeVakPositionResolution.Coordinates(it) }
         }
 
         if (includeTrustedPlace && settings.hasTrustedWifiConfiguration() && trustedNetworkReader.matches(settings)) {
             return VeVakPositionResolution.KnownPlace(settings.trustedPlaceLabel.trim().ifBlank { "Maison" })
         }
 
-        if (settings.allowStaleFallback) {
-            val staleOnlyPolicy = LocationRequestPolicy(
-                maxAcceptedCacheAgeMillis = settings.maxCachedLocationAgeSeconds * 1_000L,
-                currentLocationTimeoutMillis = 0L,
-                allowStaleFallback = true
-            )
-            locationRepository.fetchBestLocation(staleOnlyPolicy)?.let {
-                if (!it.isApproximateNetworkEstimate()) {
-                    return VeVakPositionResolution.Coordinates(it)
+        if (settings.allowNetworkApproximation) {
+            runCatching { onlineApproximation.locate() }
+                .getOrNull()
+                ?.let { approximate ->
+                    runCatching { locationRepository.rememberLocation(approximate) }
+                    return VeVakPositionResolution.Coordinates(approximate)
                 }
-            }
         }
 
-        if (settings.allowNetworkApproximation) {
-            onlineApproximation.locate()?.let {
-                return VeVakPositionResolution.Coordinates(it)
-            }
-        }
+        runCatching { locationRepository.fetchLastKnownLocation() }
+            .getOrNull()
+            ?.let { return VeVakPositionResolution.Coordinates(it) }
 
         return VeVakPositionResolution.Unavailable
     }
