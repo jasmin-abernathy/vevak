@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -195,8 +194,6 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
         val lifecycleOwner = LocalLifecycleOwner.current
         var showSettingsHelp by remember { mutableStateOf(false) }
 
-        // Notifications are intentionally absent: denying POST_NOTIFICATIONS must never block
-        // automatic SMS replies or completion of onboarding.
         val permissions = remember {
             arrayOf(
                 Manifest.permission.RECEIVE_SMS,
@@ -217,8 +214,6 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
         val sendSms = hasPermission(context, Manifest.permission.SEND_SMS)
         val foregroundLocation = hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ||
             hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
-        val optionalNotifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
         val allNeededGranted = receiveSms && sendSms && foregroundLocation
 
         LaunchedEffect(allNeededGranted) {
@@ -243,13 +238,9 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
                 detail = "Permet de mettre à jour la dernière position lorsque VeVak est au premier plan ou qu'Android autorise une acquisition ponctuelle."
             )
             PermissionStatusCard(
-                title = "Notifications non requises",
+                title = "Demandes silencieuses",
                 ready = true,
-                detail = if (optionalNotifications) {
-                    "Elles sont autorisées, mais VeVak n'affiche plus de notification à chaque demande ni de notification permanente."
-                } else {
-                    "Elles sont refusées et c'est compatible avec VeVak : les réponses SMS continuent de fonctionner normalement."
-                }
+                detail = "Aucune permission de notification n'est demandée : les réponses SMS fonctionnent sans notification de demande ni notification permanente."
             )
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
