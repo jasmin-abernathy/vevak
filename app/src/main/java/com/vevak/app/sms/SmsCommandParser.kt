@@ -14,13 +14,16 @@ object SmsCommandParser {
 
     fun matches(messageBody: String, configuredPhrase: String): Boolean {
         val expected = normalize(configuredPhrase)
-        return expected.isNotEmpty() && normalize(messageBody) == expected
+        return expected.isNotEmpty() && normalize(messageBody).contains(expected)
     }
 
     /**
      * Phrase matching is deliberately case-insensitive and locale-independent. NFKC also folds many
      * compatibility characters, while common typographic apostrophes are normalised because SMS
      * keyboards frequently substitute them automatically.
+     *
+     * The configured phrase may appear anywhere in the SMS: contacts do not need to send a message
+     * containing only the phrase-key, so ordinary text can be placed before or after it.
      */
     internal fun normalize(value: String): String =
         Normalizer.normalize(value, Normalizer.Form.NFKC)
