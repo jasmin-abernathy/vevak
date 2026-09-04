@@ -39,6 +39,7 @@ class VeVakSettingsRepository(private val context: Context) {
         val AUTH_GRANTED_AT = longPreferencesKey("authorization_granted_at_epoch_ms")
         val AUTH_EXPIRES_AT = longPreferencesKey("authorization_expires_at_epoch_ms")
         val DURESS_ENABLED = booleanPreferencesKey("duress_enabled")
+        val PROTECTED_CONTACT_ID = stringPreferencesKey("protected_contact_id")
         val DURESS_PHRASE = stringPreferencesKey("duress_phrase")
         val FALLBACK_LAT = stringPreferencesKey("fallback_latitude")
         val FALLBACK_LON = stringPreferencesKey("fallback_longitude")
@@ -105,6 +106,7 @@ class VeVakSettingsRepository(private val context: Context) {
             prefs[Keys.AUTH_GRANTED_AT] = settings.authorizationGrantedAtEpochMs.coerceAtLeast(0L)
             prefs[Keys.AUTH_EXPIRES_AT] = settings.authorizationExpiresAtEpochMs.coerceAtLeast(0L)
             prefs[Keys.DURESS_ENABLED] = settings.duressEnabled
+            prefs[Keys.PROTECTED_CONTACT_ID] = settings.protectedContactId.trim()
             prefs[Keys.DURESS_PHRASE] = settings.duressPhrase.trim()
             settings.fallbackLatitude?.let { prefs[Keys.FALLBACK_LAT] = it.toString() } ?: prefs.remove(Keys.FALLBACK_LAT)
             settings.fallbackLongitude?.let { prefs[Keys.FALLBACK_LON] = it.toString() } ?: prefs.remove(Keys.FALLBACK_LON)
@@ -122,8 +124,8 @@ class VeVakSettingsRepository(private val context: Context) {
 
     private fun Preferences.toSettings(): VeVakSettings {
         val provider = runCatching {
-            MapProvider.valueOf(this[Keys.MAP_PROVIDER] ?: MapProvider.CoMaps.name)
-        }.getOrDefault(MapProvider.CoMaps)
+            MapProvider.valueOf(this[Keys.MAP_PROVIDER] ?: MapProvider.GoogleMaps.name)
+        }.getOrDefault(MapProvider.GoogleMaps)
         val completed = this[Keys.COMPLETED] ?: false
         val storedTrigger = this[Keys.TRIGGER].orEmpty()
         val migratedTrigger = if (!completed && storedTrigger.equals(LEGACY_TRIGGER_PLACEHOLDER, ignoreCase = true)) {
@@ -151,6 +153,7 @@ class VeVakSettingsRepository(private val context: Context) {
             authorizationGrantedAtEpochMs = this[Keys.AUTH_GRANTED_AT] ?: 0L,
             authorizationExpiresAtEpochMs = this[Keys.AUTH_EXPIRES_AT] ?: 0L,
             duressEnabled = this[Keys.DURESS_ENABLED] ?: false,
+            protectedContactId = this[Keys.PROTECTED_CONTACT_ID].orEmpty(),
             duressPhrase = this[Keys.DURESS_PHRASE].orEmpty(),
             fallbackLatitude = this[Keys.FALLBACK_LAT]?.toDoubleOrNull(),
             fallbackLongitude = this[Keys.FALLBACK_LON]?.toDoubleOrNull(),
