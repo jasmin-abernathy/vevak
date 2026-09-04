@@ -149,6 +149,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setDuressEnabled(enabled: Boolean) = updateSettings { it.copy(duressEnabled = enabled) }
     fun updateDuressPhrase(value: String) = updateSettings { it.copy(duressPhrase = value) }
 
+    fun setProtectedContact(contactId: String) {
+        val contact = _state.value.settings.contactById(contactId)
+        if (contact == null) {
+            _state.update { it.copy(message = "Ce contact n'est plus disponible dans VeVak.") }
+            return
+        }
+        updateSettings {
+            it.copy(
+                duressEnabled = true,
+                protectedContactId = contact.id
+            )
+        }
+    }
+
     fun updateTrustedPlaceLabel(value: String) {
         persistSettings(_state.value.settings.copy(trustedPlaceLabel = value.take(40)))
     }
@@ -244,8 +258,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(message = "Ce numéro correspond déjà à un contact VeVak.") }
                 return
             }
-            settings.duressEnabled && !DuressPolicy.phrasesAreDistinctEnough(trigger, settings.duressPhrase) -> {
-                _state.update { it.copy(message = "La phrase normale de ce contact est trop proche de la phrase sous contrainte.") }
+            settings.usesLegacyProtectionPhrase() && !DuressPolicy.phrasesAreDistinctEnough(trigger, settings.duressPhrase) -> {
+                _state.update { it.copy(message = "La phrase normale de ce contact est trop proche de la phrase de protection de l'ancienne configuration.") }
                 return
             }
         }
