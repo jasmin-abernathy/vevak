@@ -11,7 +11,6 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import com.vevak.app.BuildConfig
 import com.vevak.app.location.OnlineApproximateLocationProvider
-import com.vevak.app.location.RememberedLocationPolicy
 import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
@@ -26,7 +25,6 @@ class DiagnosticsRepository(private val context: Context) {
         val receive = granted(Manifest.permission.RECEIVE_SMS)
         val send = granted(Manifest.permission.SEND_SMS)
         val foreground = granted(Manifest.permission.ACCESS_FINE_LOCATION) || granted(Manifest.permission.ACCESS_COARSE_LOCATION)
-        val background = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || granted(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         val telephony = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_MESSAGING)
         } else {
@@ -43,7 +41,7 @@ class DiagnosticsRepository(private val context: Context) {
         val locationServiceCheck = if (capabilities.locationEnabled) {
             ReadinessCheck(
                 "Localisation précise Android",
-                "Activée : VeVak peut demander un nouveau point aux sources Android.",
+                "Activée : VeVak peut demander ponctuellement un nouveau point aux sources Android.",
                 CheckState.Ok
             )
         } else {
@@ -54,7 +52,7 @@ class DiagnosticsRepository(private val context: Context) {
             }
             ReadinessCheck(
                 "Localisation précise Android",
-                "Désactivée : GPS/fused/réseau Android ne peuvent pas produire un nouveau point précis. VeVak peut encore utiliser un lieu reconnu, ses caches et sa mémoire locale (maximum ${RememberedLocationPolicy.MAX_RETENTION_MILLIS / 3_600_000L} h).$extra",
+                "Désactivée : Android ne peut pas produire un nouveau point précis. VeVak peut encore utiliser un lieu reconnu ou sa dernière position mémorisée localement, avec son ancienneté.$extra",
                 CheckState.Warning
             )
         }
@@ -96,8 +94,7 @@ class DiagnosticsRepository(private val context: Context) {
             check(telephony, "Téléphonie SMS", "Appareil compatible.", "Cet appareil ne déclare pas la fonction SMS."),
             check(receive, "Réception des SMS", "Autorisation accordée.", "Autorisation RECEIVE_SMS manquante."),
             check(send, "Envoi des SMS", "Autorisation accordée.", "Autorisation SEND_SMS manquante."),
-            check(foreground, "Permission de localisation", "Accès Android accordé.", "Autorisez la localisation pour permettre les sources précises lorsqu'elles sont activées."),
-            check(background, "Localisation en arrière-plan", "Accès permanent accordé.", "Choisissez « Toujours autoriser » pour les demandes automatiques précises."),
+            check(foreground, "Permission de localisation ponctuelle", "Accès Android accordé. Aucune permission de localisation permanente n'est requise par VeVak.", "Autorisez la localisation lorsque l'application peut l'utiliser afin qu'elle puisse mémoriser un point réel."),
             homeFingerprintCheck,
             locationServiceCheck,
             backendCheck
@@ -123,7 +120,8 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("locationLab.localNetworkFingerprintAvailable=${capabilities.localNetworkFingerprintAvailable}")
             appendLine("locationLab.activeTransport=${capabilities.activeTransport}")
             appendLine("locationLab.finePermission=${capabilities.fineLocationPermission}")
-            appendLine("rememberedLocationRetentionHours=${RememberedLocationPolicy.MAX_RETENTION_MILLIS / 3_600_000L}")
+            appendLine("rememberedLocationRetention=until_replaced_cleared_or_reset")
+            appendLine("backgroundLocationRequired=false")
             appendLine("discreetModeActive=${settings.isDiscreetModeActive()}")
             checks.forEachIndexed { index, value ->
                 appendLine("check.$index=${value.state}:${value.title}")
