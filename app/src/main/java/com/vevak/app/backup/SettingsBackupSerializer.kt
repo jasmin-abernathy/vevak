@@ -43,6 +43,9 @@ object SettingsBackupSerializer {
             setProperty("locationTimeoutSeconds", safe.locationTimeoutSeconds.toString())
             setProperty("allowStaleFallback", safe.allowStaleFallback.toString())
             setProperty("allowNetworkApproximation", safe.allowNetworkApproximation.toString())
+            setProperty("backgroundRefreshEnabled", safe.backgroundRefreshEnabled.toString())
+            setProperty("backgroundRefreshIntervalMinutes", safe.normalizedBackgroundRefreshIntervalMinutes().toString())
+            setProperty("startOnBoot", safe.startOnBoot.toString())
             setProperty("duressEnabled", safe.duressEnabled.toString())
             setProperty("protectedContactId", safe.protectedContactId)
             // Kept for backward compatibility with backups created by the former second-phrase UI.
@@ -74,6 +77,12 @@ object SettingsBackupSerializer {
         val provider = runCatching {
             MapProvider.valueOf(properties.getProperty("mapProvider") ?: MapProvider.GoogleMaps.name)
         }.getOrDefault(MapProvider.GoogleMaps)
+        val refreshMinutes = properties.int("backgroundRefreshIntervalMinutes", 30)
+            .let { stored ->
+                VeVakSettings.BACKGROUND_REFRESH_INTERVAL_CHOICES_MINUTES.minByOrNull {
+                    kotlin.math.abs(it - stored)
+                } ?: 30
+            }
 
         val restored = VeVakSettings(
             completedOnboarding = properties.boolean("completedOnboarding", true),
@@ -93,6 +102,9 @@ object SettingsBackupSerializer {
             locationTimeoutSeconds = properties.int("locationTimeoutSeconds", 8).coerceIn(3, 30),
             allowStaleFallback = properties.boolean("allowStaleFallback", true),
             allowNetworkApproximation = properties.boolean("allowNetworkApproximation", false),
+            backgroundRefreshEnabled = properties.boolean("backgroundRefreshEnabled", false),
+            backgroundRefreshIntervalMinutes = refreshMinutes,
+            startOnBoot = properties.boolean("startOnBoot", false),
             authorizationGrantedAtEpochMs = 0L,
             authorizationExpiresAtEpochMs = 0L,
             duressEnabled = properties.boolean("duressEnabled", false),
