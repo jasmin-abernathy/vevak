@@ -14,7 +14,7 @@ object SmsCommandParser {
 
     fun matches(messageBody: String, configuredPhrase: String): Boolean {
         val expected = normalize(configuredPhrase)
-        return expected.isNotEmpty() && normalize(messageBody).contains(expected)
+        return expected.isNotEmpty() && containsPhrase(normalize(messageBody), expected)
     }
 
     /**
@@ -33,4 +33,26 @@ object SmsCommandParser {
             .lowercase(Locale.ROOT)
             .replace(whitespace, " ")
             .trim()
+
+    /**
+     * Keep "contains" semantics without matching a very short key inside another word (for example
+     * "ok" inside "booking"). Punctuation and whitespace may naturally surround the configured
+     * phrase, so normal conversational SMS still work when the key is in the middle of a sentence.
+     */
+    private fun containsPhrase(message: String, expected: String): Boolean {
+        var fromIndex = 0
+        while (fromIndex <= message.length - expected.length) {
+            val index = message.indexOf(expected, fromIndex)
+            if (index < 0) return false
+
+            val before = message.getOrNull(index - 1)
+            val after = message.getOrNull(index + expected.length)
+            val startsOnBoundary = before == null || !before.isLetterOrDigit()
+            val endsOnBoundary = after == null || !after.isLetterOrDigit()
+            if (startsOnBoundary && endsOnBoundary) return true
+
+            fromIndex = index + 1
+        }
+        return false
+    }
 }
