@@ -74,7 +74,6 @@ import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.MapProvider
 import com.vevak.app.model.TrustedContact
 import com.vevak.app.model.VeVakSettings
-import com.vevak.app.security.DuressPolicy
 import com.vevak.app.system.TrustedNetworkReader
 import com.vevak.app.ui.theme.VeVakTheme
 import java.text.DateFormat
@@ -294,7 +293,7 @@ private fun OptionsScreen(state: AppUiState, vm: AppViewModel) {
             Text(provider.label)
         }
     }
-    SimpleInfo("Protection anti-suivi abusif", "Les réponses automatiques sont limitées à une toutes les 15 minutes et à 4 maximum sur 24 heures, pour l'ensemble des contacts.")
+    SimpleInfo("Protection anti-suivi abusif", "Les réponses automatiques sont limitées à une toutes les 15 minutes et à 4 maximum sur 24 heures, pour l'ensemble des contacts. Le bouton d'urgence déclenché localement n'est pas soumis à cette limite.")
     NavigationButtons(vm, canContinue = true)
 }
 
@@ -559,6 +558,7 @@ private fun HomeTabContent(
                     ) { Text("Pas maintenant") }
                     Button(
                         onClick = {
+                            vm.setProtectedContact(pendingContact.id)
                             pendingProtectionContactId = null
                             setOpenProtectionSetup(true)
                             selectTab(HomeTab.Settings)
@@ -893,19 +893,54 @@ private fun SettingsTabContent(
         )
     }
 
-    SectionToggle("Protection avancée", openProtectionSetup || state.settings.duressEnabled) { setOpenProtectionSetup(!(openProtectionSetup || state.settings.duressEnabled)) }
-    if (openProtectionSetup || state.settings.duressEnabled) {
-        Text("Cette option est destinée aux situations où une personne pourtant autorisée pourrait utiliser votre phrase-clé pour vous surveiller.")
-        CheckRow("Configurer une seconde phrase de protection", state.settings.duressEnabled, vm::setDuressEnabled)
-        if (state.settings.duressEnabled) {
-            OutlinedTextField(value = state.settings.duressPhrase, onValueChange = vm::updateDuressPhrase, label = { Text("Seconde phrase") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            if (state.settings.duressPhrase.isNotBlank() && !DuressPolicy.phrasesAreDistinctEnough(state.settings.triggerPhrase, state.settings.duressPhrase)) {
-                InlineMessage("Choisissez une phrase nettement différente de votre phrase normale.")
+    val protectionExpanded = openProtectionSetup || state.settings.duressEnabled
+    SectionToggle("Protection avancée", protectionExpanded) { setOpenProtectionSetup(!protectionExpanded) }
+    if (protectionExpanded) {
+        Text("Cette option sert si vous craignez qu'une personne déjà autorisée utilise sa propre phrase-clé pour connaître votre vraie position contre votre volonté.")
+
+        if (state.settings.usesLegacyProtectionPhrase() && state.settings.protectedContactId.isBlank()) {
+            SimpleInfo(
+                "Ancienne configuration détectée",
+                "Votre ancienne seconde phrase reste compatible en interne. Pour utiliser le fonctionnement plus simple ci-dessous, sélectionnez le contact concerné : sa phrase habituelle restera inchangée."
+            )
+        }
+
+        Text("Quel contact voulez-vous protéger ?", fontWeight = FontWeight.SemiBold)
+        state.settings.trustedContacts().forEach { contact ->
+            ProtectionContactCard(
+                contact = contact,
+                selected = state.settings.protectedContactId == contact.id,
+                onClick = { vm.setProtectedContact(contact.id) }
+            )
+        }
+
+        val protectedContact = state.settings.protectedContact()
+        if (protectedContact != null) {
+            SimpleInfo(
+                "Phrase utilisée",
+                "${protectedContact.displayLabel()} continuera d'envoyer exactement sa phrase-clé habituelle : « ${protectedContact.triggerPhrase} ». Vous n'avez rien d'autre à lui communiquer."
+            )
+            CheckRow(
+                "Activer la protection pour ${protectedContact.displayLabel()}",
+                state.settings.duressEnabled,
+                vm::setDuressEnabled
+            )
+            Button(onClick = vm::captureFallbackLocation, modifier = Modifier.fillMaxWidth(), enabled = !state.fallbackLocationLoading) {
+                Text(if (state.fallbackLocationLoading) "Enregistrement…" else "Enregistrer le lieu de repli")
             }
-            Button(onClick = vm::captureFallbackLocation, modifier = Modifier.fillMaxWidth(), enabled = !state.fallbackLocationLoading) { Text(if (state.fallbackLocationLoading) "Enregistrement…" else "Enregistrer le lieu de repli") }
-            if (state.settings.hasFallbackCoordinates()) Text("Lieu de repli enregistré ✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            if (state.settings.hasFallbackCoordinates()) {
+                Text("Lieu de repli enregistré ✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+            SimpleInfo(
+                "Ce qui se passera",
+                "Si ${protectedContact.displayLabel()} envoie sa phrase-clé habituelle, VeVak n'ira pas lire votre position réelle : la réponse utilisera uniquement le lieu de repli enregistré. Les autres contacts gardent leur fonctionnement normal."
+            )
             SimpleInfo("Discrétion", "L'accueil, le diagnostic standard et l'historique visible n'indiquent pas que cette protection existe ou qu'elle a été utilisée.")
-            OutlinedButton(onClick = vm::persistDraft, modifier = Modifier.fillMaxWidth(), enabled = vm.duressConfigurationValid()) { Text("Enregistrer la protection") }
+            OutlinedButton(onClick = vm::persistDraft, modifier = Modifier.fillMaxWidth(), enabled = vm.duressConfigurationValid()) {
+                Text("Enregistrer la protection")
+            }
+        } else {
+            InlineMessage("Sélectionnez d'abord le contact concerné. Sa phrase-clé existante sera utilisée automatiquement.")
         }
     }
 
@@ -945,6 +980,32 @@ private fun DurationCard(duration: AuthorizationDuration, selected: Boolean, onC
                         AuthorizationDuration.ThirtyDays -> "Pour un usage régulier"
                     },
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProtectionContactCard(contact: TrustedContact, selected: Boolean, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            RadioButton(selected = selected, onClick = onClick)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(contact.displayLabel(), fontWeight = FontWeight.Bold)
+                Text(
+                    "Phrase-clé : « ${contact.triggerPhrase} »",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
         }
