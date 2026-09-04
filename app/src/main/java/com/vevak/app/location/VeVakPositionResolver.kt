@@ -32,7 +32,8 @@ sealed interface VeVakPositionResolution {
  *    or age, with that age made explicit in the SMS;
  * 5. unavailable only when no source has ever produced usable information.
  *
- * The duress/protection path deliberately bypasses this resolver in SmsRequestHandler.
+ * Explicit manual sharing and the emergency shortcut keep a stricter last-real-only repository
+ * path. The duress/protection path deliberately bypasses this resolver in SmsRequestHandler.
  */
 class VeVakPositionResolver(context: Context) {
     private val appContext = context.applicationContext
@@ -69,7 +70,7 @@ class VeVakPositionResolver(context: Context) {
                 }
         }
 
-        runCatching { locationRepository.fetchLastKnownLocation() }
+        runCatching { locationRepository.fetchLastKnownAnyLocation() }
             .getOrNull()
             ?.let { return VeVakPositionResolution.Coordinates(it) }
 
