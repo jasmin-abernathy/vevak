@@ -12,6 +12,7 @@ errors: list[str] = []
 budgets = json.loads((ROOT / "ECODESIGN_BUDGETS.json").read_text(encoding="utf-8"))
 settings = (ROOT / "app/src/main/java/com/vevak/app/model/VeVakSettings.kt").read_text(encoding="utf-8")
 build = (ROOT / "app/build.gradle.kts").read_text(encoding="utf-8")
+manifest = (ROOT / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
 
 runtime = budgets["runtimeDefaults"]
 expected_ints = {
@@ -38,6 +39,11 @@ if build_budget.get("releaseMinification") and "isMinifyEnabled = true" not in b
     errors.append("Release minification budget is not enforced.")
 if build_budget.get("releaseResourceShrinking") and "isShrinkResources = true" not in build:
     errors.append("Release resource shrinking budget is not enforced.")
+
+# VeVak deliberately relies on foreground/opportunistic acquisition plus local last-position memory.
+# Reintroducing background location would undo that privacy and product contract.
+if "android.permission.ACCESS_BACKGROUND_LOCATION" in manifest:
+    errors.append("Background location permission must not be declared: VeVak uses opportunistic foreground acquisition.")
 
 # The core must not introduce periodic schedulers/background polling frameworks.
 for path in (ROOT / "app/src/main").rglob("*.kt"):
