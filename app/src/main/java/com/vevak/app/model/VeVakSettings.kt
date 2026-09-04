@@ -5,9 +5,9 @@
 package com.vevak.app.model
 
 enum class MapProvider(val label: String) {
+    GoogleMaps("Google Maps"),
     CoMaps("CoMaps / application cartographique"),
-    OpenStreetMap("OpenStreetMap"),
-    GoogleMaps("Google Maps")
+    OpenStreetMap("OpenStreetMap")
 }
 
 enum class AuthorizationDuration(val days: Int, val label: String) {
@@ -32,7 +32,7 @@ data class VeVakSettings(
     val additionalTrustedContacts: List<TrustedContact> = emptyList(),
     val includeBattery: Boolean = true,
     val includeAccuracy: Boolean = true,
-    val mapProvider: MapProvider = MapProvider.CoMaps,
+    val mapProvider: MapProvider = MapProvider.GoogleMaps,
     val minRequestIntervalSeconds: Int = 900,
     val maxCachedLocationAgeSeconds: Int = 120,
     val locationTimeoutSeconds: Int = 8,
@@ -44,6 +44,11 @@ data class VeVakSettings(
     val authorizationGrantedAtEpochMs: Long = 0L,
     val authorizationExpiresAtEpochMs: Long = 0L,
     val duressEnabled: Boolean = false,
+    // New protection mode targets one configured contact. That contact keeps using the exact
+    // phrase already assigned to it; VeVak changes only the reply path for that sender.
+    val protectedContactId: String = "",
+    // Kept for migration compatibility with the earlier beta's separate safety-phrase model.
+    // New configurations do not ask the user to create or reveal a second phrase.
     val duressPhrase: String = "",
     val fallbackLatitude: Double? = null,
     val fallbackLongitude: Double? = null,
@@ -74,6 +79,15 @@ data class VeVakSettings(
     fun contactById(id: String): TrustedContact? =
         if (id == PRIMARY_CONTACT_ID) primaryTrustedContact().takeIf { it.isConfigured() }
         else additionalTrustedContacts.firstOrNull { it.id == id && it.isConfigured() }
+
+    fun protectedContact(): TrustedContact? =
+        protectedContactId.trim().takeIf { it.isNotBlank() }?.let(::contactById)
+
+    fun usesContactTargetedProtection(): Boolean =
+        duressEnabled && protectedContactId.isNotBlank()
+
+    fun usesLegacyProtectionPhrase(): Boolean =
+        duressEnabled && protectedContactId.isBlank() && duressPhrase.isNotBlank()
 
     fun normalTriggerPhrases(): List<String> = trustedContacts().map { it.triggerPhrase }.filter { it.isNotBlank() }
 
@@ -106,9 +120,13 @@ data class VeVakSettings(
             contactPhone = "",
             triggerPhrase = "",
             authorizationGrantedAtEpochMs = 0L,
-            authorizationExpiresAtEpochMs = 0L
+            authorizationExpiresAtEpochMs = 0L,
+            duressEnabled = if (protectedContactId == id) false else duressEnabled
         )
-        else -> copy(additionalTrustedContacts = additionalTrustedContacts.filterNot { it.id == id })
+        else -> copy(
+            additionalTrustedContacts = additionalTrustedContacts.filterNot { it.id == id },
+            duressEnabled = if (protectedContactId == id) false else duressEnabled
+        )
     }
 
     fun withAllAuthorizationsRevoked(): VeVakSettings = copy(
@@ -122,8 +140,12 @@ data class VeVakSettings(
         fallbackLatitude?.let { it in -90.0..90.0 } == true &&
             fallbackLongitude?.let { it in -180.0..180.0 } == true
 
-    fun hasValidDuressConfiguration(): Boolean =
-        !duressEnabled || (duressPhrase.isNotBlank() && hasFallbackCoordinates())
+    fun hasValidDuressConfiguration(): Boolean = when {
+        !duressEnabled -> true
+        !hasFallbackCoordinates() -> false
+        protectedContactId.isNotBlank() -> protectedContact() != null
+        else -> duressPhrase.isNotBlank()
+    }
 
     fun hasTrustedWifiConfiguration(): Boolean =
         trustedWifiEnabled && trustedWifiHash.isNotBlank() && trustedPlaceLabel.isNotBlank()
