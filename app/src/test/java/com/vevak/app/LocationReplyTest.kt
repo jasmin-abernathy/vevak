@@ -19,7 +19,7 @@ class LocationReplyTest {
     private val settings = VeVakSettings(includeAccuracy = true, mapProvider = MapProvider.OpenStreetMap)
 
     @Test
-    fun normalCoordinateReply_usesLastKnownUrlRadiusAndBatteryOnly() {
+    fun normalCoordinateReply_keepsAddressUrlRadiusAndBattery() {
         val location = VeVakLocationSnapshot(
             latitude = 49.1193,
             longitude = 6.1757,
@@ -36,38 +36,41 @@ class LocationReplyTest {
         assertTrue(body.contains("openstreetmap.org"))
         assertTrue(body.contains("49.119300"))
         assertTrue(body.contains("6.175700"))
+        assertTrue(body.contains("Adresse approx. : 12 rue Exemple, 57000 Metz, France"))
         assertTrue(body.contains("Rayon approximatif : env. 24 m"))
         assertTrue(body.contains("Batterie : 49 %"))
-        assertFalse(body.contains("Adresse approx."))
     }
 
     @Test
-    fun manualCoordinateReply_usesTheSamePayloadContract() {
+    fun manualCoordinateReply_keepsRestoredAddressPayloadContract() {
         val location = VeVakLocationSnapshot(
             latitude = 49.1193,
             longitude = 6.1757,
             accuracyMeters = 24f,
             source = LocationSource.AndroidLastKnown,
             ageMillis = 7 * 60_000L,
-            isMocked = false
+            isMocked = false,
+            address = "12 rue Exemple, 57000 Metz, France"
         )
 
         val body = SmsReplyFormatter.formatManualShareWithBatteryLabel(settings, location, "Batterie en charge")
 
         assertTrue(body.contains("Dernière position connue : il y a 7 min"))
+        assertTrue(body.contains("Adresse approx. : 12 rue Exemple, 57000 Metz, France"))
         assertTrue(body.contains("Rayon approximatif : env. 24 m"))
         assertTrue(body.contains("Batterie en charge"))
     }
 
     @Test
-    fun emergencyReply_isExplicitAndIncludesLastKnownAge() {
+    fun emergencyReply_isExplicitAndDoesNotAddReverseGeocoderText() {
         val location = VeVakLocationSnapshot(
             latitude = 49.1193,
             longitude = 6.1757,
             accuracyMeters = 38f,
             source = LocationSource.VeVakRemembered,
             ageMillis = 2 * 60 * 60_000L,
-            isMocked = false
+            isMocked = false,
+            address = "12 rue Exemple, 57000 Metz, France"
         )
 
         val body = SmsReplyFormatter.formatEmergencyShareWithBatteryLabel(settings, location, "Batterie : 31 %")
@@ -76,6 +79,7 @@ class LocationReplyTest {
         assertTrue(body.contains("Dernière position connue : il y a 2 h"))
         assertTrue(body.contains("openstreetmap.org"))
         assertTrue(body.contains("Batterie : 31 %"))
+        assertFalse(body.contains("Adresse approx."))
         assertFalse(body.contains("Estimation via le réseau"))
     }
 
