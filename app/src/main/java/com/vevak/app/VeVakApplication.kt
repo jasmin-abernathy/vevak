@@ -7,7 +7,6 @@ package com.vevak.app
 import android.app.Application
 import com.vevak.app.background.PositionRefreshScheduler
 import com.vevak.app.data.VeVakSettingsRepository
-import com.vevak.app.system.RequestVisibilityNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,7 +18,6 @@ class VeVakApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        RequestVisibilityNotifier(this).ensureChannels()
 
         // Reconcile the one-shot refresh alarm whenever the process starts. This is not a location
         // acquisition by itself: it only makes sure an explicitly enabled schedule exists (or that
