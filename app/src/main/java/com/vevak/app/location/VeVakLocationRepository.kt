@@ -13,30 +13,26 @@ class VeVakLocationRepository(context: Context) {
     private val rememberedLocationStore = RememberedLocationStore(appContext)
 
     /**
-     * Returns the newest coordinate-bearing position already known locally, regardless of the
-     * method that originally produced it.
+     * Legacy/explicit-share contract: returns only the newest real/local position already known.
      *
-     * No new positioning request and no network request is started here. Android's own cache and
-     * VeVak's app-private memory are compared by capture age. This is the canonical fallback used
-     * when a fresh acquisition cannot run (location switch off, permission unavailable, background
-     * restrictions, etc.).
+     * Manual sharing and the emergency shortcut intentionally keep using this method so an opted-in
+     * IP estimate can never silently replace the stricter "last real point" behaviour introduced in
+     * 0.3.6. No new positioning request is started here.
      */
-    suspend fun fetchLastKnownLocation(): VeVakLocationSnapshot? {
-        val androidCached = runCatching {
-            provider.lastKnownLocation()
-                ?.toVeVakSnapshot(provider.lastKnownSource)
-                ?.takeUnless { it.isMocked }
-        }.getOrNull()
-        val rememberedCached = runCatching { rememberedLocationStore.read() }.getOrNull()
-
-        androidCached?.let { rememberLocation(it) }
-        val bestCached = freshest(androidCached, rememberedCached) ?: return null
-        return enrich(bestCached)
-    }
+    suspend fun fetchLastKnownLocation(): VeVakLocationSnapshot? =
+        fetchCachedLocation(includeNetworkApproximation = false)
 
     /**
-     * Tries the local Android location stack without allowing a previously remembered IP estimate
-     * to short-circuit a real device fix.
+     * Automatic phrase-key contract: returns the newest coordinate-bearing position already known,
+     * regardless of whether it came from Android or from the explicitly enabled network/IP fallback.
+     * Its source and age remain attached to the snapshot for honest SMS formatting.
+     */
+    suspend fun fetchLastKnownAnyLocation(): VeVakLocationSnapshot? =
+        fetchCachedLocation(includeNetworkApproximation = true)
+
+    /**
+     * Tries the local Android location stack without letting a remembered IP estimate short-circuit
+     * a real device fix.
      *
      * Resolution order inside this local stack:
      * 1. sufficiently fresh Android cache or remembered real/local point;
@@ -47,11 +43,8 @@ class VeVakLocationRepository(context: Context) {
      * location capability. That must never prevent VeVak from falling back to its remembered point.
      */
     suspend fun fetchBestLocation(policy: LocationRequestPolicy): VeVakLocationSnapshot? {
-        val androidCached = runCatching {
-            provider.lastKnownLocation()?.toVeVakSnapshot(provider.lastKnownSource)
-        }.getOrNull()?.takeUnless { it.isMocked }
-        val rememberedCached = runCatching { rememberedLocationStore.read() }.getOrNull()
-            ?.takeUnless { it.isApproximateNetworkEstimate() || it.source == LocationSource.SafetyFallback }
+        val androidCached = platformCachedLocation()
+        val rememberedCached = runCatching { rememberedLocationStore.readReal() }.getOrNull()
         val bestCached = freshest(androidCached, rememberedCached)
 
         if (bestCached != null && LocationSelectionPolicy.acceptsCache(
@@ -81,9 +74,9 @@ class VeVakLocationRepository(context: Context) {
     }
 
     /**
-     * Persists any legitimate coordinate-bearing source selected by the resolver, including an
-     * explicitly opted-in network/IP estimate. Duress fallback coordinates and mocked points are
-     * rejected by RememberedLocationPolicy.
+     * Persists any legitimate coordinate-bearing source selected by the resolver. The memory store
+     * keeps a separate last-real slot, so remembering an IP estimate cannot erase the emergency or
+     * manual-share fallback. Safety/duress coordinates and mocked points are rejected by policy.
      */
     suspend fun rememberLocation(location: VeVakLocationSnapshot) {
         rememberedLocationStore.remember(location)
@@ -94,6 +87,25 @@ class VeVakLocationRepository(context: Context) {
     suspend fun clearRememberedLocation() {
         rememberedLocationStore.clear()
     }
+
+    private suspend fun fetchCachedLocation(includeNetworkApproximation: Boolean): VeVakLocationSnapshot? {
+        val androidCached = platformCachedLocation()
+        androidCached?.let { runCatching { rememberLocation(it) } }
+
+        val rememberedCached = runCatching {
+            if (includeNetworkApproximation) rememberedLocationStore.read()
+            else rememberedLocationStore.readReal()
+        }.getOrNull()
+
+        val bestCached = freshest(androidCached, rememberedCached) ?: return null
+        return enrich(bestCached)
+    }
+
+    private fun platformCachedLocation(): VeVakLocationSnapshot? = runCatching {
+        provider.lastKnownLocation()
+            ?.toVeVakSnapshot(provider.lastKnownSource)
+            ?.takeUnless { it.isMocked }
+    }.getOrNull()
 
     private fun freshest(vararg candidates: VeVakLocationSnapshot?): VeVakLocationSnapshot? =
         candidates.filterNotNull().minByOrNull { it.ageMillis }
