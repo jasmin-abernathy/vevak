@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vevak.app.BuildConfig
 import com.vevak.app.R
+import com.vevak.app.location.VeVakPositionResolver
 import com.vevak.app.model.MapProvider
 import com.vevak.app.ui.theme.VeVakTheme
 
@@ -64,6 +65,21 @@ import com.vevak.app.ui.theme.VeVakTheme
 fun VeVakAppRoot(viewModel: AppViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     if (!state.loaded) return
+
+    val appContext = LocalContext.current.applicationContext
+    LaunchedEffect(state.settings.completedOnboarding) {
+        if (state.settings.completedOnboarding) {
+            // One opportunistic refresh when VeVak becomes operational (or is opened again). This
+            // is foreground work only: no periodic/background tracker is started. includeTrustedPlace
+            // is false because the goal here is to populate coordinate memory when possible.
+            runCatching {
+                VeVakPositionResolver(appContext).resolve(
+                    settings = state.settings,
+                    includeTrustedPlace = false
+                )
+            }
+        }
+    }
 
     when (state.step) {
         OnboardingStep.Options -> VeVakOptionsStep(state, viewModel)
@@ -191,7 +207,7 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
             viewModel.refreshDiagnostics()
         }
 
-        varRefreshOnResume(lifecycleOwner, viewModel)
+        RefreshDiagnosticsOnResume(lifecycleOwner, viewModel)
 
         val receiveSms = hasPermission(context, Manifest.permission.RECEIVE_SMS)
         val sendSms = hasPermission(context, Manifest.permission.SEND_SMS)
@@ -349,7 +365,7 @@ private fun CheckRow(label: String, checked: Boolean, onCheckedChange: (Boolean)
 }
 
 @Composable
-private fun varRefreshOnResume(
+private fun RefreshDiagnosticsOnResume(
     lifecycleOwner: androidx.lifecycle.LifecycleOwner,
     viewModel: AppViewModel
 ) {
