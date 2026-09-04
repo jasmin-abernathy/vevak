@@ -18,36 +18,58 @@ Une reconnexion ou un changement de préfixe IPv6 peut provoquer un faux négati
 
 La détection du lieu de confiance n'est jamais utilisée pour une commande sous contrainte.
 
-## Dernière position locale mémorisée
+## Dernières positions mémorisées
 
-Pour éviter de dépendre uniquement du cache Android — que le système peut vider lorsque l'utilisateur coupe le bouton global « Localisation » — VeVak conserve dans son stockage privé **une seule dernière position réelle obtenue avec succès**, avec sa précision et son heure d'acquisition.
+VeVak ne suit pas le téléphone en continu. Quand une source de coordonnées fournit ponctuellement un résultat exploitable, l'application peut en conserver une petite copie dans son stockage privé afin qu'une demande ultérieure ne devienne pas inutile simplement parce que la localisation Android a été coupée entre-temps.
 
-Cette mémoire locale expire automatiquement après **24 heures**, n'est jamais envoyée à un serveur et n'est pas incluse dans l'export `.vvk`. Une position signalée par Android comme simulée n'est pas mémorisée dans ce cache de résilience.
+Deux mémoires sont séparées volontairement :
+
+- **dernière position, toute source légitime** : utilisée par une demande automatique via phrase-clé. Elle peut provenir d'Android ou, uniquement si l'utilisateur a activé ce repli, d'une estimation réseau/IP ;
+- **dernier point réel/local** : utilisé pour le partage manuel et le raccourci d'urgence. Une estimation IP ne remplace jamais ce point plus strict.
+
+Ces positions restent dans le stockage privé de l'application jusqu'à ce qu'elles soient remplacées par une information plus récente, effacées ou supprimées avec les données de VeVak. Leur heure d'acquisition est conservée afin que le SMS puisse annoncer honnêtement leur ancienneté. Une ancienne position n'est donc jamais présentée comme actuelle.
+
+Une position signalée par Android comme simulée est refusée. Les coordonnées du lieu de repli utilisées par la protection sous contrainte sont également exclues de cette mémoire normale.
+
+Ces mémoires ne sont jamais incluses dans l'export `.vvk`, ni affichées dans les diagnostics expurgés, ni envoyées à un serveur VeVak.
 
 ## Résolution de position et estimation réseau facultative
 
-Les demandes normales, le partage manuel et le test de localisation utilisent le même moteur de résolution. Depuis la 0.3.5, l'ordre de confiance est :
+Pour une demande SMS normale et autorisée, VeVak suit le contrat suivant :
 
-1. lieu de confiance déjà reconnu ;
-2. position Android ou cache local récent ;
-3. dernière position réelle locale plus ancienne, si ce repli est autorisé ;
-4. estimation réseau/IP facultative en dernier recours.
+1. si Android permet à cet instant une localisation ponctuelle, essayer une position locale récente ou actuelle ;
+2. si le lieu de confiance configuré est reconnu, répondre avec ce lieu ;
+3. si l'utilisateur a explicitement activé l'estimation réseau, essayer une zone approximative via l'adresse IP ;
+4. à défaut, utiliser la dernière coordonnée mémorisée, quelle que soit sa méthode d'obtention et quel que soit son âge ;
+5. répondre « position indisponible » uniquement si aucune source exploitable n'a jamais fourni d'information.
 
-Cette hiérarchie est volontaire : une vraie position locale datée et assortie de sa précision peut être plus utile qu'un centre d'adresse IP « actuel » avec une incertitude de plusieurs dizaines de kilomètres.
+Lorsqu'une position est obtenue alors que VeVak est ouvert et que l'accès Android est disponible, l'application peut également rafraîchir opportunément cette mémoire. Cela ne crée ni tâche périodique ni suivi permanent.
+
+VeVak ne demande pas `ACCESS_BACKGROUND_LOCATION` et ne considère pas la localisation permanente comme une condition de fonctionnement. Les permissions de localisation classique servent à obtenir ponctuellement un point lorsqu'Android et l'utilisateur l'autorisent.
 
 L'estimation réseau est **désactivée par défaut**. Lorsqu'elle est activée, VeVak peut envoyer une requête HTTPS IP-only au service public beaconDB (`https://api.beacondb.net/v1/geolocate`). VeVak n'envoie dans cette requête ni SSID, ni BSSID, ni Cell ID, ni numéro de téléphone, ni texte SMS, ni phrase-clé, ni coordonnée locale. Comme pour toute connexion Internet, le serveur distant voit nécessairement l'adresse IP publique utilisée pour la requête ainsi qu'un User-Agent technique indiquant VeVak, sa version et sa variante.
 
-Une estimation obtenue par IP n'est jamais présentée comme une « dernière position connue ». VeVak la présente comme **une zone estimée via le réseau**. Le lien cartographique est centré et dézoomé selon le rayon annoncé par le fournisseur au lieu d'afficher un pin précis. Au-delà de 10 km de rayon, le SMS signale explicitement que la précision est faible.
+Une estimation obtenue par IP reste toujours présentée comme **une zone estimée via le réseau**, jamais comme un point GPS précis. Son ancienneté est conservée si elle devient la dernière information connue. Le lien cartographique est centré et dézoomé selon le rayon annoncé par le fournisseur au lieu d'afficher un pin précis. Au-delà de 10 km de rayon, le SMS signale explicitement que la précision est faible lorsque l'utilisateur a choisi d'inclure cette information.
 
-VeVak ne réduit jamais artificiellement le rayon annoncé par le fournisseur et ne transforme pas cette estimation en position « précise ». Une estimation réseau n'est pas mémorisée comme dernière position réelle.
+VeVak ne réduit jamais artificiellement le rayon annoncé par le fournisseur et ne transforme pas cette estimation en position « précise ». Elle peut alimenter la mémoire « toute source » des réponses automatiques, mais jamais la mémoire du dernier point réel utilisée par le partage manuel et l'urgence.
 
-La permission Android `INTERNET` est présente dans la variante FOSS à partir de la 0.3.3, mais aucune requête de géolocalisation réseau n'est effectuée tant que l'utilisateur n'a pas activé cette option.
+## Informations présentes dans les SMS
+
+Pour une coordonnée réelle, VeVak envoie le lien cartographique choisi par l'utilisateur et l'ancienneté de la position. Le niveau ou l'état de batterie n'est ajouté que si cette option est activée. Le rayon de précision n'est ajouté que si l'utilisateur a choisi de l'inclure.
+
+Lorsqu'Android peut fournir un reverse geocoding suffisamment fiable, VeVak peut également ajouter une ligne `Adresse approx.` aux réponses normales et aux partages manuels. Cette adresse est un enrichissement best-effort : son absence ou l'échec du géocodeur ne bloque jamais les coordonnées ni le SMS. Le raccourci d'urgence reste volontairement plus compact et n'ajoute pas ce texte d'adresse.
 
 ## Commande sous contrainte
 
 Le mode sous contrainte est volontairement isolé du moteur normal. Une commande sous contrainte n'inspecte ni le Wi-Fi courant, ni les caches réels, ni la position réelle, et n'effectue jamais la requête beaconDB, même si l'estimation réseau est activée.
 
 La réponse sous contrainte est construite uniquement à partir du lieu de repli préenregistré. La phrase sous contrainte doit rester distincte de toutes les phrases normales configurées.
+
+## Phrase-clé
+
+La comparaison de la phrase-clé est insensible aux majuscules/minuscules et indépendante de la langue du téléphone. VeVak normalise aussi les espaces répétés, certains espaces insécables courants et les apostrophes typographiques afin qu'une correction automatique de clavier ne rende pas une phrase invalide.
+
+Cette tolérance ne change pas les autres contrôles : le numéro expéditeur doit correspondre à un contact configuré, son autorisation doit être active et les limites anti-suivi restent appliquées.
 
 ## Diagnostics expurgés
 
@@ -61,7 +83,7 @@ VeVak conserve localement au maximum 20 résultats récents de demandes (horodat
 
 Une demande reconnue doit pouvoir rester localement visible avant qu'une position soit envoyée automatiquement. Si les notifications VeVak sont désactivées ou interdites, aucune position automatique n'est envoyée. Le mode discret temporaire utilise un canal silencieux et sans vibration, mais ne supprime ni la notification de demande dans le volet Android ni la notification persistante indiquant que VeVak est actif.
 
-Le propriétaire du téléphone peut aussi déclencher lui-même un partage manuel vers un contact VeVak configuré. Ce flux exige une sélection locale du destinataire et une confirmation explicite avant la résolution et l'envoi du SMS.
+Le propriétaire du téléphone peut aussi déclencher lui-même un partage manuel vers un contact VeVak configuré. Ce flux exige une sélection locale du destinataire et une confirmation explicite avant l'envoi du SMS. Il utilise uniquement le dernier point réel déjà connu et n'est pas remplacé par une estimation IP.
 
 Pour éviter un choix implicite sur les appareils double-SIM/eSIM, le partage manuel utilise uniquement la SIM définie par Android comme SIM SMS par défaut. Si Android n'en expose aucune, VeVak bloque le partage et demande à l'utilisateur d'en choisir une dans les réglages du téléphone.
 
@@ -76,7 +98,7 @@ Ne sont jamais exportés :
 - l'historique local des demandes ;
 - les horodatages d'autorisation active des contacts ;
 - l'état temporaire du mode discret ;
-- la dernière position mémorisée par le mécanisme de résilience ;
+- les dernières positions mémorisées par le mécanisme de résilience ;
 - l'identifiant temporaire de session réseau utilisé pour la continuité du Wi-Fi de confiance.
 
 Après import, tous les contacts restaurés restent désautorisés jusqu'à une nouvelle validation locale.
@@ -85,4 +107,4 @@ Les SMS reçus peuvent être visibles dans l'application de messagerie du télé
 
 La variante `foss` n'utilise pas Google Play Services. La variante `play` utilise le fournisseur de localisation Google et reste isolée dans sa flavor dédiée.
 
-Voir aussi [`ABUSE-PREVENTION.md`](ABUSE-PREVENTION.md) et [`docs/location-resolution-0.3.3.md`](docs/location-resolution-0.3.3.md).
+Voir aussi [`ABUSE-PREVENTION.md`](ABUSE-PREVENTION.md) et [`docs/location-resolution-0.3.8.md`](docs/location-resolution-0.3.8.md).
