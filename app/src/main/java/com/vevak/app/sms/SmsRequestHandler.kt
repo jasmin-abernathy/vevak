@@ -50,10 +50,10 @@ class SmsRequestHandler(private val context: Context) {
             return
         }
 
-        // Notifications are deliberately not a precondition for the core SMS path. A user may deny
-        // POST_NOTIFICATIONS, dismiss all VeVak UI or disable notification channels and still expect
-        // an already-authorised contact's phrase-key to receive a reply. Visibility is provided by
-        // the local audit/history when the owner later opens VeVak, never by forcing a notification.
+        // Android notification permission and channels are deliberately not preconditions for the
+        // core SMS path. An already-authorised contact's phrase-key may therefore receive a reply
+        // even when every VeVak notification surface is absent. The owner can inspect the minimal
+        // local audit later by opening VeVak voluntarily.
         if (!hasPermission(Manifest.permission.SEND_SMS)) {
             auditRepository.append(now, RequestAuditOutcome.SendFailed)
             return
