@@ -51,6 +51,15 @@ if "android.permission.ACCESS_BACKGROUND_LOCATION" in manifest:
 if "android.permission.POST_NOTIFICATIONS" in manifest:
     errors.append("POST_NOTIFICATIONS must not be declared: VeVak 0.3.11 core is notification-free.")
 
+main_kotlin_paths = list((ROOT / "app/src/main").rglob("*.kt"))
+for path in main_kotlin_paths:
+    text = path.read_text(encoding="utf-8")
+    if "POST_NOTIFICATIONS" in text:
+        errors.append(
+            "Notification-permission reference reintroduced in main source: "
+            f"{path.relative_to(ROOT)}"
+        )
+
 notifier_path = ROOT / "app/src/main/java/com/vevak/app/system/RequestVisibilityNotifier.kt"
 if notifier_path.exists():
     notifier_text = notifier_path.read_text(encoding="utf-8")
@@ -67,7 +76,6 @@ if sms_handler_path.exists():
         "showRequestReceived(",
         "notificationsAllowedForRequests(",
         "RequestAuditOutcome.BlockedVisibility",
-        "Manifest.permission.POST_NOTIFICATIONS",
     ):
         if forbidden in sms_handler:
             errors.append(
@@ -110,7 +118,7 @@ if arm_path.exists():
 
 # Best-effort periodic memory is allowed, but VeVak still rejects repeating/exact polling frameworks
 # and WorkManager loops. The implementation must schedule one future tick at a time instead.
-for path in (ROOT / "app/src/main").rglob("*.kt"):
+for path in main_kotlin_paths:
     text = path.read_text(encoding="utf-8")
     for forbidden in (
         "PeriodicWorkRequest",
