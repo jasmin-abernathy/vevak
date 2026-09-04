@@ -29,7 +29,7 @@ object SmsReplyFormatter {
         when {
             location == null -> append("\nPosition indisponible.")
             location.isApproximateNetworkEstimate() -> appendNetworkEstimate(settings, location)
-            else -> appendRealLocation(settings, location)
+            else -> appendRealLocation(settings, location, includeAddress = true)
         }
         appendBattery(settings.includeBattery, batteryLabel)
     }
@@ -52,7 +52,9 @@ object SmsReplyFormatter {
         batteryLabel: String?
     ): String = buildString {
         append("URGENCE VeVak")
-        appendRealLocation(settings, location)
+        // Keep the emergency shortcut compact and deterministic: it carries the last real point,
+        // its age and the selected optional information, but does not add reverse-geocoder text.
+        appendRealLocation(settings, location, includeAddress = false)
         appendBattery(settings.includeBattery, batteryLabel)
     }
 
@@ -84,14 +86,26 @@ object SmsReplyFormatter {
         includeBattery: Boolean
     ): String = formatTrustedPlaceWithBattery(label, batteryLabel, includeBattery)
 
-    private fun StringBuilder.appendRealLocation(settings: VeVakSettings, location: VeVakLocationSnapshot) {
+    private fun StringBuilder.appendRealLocation(
+        settings: VeVakSettings,
+        location: VeVakLocationSnapshot,
+        includeAddress: Boolean
+    ) {
         append("\nDernière position connue : ")
         append(location.ageLabel())
         append('\n')
         append(MapLinkBuilder.build(settings.mapProvider, location.latitude, location.longitude))
+        if (includeAddress) appendAddress(location)
         if (settings.includeAccuracy) {
             append("\nRayon approximatif : ")
             append(location.accuracyLabel())
+        }
+    }
+
+    private fun StringBuilder.appendAddress(location: VeVakLocationSnapshot) {
+        location.address?.trim()?.takeIf { it.isNotBlank() }?.let {
+            append("\nAdresse approx. : ")
+            append(it)
         }
     }
 
