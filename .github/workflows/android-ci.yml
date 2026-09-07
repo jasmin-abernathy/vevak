@@ -1,18 +1,12 @@
 name: Android CI
 
 on:
+  # Branch pushes no longer launch the full dual-flavour Android build. Use
+  # "Run workflow" on main when a beta APK/release is actually wanted.
+  workflow_dispatch:
   push:
-    branches: [main]
-    paths:
-      - "app/**"
-      - "gradle/**"
-      - "gradlew"
-      - "gradlew.bat"
-      - "*.gradle.kts"
-      - "gradle.properties"
-      - "scripts/**"
-      - "ECODESIGN_BUDGETS.json"
-      - ".github/workflows/android-ci.yml"
+    tags:
+      - "v*"
   pull_request:
     paths:
       - "app/**"
@@ -24,13 +18,12 @@ on:
       - "scripts/**"
       - "ECODESIGN_BUDGETS.json"
       - ".github/workflows/android-ci.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-ci-${{ github.ref }}
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -57,6 +50,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [ -d "$ANDROID_HOME/platforms/android-36" ] && [ -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            echo "Requested Android SDK is already installed."
+            exit 0
+          fi
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           if [ ! -x "$SDKMANAGER" ]; then
             SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
@@ -125,7 +122,8 @@ jobs:
   publish-beta:
     name: publish-beta
     needs: verify
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # A rolling beta is published only for an explicit manual run on main.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -167,7 +165,7 @@ jobs:
           APK="beta-apk/$APK_NAME"
           CHECKSUM="beta-apk/$APK_NAME.sha256"
           TITLE="VeVak ${VEVAK_VERSION} bêta — ${SHORT_SHA}"
-          NOTES="Bêta FOSS automatique de VeVak ${VEVAK_VERSION}. APK exacte : ${APK_NAME}. Build issu du commit ${GITHUB_SHA}, publié uniquement après réussite des tests, builds, lints et vérifications de confidentialité/écoconception. Cette préversion reste destinée aux tests sur appareils réels."
+          NOTES="Bêta FOSS manuelle de VeVak ${VEVAK_VERSION}. APK exacte : ${APK_NAME}. Build issu du commit ${GITHUB_SHA}, publié uniquement après réussite des tests, builds, lints et vérifications de confidentialité/écoconception. Cette préversion reste destinée aux tests sur appareils réels."
 
           git tag -f "$TAG" "$GITHUB_SHA"
           git push origin "refs/tags/$TAG" --force
