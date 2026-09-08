@@ -149,7 +149,7 @@ jobs:
           name: vevak-foss-debug-${{ github.sha }}
           path: beta-apk
 
-      - name: Prepare unique beta filename
+      - name: Prepare versioned and stable beta filenames
         shell: bash
         run: |
           set -euo pipefail
@@ -160,6 +160,8 @@ jobs:
           APK_NAME="VeVak-${VERSION}-foss-beta-${SHORT_SHA}.apk"
           mv beta-apk/app-foss-debug.apk "beta-apk/$APK_NAME"
           sha256sum "beta-apk/$APK_NAME" > "beta-apk/$APK_NAME.sha256"
+          cp "beta-apk/$APK_NAME" beta-apk/VeVak-beta.apk
+          sha256sum beta-apk/VeVak-beta.apk > beta-apk/VeVak-beta.apk.sha256
           echo "VEVAK_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "SHORT_SHA=$SHORT_SHA" >> "$GITHUB_ENV"
           echo "APK_NAME=$APK_NAME" >> "$GITHUB_ENV"
@@ -173,6 +175,8 @@ jobs:
           TAG="beta"
           APK="beta-apk/$APK_NAME"
           CHECKSUM="beta-apk/$APK_NAME.sha256"
+          STABLE_APK="beta-apk/VeVak-beta.apk"
+          STABLE_CHECKSUM="beta-apk/VeVak-beta.apk.sha256"
           TITLE="VeVak ${VEVAK_VERSION} bêta — ${SHORT_SHA}"
           NOTES="Bêta FOSS manuelle de VeVak ${VEVAK_VERSION}. APK exacte : ${APK_NAME}. Build issu du commit ${GITHUB_SHA}, publié uniquement après réussite des tests, builds, lints et vérifications de confidentialité/écoconception. Cette préversion reste destinée aux tests sur appareils réels."
 
@@ -183,14 +187,14 @@ jobs:
             gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | while IFS= read -r asset; do
               [ -z "$asset" ] || gh release delete-asset "$TAG" "$asset" --yes --repo "$GITHUB_REPOSITORY"
             done
-            gh release upload "$TAG" "$APK" "$CHECKSUM" --repo "$GITHUB_REPOSITORY"
+            gh release upload "$TAG" "$APK" "$CHECKSUM" "$STABLE_APK" "$STABLE_CHECKSUM" --repo "$GITHUB_REPOSITORY"
             gh release edit "$TAG" \
               --title "$TITLE" \
               --notes "$NOTES" \
               --prerelease \
               --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$TAG" "$APK" "$CHECKSUM" \
+            gh release create "$TAG" "$APK" "$CHECKSUM" "$STABLE_APK" "$STABLE_CHECKSUM" \
               --verify-tag \
               --title "$TITLE" \
               --notes "$NOTES" \
