@@ -1,0 +1,7 @@
+• Historique local et test guidé SMS accessibles.
+• Protection proposée après deux SMS du même contact, jamais par cumul.
+• Urgence facultative dans l’onboarding, sans destinataire précoché.
+• Vraies icônes de raccourci et déclenchement plus résilient.
+• Diagnostic batterie amélioré.
+• Information renforcée avant la localisation en arrière-plan.
+• Réponse par la SIM reçue ; blocage si aucun choix sûr n’est possible.

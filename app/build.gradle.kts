@@ -4,6 +4,17 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val uploadStoreFile = providers.environmentVariable("VEVAK_UPLOAD_STORE_FILE")
+val uploadStorePassword = providers.environmentVariable("VEVAK_UPLOAD_STORE_PASSWORD")
+val uploadKeyAlias = providers.environmentVariable("VEVAK_UPLOAD_KEY_ALIAS")
+val uploadKeyPassword = providers.environmentVariable("VEVAK_UPLOAD_KEY_PASSWORD")
+val hasUploadSigning = listOf(
+    uploadStoreFile,
+    uploadStorePassword,
+    uploadKeyAlias,
+    uploadKeyPassword
+).all { it.isPresent }
+
 android {
     namespace = "com.vevak.app"
     compileSdk = 36
@@ -12,8 +23,8 @@ android {
         applicationId = "com.vevak.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "0.3.12"
+        versionCode = 16
+        versionName = "0.3.13"
 
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -29,9 +40,19 @@ android {
         create("play") {
             dimension = "services"
             applicationIdSuffix = ".play"
-            versionNameSuffix = "-play"
             buildConfigField("String", "LOCATION_BACKEND", "\"Google Fused Location Provider\"")
             buildConfigField("Boolean", "USES_GOOGLE_PLAY_SERVICES", "true")
+        }
+    }
+
+    signingConfigs {
+        if (hasUploadSigning) {
+            create("upload") {
+                storeFile = file(uploadStoreFile.get())
+                storePassword = uploadStorePassword.get()
+                keyAlias = uploadKeyAlias.get()
+                keyPassword = uploadKeyPassword.get()
+            }
         }
     }
 
@@ -43,6 +64,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasUploadSigning) {
+                signingConfig = signingConfigs.getByName("upload")
+            }
         }
         debug {
             applicationIdSuffix = ".debug"

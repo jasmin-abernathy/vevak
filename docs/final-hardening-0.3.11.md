@@ -21,7 +21,9 @@ Le numéro expéditeur, l'autorisation du contact et le quota anti-suivi restent
 - `POST_NOTIFICATIONS` n'est plus déclaré dans le manifeste ;
 - refuser ou désactiver les notifications ne peut jamais bloquer une réponse SMS ;
 - le traitement SMS ne dépend d'aucun canal ou gestionnaire de notification ;
-- après deux réponses normales réussies du même contact, VeVak conserve seulement un compteur local borné et peut proposer la protection lors d'une prochaine ouverture de l'application.
+- dans cette version historique, le compteur avançait après les réponses réussies ; depuis 0.3.13,
+  il avance après deux SMS normaux valides du même contact, même si la limite anti-suivi bloque la
+  seconde réponse.
 
 La CI vérifie explicitement que la permission et les dépendances de notification ne reviennent pas dans le cœur SMS.
 

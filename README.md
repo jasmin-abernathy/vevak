@@ -8,7 +8,7 @@
 > [!WARNING]
 > VeVak ne contacte pas les services de secours et ne remplace pas le 112/911 ni les fonctions d'urgence natives du téléphone. Le projet est encore en bêta et doit être validé sur davantage d'appareils réels.
 
-## VeVak 0.3.12 — corrections issues des tests réels
+## VeVak 0.3.13 — candidate de validation et de publication Play
 
 VeVak permet à des contacts explicitement autorisés de demander une information de localisation par SMS pendant une durée limitée. Jusqu'à cinq contacts peuvent être configurés localement, chacun avec son numéro, sa phrase-clé, son autorisation finie et sa révocation locale.
 
@@ -60,7 +60,12 @@ Depuis 0.3.11 :
 - `POST_NOTIFICATIONS` n'est plus déclaré ;
 - refuser les notifications ne bloque jamais une réponse SMS.
 
-Après deux réponses normales réussies du même contact, VeVak peut proposer la protection lors d'une prochaine ouverture volontaire de l'application, sans notification déclenchée par la demande elle-même.
+Après deux SMS normaux valides du même contact, VeVak peut proposer la protection lors d'une prochaine ouverture volontaire de l'application, sans notification déclenchée par la demande elle-même.
+
+Le compteur est séparé pour chaque contact : deux personnes ayant envoyé un message chacune ne
+déclenchent jamais cette proposition. L'historique local expurgé est désormais accessible dans un
+onglet dédié, reste limité à vingt résultats génériques datés et contient un test guidé du parcours
+SMS réel.
 
 ### Protection ciblée par contact
 
@@ -72,13 +77,14 @@ Les anciennes sauvegardes contenant la seconde phrase de protection des premièr
 
 ### Urgence locale et raccourci discret
 
-Les destinataires de l'urgence sont choisis à l'avance parmi les contacts autorisés : tous les contacts actifs ou un sous-ensemble.
+L'urgence est désactivée par défaut. Pendant l'onboarding ou dans l'écran Sécurité, l'utilisateur
+choisit explicitement les destinataires ; aucun contact n'est précoché.
 
 L'urgence utilise uniquement le dernier point réel/local et son ancienneté, sans estimation réseau/IP ni adresse géocodée. Elle n'est pas soumise au quota anti-suivi des demandes distantes.
 
 VeVak peut demander à Android d'épingler un raccourci d'écran d'accueil avec un nom et une icône génériques/originaux (`Notes`, `Liste`, `Horaires`, `Dossier`, `Outils`, `Mémos`). Cela ne masque ni ne renomme l'application VeVak elle-même.
 
-Premier appui : envoi armé pendant **4 secondes**. Second appui pendant ce délai : annulation. Sans second appui : le SMS d'urgence part vers les destinataires prédéfinis. Le raccourci reste silencieux.
+Premier appui : envoi armé pendant **4 secondes**. Second appui pendant ce délai : annulation. Sans second appui : le SMS d'urgence part vers les destinataires prédéfinis. Une alarme système ponctuelle sert de repli si Android arrête le processus pendant ce délai ; le raccourci reste silencieux.
 
 ### Paramètres restreints Android
 
@@ -128,15 +134,19 @@ Documentation détaillée : [`PRIVACY.md`](PRIVACY.md), [`ABUSE-PREVENTION.md`](
 
 VeVak is an open-source Android application for limited, explicitly authorised location requests by SMS. No VeVak account, advertising, telemetry or mandatory application server is required.
 
-### 0.3.12 highlights
+### 0.3.13 highlights
 
 - A configured phrase may appear inside a longer SMS; matching remains case-insensitive and typography-normalised.
 - Automatic SMS replies no longer depend on Android notifications. There are no per-request or permanent status notifications and `POST_NOTIFICATIONS` is not declared.
+- The app exposes its redacted twenty-entry local request history and offers targeted protection on
+  a later opening after two valid SMS messages from one specific contact; contacts are never pooled.
 - Normal resolution remains: Android location → trusted place → opt-in network/IP estimate → latest remembered coordinate → unavailable.
 - VeVak keeps separate any-source memory for automatic requests and last-real/local memory for manual/emergency actions.
 - The owner may opt into a single-slot last-position refresh target of 15/30/60 minutes (30 by default), with optional re-scheduling after boot. Optional background-location access is requested only for this off-screen refresh; it is never required for SMS replies. There is no route/history.
 - Protection is targeted at a selected trusted contact while keeping that contact's existing phrase. The protected path only uses the pre-recorded fallback and never consults real location, trusted Wi-Fi or network approximation.
-- Emergency recipients are preselected locally. A generic pinned home-screen shortcut can arm the emergency SMS for four seconds; a second tap cancels it. Emergency uses last-real/local position only and bypasses the remote-request quota.
+- Emergency recipients are selected locally in advance. A generic pinned home-screen shortcut can arm the emergency SMS for four seconds; a second tap cancels it. Emergency uses last-real/local position only and bypasses the remote-request quota.
+- Emergency is unconfigured by default, preselects no recipient during onboarding and shows the real
+  generic shortcut icon previews before pinning.
 - The sideload/restricted-settings flow explains Android's `Allow restricted settings` step before opening app settings and rechecks permissions automatically on return.
 
 Production automatic replies keep a device-wide minimum interval of 15 minutes and a maximum of four replies per 24 hours.

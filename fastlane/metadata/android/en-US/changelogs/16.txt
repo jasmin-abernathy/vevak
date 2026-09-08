@@ -1,0 +1,6 @@
+• Accessible local history and guided SMS test.
+• Protection offered after two messages from the same contact, never pooled.
+• Optional emergency onboarding with no recipient preselected.
+• Real shortcut icons and more resilient delayed sending.
+• Better battery diagnostics and background-location disclosure.
+• Replies use the receiving SIM and fail closed if no safe choice is available.

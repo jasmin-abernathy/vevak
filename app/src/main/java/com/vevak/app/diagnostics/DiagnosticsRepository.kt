@@ -8,6 +8,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import com.vevak.app.BuildConfig
 import com.vevak.app.background.BackgroundLocationAccess
@@ -36,6 +37,10 @@ class DiagnosticsRepository(private val context: Context) {
         val authorization = activeContacts.isNotEmpty()
         val backgroundLocation = BackgroundLocationAccess.isGranted(context)
         val duressValid = DuressPolicy.configurationIsValid(settings)
+        val powerManager = context.getSystemService(PowerManager::class.java)
+        val batteryUnrestricted = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+            powerManager?.isIgnoringBatteryOptimizations(context.packageName) == true
+        val manufacturer = Build.MANUFACTURER.trim().ifBlank { "Android" }
 
         val locationServiceCheck = if (capabilities.locationEnabled) {
             ReadinessCheck(
@@ -94,6 +99,15 @@ class DiagnosticsRepository(private val context: Context) {
             check(send, "Envoi des SMS", "Autorisation accordée.", "Autorisation SEND_SMS manquante."),
             check(foreground, "Permission de localisation ponctuelle", "Accès Android accordé pour les demandes et les usages au premier plan.", "Autorisez la localisation lorsque l'application peut l'utiliser afin qu'elle puisse mémoriser un point réel."),
             ReadinessCheck(
+                "Restrictions batterie — $manufacturer",
+                if (batteryUnrestricted) {
+                    "Android ne signale pas d'optimisation batterie restrictive pour VeVak."
+                } else {
+                    "Android ou $manufacturer peut retarder les SMS et la mémoire périodique en arrière-plan. Vérifiez les réglages Batterie de VeVak et autorisez son activité en arrière-plan si votre téléphone le propose."
+                },
+                if (batteryUnrestricted) CheckState.Ok else CheckState.Warning
+            ),
+            ReadinessCheck(
                 "Mise à jour périodique",
                 when {
                     !settings.backgroundRefreshEnabled -> "Désactivée par le propriétaire."
@@ -135,6 +149,7 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("rememberedLocationRetention=until_replaced_cleared_or_reset")
             appendLine("backgroundRefreshEnabled=${settings.backgroundRefreshEnabled}")
             appendLine("backgroundLocationGranted=$backgroundLocation")
+            appendLine("batteryOptimizationIgnored=$batteryUnrestricted")
             checks.forEachIndexed { index, value ->
                 appendLine("check.$index=${value.state}:${value.title}")
             }

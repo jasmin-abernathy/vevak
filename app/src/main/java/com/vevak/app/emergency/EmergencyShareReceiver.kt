@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 class EmergencyShareReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_SEND_EMERGENCY_LOCATION) return
+        if (!EmergencyShortcutArmController(context).consumeIfArmed(intent.getStringExtra(EXTRA_ARM_ID))) return
         val pendingResult = goAsync()
         val appContext = context.applicationContext
 
@@ -82,5 +83,6 @@ class EmergencyShareReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_SEND_EMERGENCY_LOCATION = "com.vevak.app.action.SEND_EMERGENCY_LOCATION"
+        const val EXTRA_ARM_ID = "emergency_arm_id"
     }
 }

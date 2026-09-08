@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
@@ -40,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.vevak.app.background.PositionRefreshScheduler
@@ -84,10 +86,12 @@ private fun SafetyCenter(
     val shortcutManager = remember { EmergencyShortcutManager(context.applicationContext) }
     val refreshScheduler = remember { PositionRefreshScheduler(context.applicationContext) }
     var settings by remember { mutableStateOf<VeVakSettings?>(null) }
+    var emergencyConfigured by remember { mutableStateOf(recipientStore.isConfigured()) }
     var allRecipients by remember { mutableStateOf(recipientStore.usesAllActiveContacts()) }
     var selectedIds by remember { mutableStateOf(recipientStore.selectedContactIds()) }
     var selectedShortcutPreset by remember { mutableStateOf(shortcutManager.selectedPreset()) }
     var replacementArmed by remember { mutableStateOf(false) }
+    var showBackgroundDisclosure by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val backgroundPermissionLauncher = rememberLauncherForActivityResult(
@@ -145,11 +149,20 @@ private fun SafetyCenter(
         HorizontalDivider()
         Text("Destinataires de l'urgence", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Choisissez maintenant qui recevra le SMS. Le déclenchement d'urgence n'affichera ensuite aucun choix de destinataire ni écran de confirmation.")
+        if (!emergencyConfigured) {
+            Card {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Envoi d'urgence non configuré", fontWeight = FontWeight.Bold)
+                    Text("Aucun contact ne recevra d'alerte tant que vous n'aurez pas fait un choix explicite ci-dessous.")
+                }
+            }
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(
-                selected = allRecipients,
+                selected = emergencyConfigured && allRecipients,
                 onClick = {
+                    emergencyConfigured = true
                     allRecipients = true
                     recipientStore.setUseAllActiveContacts(true)
                     message = null
@@ -159,21 +172,14 @@ private fun SafetyCenter(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(
-                selected = !allRecipients,
+                selected = emergencyConfigured && !allRecipients,
                 onClick = {
-                    val initial = if (selectedIds.isEmpty()) {
-                        activeContacts.firstOrNull()?.id?.let { setOf(it) }.orEmpty()
-                    } else {
-                        selectedIds
-                    }
-                    if (initial.isEmpty()) {
-                        message = "Autorisez d'abord au moins un contact avant de créer une liste d'urgence prédéfinie."
-                    } else {
-                        allRecipients = false
-                        selectedIds = initial
-                        recipientStore.setSelectedContactIds(initial)
-                        message = null
-                    }
+                    emergencyConfigured = true
+                    allRecipients = false
+                    recipientStore.setSelectedContactIds(selectedIds)
+                    message = if (activeContacts.isEmpty()) {
+                        "Autorisez d'abord au moins un contact avant de choisir les destinataires."
+                    } else null
                 }
             )
             Text("Seulement des contacts prédéfinis")
@@ -212,10 +218,18 @@ private fun SafetyCenter(
 
         Text("Nom et icône du raccourci", fontWeight = FontWeight.SemiBold)
         EmergencyShortcutPreset.entries.forEach { preset ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 RadioButton(
                     selected = preset == selectedShortcutPreset,
                     onClick = { selectedShortcutPreset = preset }
+                )
+                androidx.compose.foundation.Image(
+                    painter = painterResource(preset.iconRes),
+                    contentDescription = "Aperçu ${preset.label}",
+                    modifier = Modifier.padding(2.dp)
                 )
                 Column {
                     Text(preset.label, fontWeight = FontWeight.SemiBold)
@@ -225,7 +239,10 @@ private fun SafetyCenter(
         }
 
         Button(
-            enabled = activeContacts.isNotEmpty() && shortcutManager.isSupported(),
+            enabled = emergencyConfigured &&
+                activeContacts.isNotEmpty() &&
+                (allRecipients || selectedIds.any { id -> activeContacts.any { it.id == id } }) &&
+                shortcutManager.isSupported(),
             onClick = {
                 message = if (shortcutManager.requestPin(selectedShortcutPreset)) {
                     "Android va vous proposer d'ajouter « ${selectedShortcutPreset.label} » à l'écran d'accueil. Une fois ajouté, ses destinataires d'urgence resteront ceux définis ci-dessus."
@@ -235,6 +252,19 @@ private fun SafetyCenter(
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Créer ce raccourci") }
+
+        if (emergencyConfigured) {
+            OutlinedButton(
+                onClick = {
+                    recipientStore.clear()
+                    emergencyConfigured = false
+                    allRecipients = false
+                    selectedIds = emptySet()
+                    message = "Envoi d'urgence désactivé. Les raccourcis déjà placés ne pourront plus envoyer de SMS."
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Désactiver l'envoi d'urgence") }
+        }
 
         if (activeContacts.isEmpty()) {
             Text("Autorisez au moins un contact avant de créer le raccourci d'urgence.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -250,23 +280,14 @@ private fun SafetyCenter(
                 Checkbox(
                     checked = current.backgroundRefreshEnabled,
                     onCheckedChange = { enabled ->
-                        saveRefreshSettings(
-                            current.copy(
-                                backgroundRefreshEnabled = enabled,
-                                startOnBoot = if (enabled) current.startOnBoot else false
-                            ),
-                            if (enabled) {
-                                if (backgroundLocationGranted) {
-                                    "Rafraîchissement périodique activé. Android peut décaler certains passages pour économiser la batterie."
-                                } else if (current.allowNetworkApproximation) {
-                                    "Rafraîchissement activé pour la zone réseau approximative. Autorisez l'arrière-plan pour obtenir aussi de nouveaux points Android hors écran."
-                                } else {
-                                    "Option enregistrée, mais suspendue tant que la localisation en arrière-plan n'est pas autorisée dans Android."
-                                }
-                            } else {
+                        if (enabled) {
+                            showBackgroundDisclosure = true
+                        } else {
+                            saveRefreshSettings(
+                                current.copy(backgroundRefreshEnabled = false, startOnBoot = false),
                                 "Rafraîchissement périodique désactivé. La dernière position déjà mémorisée reste disponible."
-                            }
-                        )
+                            )
+                        }
                     }
                 )
                 Text("Essayer de garder une dernière position récente")
@@ -414,5 +435,31 @@ private fun SafetyCenter(
 
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         OutlinedButton(onClick = close, modifier = Modifier.fillMaxWidth()) { Text("Fermer") }
+    }
+
+    if (showBackgroundDisclosure && current != null) {
+        AlertDialog(
+            onDismissRequest = { showBackgroundDisclosure = false },
+            title = { Text("Localisation lorsque VeVak est fermé") },
+            text = {
+                Text(
+                    "Si vous activez cette option, VeVak pourra accéder ponctuellement à la localisation en arrière-plan, même lorsque l'application n'est pas affichée, afin de remplacer sa seule dernière position mémorisée. VeVak ne crée aucun trajet, ne conserve aucun historique de positions et ne transmet pas ces données à un serveur VeVak. Android peut retarder les passages."
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showBackgroundDisclosure = false
+                    saveRefreshSettings(
+                        current.copy(backgroundRefreshEnabled = true),
+                        "Rafraîchissement périodique activé. Android peut décaler certains passages pour économiser la batterie."
+                    )
+                }) { Text("J'ai compris — activer") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showBackgroundDisclosure = false }
+                ) { Text("Annuler") }
+            }
+        )
     }
 }

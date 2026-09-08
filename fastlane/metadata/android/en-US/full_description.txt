@@ -1,0 +1,18 @@
+VeVak lets people you choose request your location on demand by SMS.
+
+You stay in control:
+• up to five contacts configured locally;
+• a passphrase and time-limited authorisation for each contact;
+• immediate revocation from your phone;
+• device-wide anti-tracking limits of 15 minutes between replies and 4 replies per 24 hours;
+• a discreet offer of additional protection after two valid SMS messages from the same contact.
+
+VeVak needs no VeVak account or mandatory server for its core SMS flow. It contains no advertising, trackers or telemetry.
+
+Location is accessed only when needed for an authorised request or an action you start. VeVak can retain one latest location, replacing the previous one, but does not build a route or location history.
+
+Optional features include a coarse network/IP fallback, one-slot periodic location refresh, local Home network recognition, manual sharing, a discreet emergency shortcut with explicitly selected recipients, and encrypted settings backup.
+
+VeVak does not contact emergency services and does not replace 112, 911 or Android’s built-in emergency features. SMS sending and delivery depend on the device and mobile carrier.
+
+Open-source software licensed under GPL-3.0-or-later.

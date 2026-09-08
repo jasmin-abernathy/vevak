@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.13 - Google Play hand-off candidate
+
+- exposes the redacted, twenty-entry local request history in a dedicated navigation tab;
+- adds a guided real-SMS test that reports the first redacted result observed after launch;
+- keeps a separate two-request counter for every trusted contact and offers the targeted protection
+  only on a later app opening after one specific contact reaches two valid SMS messages;
+- adds optional emergency setup to the six-step onboarding flow with no recipient preselected;
+- shows the real generic shortcut icons before pinning and makes emergency unconfigured by default;
+- backs the four-second emergency arm window with a one-shot system alarm so process death does not
+  silently discard an armed action;
+- adds a prominent disclosure before optional background-location refresh is enabled;
+- fails closed when neither the receiving SIM nor Android's default SMS SIM is identifiable;
+- exposes manufacturer-labelled battery/background guidance in the local diagnostic;
+- prepares Play Store metadata, permission-declaration notes and environment-only upload signing.
+
 ## 0.3.12 - real-device regression repair (2026-09-08)
 
 ### Fixed

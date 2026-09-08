@@ -50,14 +50,28 @@ class SmsRequestHandler(private val context: Context) {
             return
         }
 
-        // Android notification permission and channels are deliberately not preconditions for the
-        // core SMS path. An already-authorised contact's phrase-key may therefore receive a reply
-        // even when every VeVak notification surface is absent. The owner can inspect the minimal
-        // local audit later by opening VeVak voluntarily.
+        if (mode == IncomingRequestMode.Normal) {
+            // This is deliberately per contact and happens before the global rate limit: a second
+            // valid SMS remains a meaningful safety signal even when no second reply is allowed.
+            protectionPromptRepository.recordRecognizedNormalRequest(contact.id)
+        }
+
         if (!hasPermission(Manifest.permission.SEND_SMS)) {
             auditRepository.append(now, RequestAuditOutcome.SendFailed)
             return
         }
+
+        sendReply(contact, incoming.sender ?: contact.phone, incoming.subscriptionId, settings, mode, now)
+    }
+
+    private suspend fun sendReply(
+        contact: TrustedContact,
+        recipient: String,
+        subscriptionId: Int?,
+        settings: VeVakSettings,
+        mode: IncomingRequestMode,
+        now: Long
+    ) {
 
         // Production keeps the non-negotiable anti-tracking floor. Debug builds intentionally
         // relax only the interval so a tester can repeat the same end-to-end SMS scenario quickly;
@@ -106,14 +120,8 @@ class SmsRequestHandler(private val context: Context) {
         }
 
         val sent = runCatching {
-            replySender.send(incoming.sender, reply, incoming.subscriptionId)
+            replySender.send(recipient, reply, subscriptionId)
         }.isSuccess
-
-        if (sent && mode == IncomingRequestMode.Normal) {
-            // This counter is deliberately invisible. The UI only checks eligibility on a later
-            // voluntary app launch, so the second request itself creates no prompt or notification.
-            protectionPromptRepository.recordSuccessfulNormalReply(contact.id)
-        }
 
         auditRepository.append(
             now,

@@ -1,0 +1,24 @@
+VeVak permet à des personnes que vous choisissez de demander ponctuellement votre position par SMS.
+
+Vous gardez le contrôle :
+• jusqu’à cinq contacts configurés localement ;
+• une phrase-clé et une autorisation limitée dans le temps pour chaque contact ;
+• révocation immédiate depuis votre téléphone ;
+• limites anti-suivi globales de 15 minutes entre les réponses et de 4 réponses sur 24 heures ;
+• proposition discrète d’une protection supplémentaire après deux SMS valides du même contact.
+
+VeVak fonctionne sans compte VeVak et sans serveur obligatoire pour son cœur SMS. L’application ne contient ni publicité, ni pisteur, ni télémétrie.
+
+La localisation est recherchée uniquement lorsqu’elle est utile à une demande autorisée ou à une action que vous déclenchez. VeVak peut conserver une seule dernière position, remplacée par la suivante, mais ne construit aucun trajet ni historique de déplacements.
+
+Vous pouvez facultativement activer :
+• une estimation réseau/IP approximative en dernier recours ;
+• le rafraîchissement périodique d’une seule dernière position ;
+• un réseau Maison reconnu localement ;
+• un partage manuel ;
+• un raccourci discret d’urgence vers des destinataires choisis explicitement ;
+• une sauvegarde chiffrée de la configuration.
+
+VeVak ne contacte pas les services de secours et ne remplace pas le 112, le 911 ou les fonctions d’urgence intégrées à Android. L’envoi et la livraison d’un SMS dépendent du téléphone et de l’opérateur.
+
+Projet libre sous licence GPL-3.0-or-later.

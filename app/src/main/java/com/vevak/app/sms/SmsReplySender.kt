@@ -23,10 +23,13 @@ class SmsReplySender(private val context: Context) {
         } else {
             SmsManager.getDefault()
         }
+        val resolvedSubscriptionId = SmsSubscriptionPolicy.resolve(
+            receivedSubscriptionId = subscriptionId,
+            defaultSubscriptionId = SubscriptionManager.getDefaultSmsSubscriptionId()
+        ) ?: error("No deterministic SMS subscription is available")
         val manager: SmsManager = when {
-            subscriptionId == null || subscriptionId == SubscriptionManager.INVALID_SUBSCRIPTION_ID -> baseManager
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> baseManager.createForSubscriptionId(subscriptionId)
-            else -> SmsManager.getSmsManagerForSubscriptionId(subscriptionId)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> baseManager.createForSubscriptionId(resolvedSubscriptionId)
+            else -> SmsManager.getSmsManagerForSubscriptionId(resolvedSubscriptionId)
         }
 
         val parts = manager.divideMessage(body)
@@ -36,4 +39,13 @@ class SmsReplySender(private val context: Context) {
             manager.sendMultipartTextMessage(normalizedDestination, null, parts, null, null)
         }
     }
+}
+
+internal object SmsSubscriptionPolicy {
+    fun resolve(receivedSubscriptionId: Int?, defaultSubscriptionId: Int): Int? =
+        receivedSubscriptionId
+            ?.takeIf { it != SubscriptionManager.INVALID_SUBSCRIPTION_ID && it >= 0 }
+            ?: defaultSubscriptionId.takeIf {
+                it != SubscriptionManager.INVALID_SUBSCRIPTION_ID && it >= 0
+            }
 }

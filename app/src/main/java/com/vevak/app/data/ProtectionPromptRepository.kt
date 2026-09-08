@@ -12,21 +12,28 @@ import kotlinx.coroutines.flow.first
 
 private val Context.protectionPromptDataStore by preferencesDataStore(name = "vevak_protection_prompt")
 
+internal object ProtectionPromptPolicy {
+    const val REQUIRED_REPLIES = 2
+    fun increment(current: Int): Int = (current + 1).coerceIn(0, REQUIRED_REPLIES)
+    fun isEligible(count: Int, dismissed: Boolean): Boolean = count >= REQUIRED_REPLIES && !dismissed
+}
+
 /**
- * Stores only coarse local counters keyed by VeVak contact ids. It never stores SMS bodies,
- * phone numbers, coordinates or the protection phrase.
+ * Stores one bounded recognised-request count per local contact id. Counts from different contacts
+ * are never combined. SMS bodies, phone numbers, coordinates and phrases are never stored here.
  */
 class ProtectionPromptRepository(private val context: Context) {
     private object Keys {
+        // Keep the existing key so installed beta versions retain their per-contact counters.
         val COUNTS = stringPreferencesKey("normal_reply_counts_v1")
         val DISMISSED = stringPreferencesKey("dismissed_contacts_v1")
     }
 
-    suspend fun recordSuccessfulNormalReply(contactId: String) {
+    suspend fun recordRecognizedNormalRequest(contactId: String) {
         if (contactId.isBlank()) return
         context.protectionPromptDataStore.edit { prefs ->
             val counts = decodeCounts(prefs[Keys.COUNTS].orEmpty()).toMutableMap()
-            counts[contactId] = ((counts[contactId] ?: 0) + 1).coerceAtMost(2)
+            counts[contactId] = ProtectionPromptPolicy.increment(counts[contactId] ?: 0)
             prefs[Keys.COUNTS] = encodeCounts(counts)
         }
     }
@@ -36,7 +43,9 @@ class ProtectionPromptRepository(private val context: Context) {
         val dismissed = decodeIds(prefs[Keys.DISMISSED].orEmpty())
         return decodeCounts(prefs[Keys.COUNTS].orEmpty())
             .entries
-            .firstOrNull { (contactId, count) -> count >= 2 && contactId !in dismissed }
+            .firstOrNull { (contactId, count) ->
+                ProtectionPromptPolicy.isEligible(count, contactId in dismissed)
+            }
             ?.key
     }
 
@@ -61,7 +70,9 @@ class ProtectionPromptRepository(private val context: Context) {
             val parts = line.split(',', limit = 2)
             if (parts.size != 2) return@mapNotNull null
             val id = parts[0].trim().takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val count = parts[1].toIntOrNull()?.coerceIn(0, 2) ?: return@mapNotNull null
+            val count = parts[1].toIntOrNull()
+                ?.coerceIn(0, ProtectionPromptPolicy.REQUIRED_REPLIES)
+                ?: return@mapNotNull null
             id to count
         }
         .toMap()
@@ -70,4 +81,5 @@ class ProtectionPromptRepository(private val context: Context) {
         .map(String::trim)
         .filter(String::isNotBlank)
         .toSet()
+
 }

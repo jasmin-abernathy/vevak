@@ -50,7 +50,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -68,8 +67,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vevak.app.R
-import com.vevak.app.data.ProtectionPromptRepository
+import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.RequestAuditOutcome
+import com.vevak.app.emergency.EmergencyShortcutManager
+import com.vevak.app.emergency.EmergencyShortcutPreset
+import com.vevak.app.diagnostics.CheckState
+import com.vevak.app.diagnostics.ReadinessCheck
 import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.MapProvider
 import com.vevak.app.model.TrustedContact
@@ -84,6 +87,7 @@ private enum class HomeTab(val label: String, val glyph: String) {
     Home("Accueil", "⌂"),
     Contacts("Contacts", "◎"),
     Places("Lieux", "⌖"),
+    History("Historique", "≡"),
     Settings("Réglages", "⚙")
 }
 
@@ -96,6 +100,24 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
         var homeTabName by rememberSaveable { mutableStateOf(HomeTab.Home.name) }
         val homeTab = runCatching { HomeTab.valueOf(homeTabName) }.getOrDefault(HomeTab.Home)
         var openProtectionSetup by rememberSaveable { mutableStateOf(false) }
+        val rootLifecycleOwner = LocalLifecycleOwner.current
+        var wasStopped by remember { mutableStateOf(false) }
+
+        LaunchedEffect(Unit) { viewModel.refreshProtectionOfferForOpening() }
+        DisposableEffect(rootLifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_STOP -> wasStopped = true
+                    Lifecycle.Event.ON_START -> if (wasStopped) {
+                        wasStopped = false
+                        viewModel.refreshProtectionOfferForOpening()
+                    }
+                    else -> Unit
+                }
+            }
+            rootLifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { rootLifecycleOwner.lifecycle.removeObserver(observer) }
+        }
 
         BackHandler(enabled = state.step !in listOf(OnboardingStep.Welcome, OnboardingStep.Home)) {
             viewModel.previous()
@@ -150,7 +172,8 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
                     OnboardingStep.Trigger -> TriggerScreen(state, viewModel)
                     OnboardingStep.Options -> OptionsScreen(state, viewModel)
                     OnboardingStep.Permissions -> PermissionsScreen(state, viewModel)
-                    OnboardingStep.Safety, OnboardingStep.Summary -> ConsentScreen(state, viewModel)
+                    OnboardingStep.Safety -> EmergencySetupScreen(state, viewModel)
+                    OnboardingStep.Summary -> ConsentScreen(state, viewModel)
                     OnboardingStep.Home -> HomeShell(
                         state = state,
                         vm = viewModel,
@@ -224,7 +247,7 @@ private fun ContactScreen(state: AppUiState, vm: AppViewModel) {
         }
     }
 
-    StepLabel("Étape 1 sur 5")
+    StepLabel("Étape 1 sur 6")
     Title("Qui pourra vous demander votre position ?")
     Text("Choisissez une personne dans votre répertoire. VeVak ne demande pas l'accès à tout votre carnet d'adresses.")
     Primary("Choisir dans mes contacts") {
@@ -251,7 +274,7 @@ private fun ContactScreen(state: AppUiState, vm: AppViewModel) {
 
 @Composable
 private fun TriggerScreen(state: AppUiState, vm: AppViewModel) {
-    StepLabel("Étape 2 sur 5")
+    StepLabel("Étape 2 sur 6")
     Title("Choisissez une phrase-clé")
     Text("Votre contact peut inclure cette phrase n'importe où dans un SMS normal. Majuscules, minuscules, espaces insécables et apostrophes typographiques courantes sont normalisés.")
     OutlinedTextField(
@@ -267,7 +290,7 @@ private fun TriggerScreen(state: AppUiState, vm: AppViewModel) {
 
 @Composable
 private fun OptionsScreen(state: AppUiState, vm: AppViewModel) {
-    StepLabel("Étape 3 sur 5")
+    StepLabel("Étape 3 sur 6")
     Title("Que doit contenir la réponse ?")
     CheckRow("Ajouter le niveau de batterie", state.settings.includeBattery) { vm.updateOptions(battery = it) }
     CheckRow("Ajouter la précision de la position", state.settings.includeAccuracy) { vm.updateOptions(accuracy = it) }
@@ -342,7 +365,7 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
         if (allGranted) vm.next()
     }
 
-    StepLabel("Étape 4 sur 5")
+    StepLabel("Étape 4 sur 6")
     Title("Autorisations nécessaires")
     Text("VeVak a besoin des SMS et d'une localisation ponctuelle. Les notifications ne sont pas nécessaires et ne conditionnent jamais une réponse automatique.")
 
@@ -369,12 +392,129 @@ private fun PermissionsScreen(state: AppUiState, vm: AppViewModel) {
 }
 
 @Composable
+private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
+    val context = LocalContext.current
+    val recipientStore = remember { EmergencyRecipientStore(context.applicationContext) }
+    val shortcutManager = remember { EmergencyShortcutManager(context.applicationContext) }
+    val contact = state.settings.primaryTrustedContact()
+    var configuring by rememberSaveable { mutableStateOf(recipientStore.isConfigured()) }
+    var selected by remember {
+        mutableStateOf(recipientStore.selectedContactIds().intersect(setOf(contact.id)))
+    }
+    var presetName by rememberSaveable { mutableStateOf(shortcutManager.selectedPreset().name) }
+    var message by rememberSaveable { mutableStateOf<String?>(null) }
+    val preset = runCatching { EmergencyShortcutPreset.valueOf(presetName) }
+        .getOrDefault(EmergencyShortcutPreset.Notes)
+
+    StepLabel("Étape 5 sur 6")
+    Title("Envoi d'urgence — facultatif")
+    Text("VeVak peut aussi envoyer rapidement votre dernière position réelle connue à des contacts choisis à l'avance. Ce n'est pas un appel aux services de secours.")
+    SimpleInfo(
+        "Déclenchement protégé",
+        "Un raccourci discret peut être placé sur l'écran d'accueil. Premier appui : envoi armé pendant 4 secondes. Second appui : annulation. Sinon, le SMS part automatiquement."
+    )
+
+    if (!configuring) {
+        Button(onClick = { configuring = true }, modifier = Modifier.fillMaxWidth()) {
+            Text("Configurer l'envoi d'urgence")
+        }
+        OutlinedButton(
+            onClick = {
+                recipientStore.clear()
+                vm.next()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Pas maintenant") }
+        OutlinedButton(onClick = vm::previous, modifier = Modifier.fillMaxWidth()) { Text("Retour") }
+        return
+    }
+
+    Text("Qui recevra le message ?", fontWeight = FontWeight.SemiBold)
+    Text("Aucun contact n'est sélectionné automatiquement.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = contact.id in selected,
+                onCheckedChange = { checked ->
+                    selected = if (checked) setOf(contact.id) else emptySet()
+                    message = null
+                }
+            )
+            Text(contact.displayLabel())
+        }
+    }
+
+    Text("Nom et icône du raccourci", fontWeight = FontWeight.SemiBold)
+    EmergencyShortcutPreset.entries.forEach { candidate ->
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { presetName = candidate.name },
+            colors = CardDefaults.cardColors(
+                containerColor = if (candidate == preset) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                RadioButton(selected = candidate == preset, onClick = { presetName = candidate.name })
+                androidx.compose.foundation.Image(
+                    painter = painterResource(candidate.iconRes),
+                    contentDescription = "Aperçu ${candidate.label}",
+                    modifier = Modifier.size(40.dp)
+                )
+                Column {
+                    Text(candidate.label, fontWeight = FontWeight.SemiBold)
+                    Text(candidate.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+
+    if (!shortcutManager.isSupported()) {
+        SimpleInfo(
+            "Raccourci non pris en charge",
+            "Ce lanceur Android ne permet pas à VeVak d'ajouter automatiquement un raccourci. Vous pouvez continuer sans activer l'urgence."
+        )
+    }
+
+    message?.let { InlineMessage(it) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        OutlinedButton(onClick = vm::previous, modifier = Modifier.weight(1f)) { Text("Retour") }
+        Button(
+            onClick = {
+                recipientStore.setSelectedContactIds(selected)
+                val pinRequested = shortcutManager.requestPin(preset)
+                if (!pinRequested && shortcutManager.isSupported()) {
+                    message = "Android n'a pas pu ouvrir la confirmation du raccourci. Réessayez ou configurez-le plus tard dans Sécurité."
+                } else {
+                    vm.next()
+                }
+            },
+            enabled = selected.isNotEmpty() && shortcutManager.isSupported(),
+            modifier = Modifier.weight(1f)
+        ) { Text("Activer et continuer") }
+    }
+    TextButton(
+        onClick = {
+            recipientStore.clear()
+            vm.next()
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) { Text("Continuer sans urgence") }
+}
+
+@Composable
 private fun ConsentScreen(state: AppUiState, vm: AppViewModel) {
     val contact = state.settings.primaryTrustedContact()
     val duration = state.authorizationDuration
     val expiry = duration.expiresAt(System.currentTimeMillis())
 
-    StepLabel("Étape 5 sur 5")
+    StepLabel("Étape 6 sur 6")
     Title("Autoriser ce contact")
     Text("Vous choisissez pendant combien de temps cette personne pourra demander votre position.")
 
@@ -419,6 +559,7 @@ private fun HomeShell(
         HomeTab.Home -> HomeTabContent(state, vm, selectTab, setOpenProtectionSetup)
         HomeTab.Contacts -> ContactsTabContent(state, vm)
         HomeTab.Places -> PlacesTabContent(state, vm)
+        HomeTab.History -> HistoryTabContent(state, vm)
         HomeTab.Settings -> SettingsTabContent(state, vm, openProtectionSetup, setOpenProtectionSetup)
     }
 }
@@ -431,10 +572,7 @@ private fun HomeTabContent(
     setOpenProtectionSetup: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val promptRepository = remember { ProtectionPromptRepository(context.applicationContext) }
     val trustedNetworkReader = remember { TrustedNetworkReader(context.applicationContext) }
-    var pendingProtectionContactId by rememberSaveable { mutableStateOf<String?>(null) }
     var shareChooser by rememberSaveable { mutableStateOf(false) }
     var locationRefresh by remember { mutableIntStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -445,13 +583,6 @@ private fun HomeTabContent(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     @Suppress("UNUSED_VARIABLE") val refresh = locationRefresh
-
-    LaunchedEffect(Unit) {
-        if (!state.settings.duressEnabled) {
-            pendingProtectionContactId = promptRepository.firstEligibleContactId()
-        }
-    }
-
     val contacts = state.settings.trustedContacts()
     val active = state.settings.activeTrustedContacts()
     val hasSuccessfulRequest = state.auditEvents.any { it.outcome == RequestAuditOutcome.Replied }
@@ -535,7 +666,7 @@ private fun HomeTabContent(
         ActionCard("Réseau Maison manquant", "Le réseau Maison fait désormais partie de la configuration de sécurité initiale. Fermez puis rouvrez VeVak pour compléter cette étape.", "Compris") { }
     }
 
-    val pendingContact = pendingProtectionContactId?.let(state.settings::contactById)
+    val pendingContact = state.protectionOfferContactId?.let(state.settings::contactById)
     if (pendingContact != null && !state.settings.duressEnabled) {
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -544,15 +675,13 @@ private fun HomeTabContent(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(
                         onClick = {
-                            scope.launch { promptRepository.dismiss(pendingContact.id) }
-                            pendingProtectionContactId = null
+                            vm.continueWithoutProtection(pendingContact.id)
                         },
                         modifier = Modifier.weight(1f)
-                    ) { Text("Pas maintenant") }
+                    ) { Text("Continuer sans protection") }
                     Button(
                         onClick = {
                             vm.setProtectedContact(pendingContact.id)
-                            pendingProtectionContactId = null
                             setOpenProtectionSetup(true)
                             selectTab(HomeTab.Settings)
                         },
@@ -563,6 +692,53 @@ private fun HomeTabContent(
         }
     }
 
+    state.message?.let { InlineMessage(it) }
+}
+
+@Composable
+private fun HistoryTabContent(state: AppUiState, vm: AppViewModel) {
+    Title("Historique local")
+    Text("VeVak conserve au maximum 20 résultats datés. Aucun numéro, texte de SMS, phrase-clé, position ou usage de la protection n'est enregistré.")
+    val testContact = state.settings.activeTrustedContacts().firstOrNull()
+    val testStart = state.guidedTestStartedAtMillis
+    val testResult = testStart?.let { started ->
+        state.auditEvents.firstOrNull { it.timestampMillis >= started }
+    }
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Test guidé SMS réel", fontWeight = FontWeight.Bold)
+            when {
+                testContact == null -> Text("1. Autorisez d'abord un contact dans l'onglet Contacts.")
+                testStart == null -> Text("VeVak vérifiera la chaîne réelle : réception du SMS, contact et phrase reconnus, autorisation, localisation puis envoi de la réponse.")
+                testResult == null -> Text("Envoyez depuis ${testContact.displayLabel()} un SMS contenant « ${testContact.triggerPhrase} ». Si aucun résultat n'apparaît, vérifiez l'autorisation de réception, le numéro expéditeur et la phrase.")
+                else -> Text("Résultat : ${testResult.outcome.label}. La date et le détail générique apparaissent aussi dans l'historique ci-dessous.")
+            }
+            Button(
+                onClick = vm::startGuidedSmsTest,
+                enabled = testContact != null,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (testStart == null) "Démarrer le test" else "Recommencer le test") }
+        }
+    }
+    if (state.auditEvents.isEmpty()) {
+        SimpleInfo("Aucun événement", "Les résultats des demandes reconnues apparaîtront ici.")
+    } else {
+        state.auditEvents.forEach { event ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(event.outcome.label, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                            .format(Date(event.timestampMillis)),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        OutlinedButton(onClick = vm::clearAuditHistory, modifier = Modifier.fillMaxWidth()) {
+            Text("Effacer l'historique local")
+        }
+    }
     state.message?.let { InlineMessage(it) }
 }
 
@@ -854,9 +1030,11 @@ private fun SettingsTabContent(
 
     SectionToggle("Diagnostic", diagnosticOpen) { diagnosticOpen = !diagnosticOpen }
     if (diagnosticOpen) {
-        DiagnosticRow("SMS", hasPermission(context, Manifest.permission.RECEIVE_SMS) && hasPermission(context, Manifest.permission.SEND_SMS))
-        DiagnosticRow("Permission de localisation ponctuelle", hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) || hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION))
-        DiagnosticRow("Demandes silencieuses", true)
+        state.diagnostics?.checks?.forEach { ReadinessCheckCard(it) }
+
+        OutlinedButton(onClick = { openBatterySettings(context) }, modifier = Modifier.fillMaxWidth()) {
+            Text("Ouvrir les réglages batterie")
+        }
 
         state.diagnostics?.locationCapabilities?.let { lab ->
             SimpleInfo(
@@ -939,6 +1117,9 @@ private fun SettingsTabContent(
     HorizontalDivider()
     Text("À propos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
     Text("VeVak fonctionne localement par défaut et n'est pas un service d'urgence. Si vous activez volontairement l'estimation réseau, un appel à beaconDB peut être utilisé uniquement comme repli approximatif.")
+    OutlinedButton(onClick = { openPrivacyPage(context) }, modifier = Modifier.fillMaxWidth()) {
+        Text("Politique de confidentialité")
+    }
     SimpleInfo("Projet libre et gratuit", "Si VeVak vous est utile, vous pouvez soutenir volontairement son développement. Un don ne débloque aucune fonction et n'est jamais nécessaire pour utiliser le socle de sécurité.")
     OutlinedButton(onClick = { openSupportPage(context) }, modifier = Modifier.fillMaxWidth()) { Text("Soutenir VeVak 🌱") }
     TextButton(onClick = vm::reset, modifier = Modifier.fillMaxWidth()) { Text("Réinitialiser VeVak") }
@@ -1043,10 +1224,25 @@ private fun SectionToggle(title: String, expanded: Boolean, onClick: () -> Unit)
 }
 
 @Composable
-private fun DiagnosticRow(label: String, ok: Boolean) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label)
-        Text(if (ok) "Prêt ✓" else "À régler", color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+private fun ReadinessCheckCard(check: ReadinessCheck) {
+    val color = when (check.state) {
+        CheckState.Ok -> MaterialTheme.colorScheme.primary
+        CheckState.Warning -> MaterialTheme.colorScheme.tertiary
+        CheckState.Error -> MaterialTheme.colorScheme.error
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                when (check.state) {
+                    CheckState.Ok -> "Prêt ✓ — ${check.title}"
+                    CheckState.Warning -> "À vérifier — ${check.title}"
+                    CheckState.Error -> "À corriger — ${check.title}"
+                },
+                color = color,
+                fontWeight = FontWeight.Bold
+            )
+            Text(check.detail)
+        }
     }
 }
 
@@ -1112,9 +1308,23 @@ private fun openLocationSettings(context: Context) {
     context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
 }
 
+private fun openBatterySettings(context: Context) {
+    runCatching {
+        context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+    }.recoverCatching {
+        openAppSettings(context)
+    }
+}
+
 private fun openSupportPage(context: Context) {
     runCatching {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://vevak.lepotager.org/soutenir/")))
+    }
+}
+
+private fun openPrivacyPage(context: Context) {
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://vevak.lepotager.org/confidentialite/")))
     }
 }
 

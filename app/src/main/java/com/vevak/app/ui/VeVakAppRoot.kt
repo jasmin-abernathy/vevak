@@ -97,7 +97,7 @@ private fun VeVakOptionsStep(state: AppUiState, viewModel: AppViewModel) {
         BackHandler { viewModel.previous() }
         SetupColumn {
             SetupHeader(
-                step = "Étape 3 sur 5",
+                step = "Étape 3 sur 6",
                 title = "Ce que VeVak répond",
                 subtitle = "La position reste la fonction centrale. Vous choisissez les informations qui l'accompagnent."
             )
@@ -222,7 +222,7 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
 
         SetupColumn {
             SetupHeader(
-                step = "Étape 4 sur 5",
+                step = "Étape 4 sur 6",
                 title = "Autorisations",
                 subtitle = "Une fois les accès réellement nécessaires accordés, cette étape se valide automatiquement."
             )

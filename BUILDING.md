@@ -57,7 +57,15 @@ vevak-foss-debug-<commit SHA>
 
 as a GitHub Actions artifact with a short retention period. This artifact is deliberately published **only after all FOSS and Play verification steps have succeeded**, so the APK used for a real-device regression test can be tied to an exact validated commit.
 
-For the 0.3.12 regression candidate, verify the app reports version `0.3.12` / versionCode `15` before using test results to validate natural-message phrase matching, off-screen single-slot refresh, Location-OFF network approximation and the discreet emergency shortcut.
+For the 0.3.13 candidate, verify the app reports version `0.3.13` / versionCode `16` before using test results to validate natural-message phrase matching, per-contact protection prompting, visible redacted history, off-screen single-slot refresh, Location-OFF network approximation and the discreet emergency shortcut.
+
+## Google Play bundle
+
+The Play release can be signed without placing secrets in the repository. Set
+`VEVAK_UPLOAD_STORE_FILE`, `VEVAK_UPLOAD_STORE_PASSWORD`, `VEVAK_UPLOAD_KEY_ALIAS` and
+`VEVAK_UPLOAD_KEY_PASSWORD`, then run `./gradlew clean bundlePlayRelease`. See
+[`docs/google-play-release-0.3.13.md`](docs/google-play-release-0.3.13.md) for the permission and
+Play Console hand-off checklist.
 
 An Actions artifact is a test build, not a signed production release. Do not present it as the future stable/F-Droid release.
 

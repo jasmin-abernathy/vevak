@@ -12,7 +12,7 @@ La phrase-clé est comparée sans tenir compte de la casse et après normalisati
 
 Les demandes automatiques ne dépendent plus des notifications Android. VeVak 0.3.11 ne déclare pas `POST_NOTIFICATIONS`, n'affiche pas de notification à chaque demande et n'utilise pas de notification permanente `VeVak actif`.
 
-Après deux réponses normales réussies du même contact, VeVak peut mémoriser uniquement un compteur local borné pour proposer la protection lors d'une prochaine ouverture volontaire de l'application. Ce compteur ne contient ni texte SMS, ni numéro, ni position.
+Après deux SMS normaux valides du même contact, VeVak peut mémoriser uniquement un compteur local borné pour proposer la protection lors d'une prochaine ouverture volontaire de l'application. Chaque contact a son propre compteur : les messages de personnes différentes ne sont jamais additionnés. Ce compteur ne contient ni texte SMS, ni numéro, ni position.
 
 ## Dernières positions
 
@@ -93,7 +93,7 @@ Les diagnostics sont expurgés : ils peuvent afficher des comptages et états te
 
 L'export `.vvk` est chiffré et authentifié avec AES-GCM à partir d'une clé dérivée du mot de passe utilisateur par PBKDF2-HMAC-SHA256. Le mot de passe n'est pas enregistré par VeVak.
 
-La sauvegarde peut conserver les préférences de rafraîchissement périodique, fréquence et reprise après redémarrage, mais jamais les positions mémorisées ni l'historique des demandes. Après restauration, toutes les autorisations de contacts restent révoquées jusqu'à une nouvelle validation locale.
+La sauvegarde peut conserver les préférences de rafraîchissement périodique, fréquence et reprise après redémarrage, mais jamais les positions mémorisées ni l'historique des demandes. L'historique local, accessible depuis l'application et effaçable par l'utilisateur, contient au maximum vingt résultats génériques datés. Après restauration, toutes les autorisations de contacts restent révoquées jusqu'à une nouvelle validation locale.
 
 ## Réseau SMS et variantes
 

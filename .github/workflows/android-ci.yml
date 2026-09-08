@@ -103,6 +103,9 @@ jobs:
       - name: Play debug build
         run: ./gradlew --no-daemon --stacktrace assemblePlayDebug
 
+      - name: Play release bundle validation
+        run: ./gradlew --no-daemon --stacktrace bundlePlayRelease
+
       - name: Play lint
         shell: bash
         run: |

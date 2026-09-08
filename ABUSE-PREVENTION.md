@@ -47,7 +47,7 @@ VeVak 0.3.11 removes request notifications and the permanent `VeVak actif` notif
 
 This decision follows beta feedback that routine notifications were intrusive. The safety boundary is therefore based on finite local authorisation, immediate revocation, global rate limiting, minimal audit and the targeted protection mode rather than on notification visibility.
 
-After two successful normal replies for the same contact, VeVak may keep a bounded local counter. On a later voluntary app launch, it can ask whether the owner fears that this contact might use their phrase to obtain the real position against their wishes. The request itself creates no notification or prompt.
+After two valid normal SMS requests for the same contact, VeVak may keep a bounded local counter. On a later voluntary app launch, it can ask whether the owner fears that this contact might use their phrase to obtain the real position against their wishes. The request itself creates no notification or prompt.
 
 ## Position memory and optional refresh
 
@@ -78,6 +78,9 @@ The UI distinguishes handing a message to Android for sending from proof of deli
 ## Emergency recipients and discreet shortcut
 
 Emergency recipients are selected in advance: either all currently active trusted contacts or a local subset. The selection is saved immediately, so an emergency trigger does not ask again who should receive the SMS.
+
+Emergency is unconfigured by default. Onboarding and Safety settings preselect nobody; the owner
+must make an explicit choice before a shortcut can send anything.
 
 The emergency send:
 
