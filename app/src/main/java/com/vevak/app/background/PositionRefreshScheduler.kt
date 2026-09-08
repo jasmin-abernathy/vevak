@@ -24,7 +24,12 @@ class PositionRefreshScheduler(context: Context) {
     private val alarmManager = appContext.getSystemService(AlarmManager::class.java)
 
     fun sync(settings: VeVakSettings) {
-        if (settings.completedOnboarding && settings.backgroundRefreshEnabled && settings.hasActiveAuthorization()) {
+        if (
+            settings.completedOnboarding &&
+            settings.backgroundRefreshEnabled &&
+            settings.hasActiveAuthorization() &&
+            (BackgroundLocationAccess.isGranted(appContext) || settings.allowNetworkApproximation)
+        ) {
             scheduleNext(settings.normalizedBackgroundRefreshIntervalMinutes())
         } else {
             cancel()

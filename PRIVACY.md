@@ -6,7 +6,7 @@ VeVak n'utilise aucun compte VeVak, aucune publicité, aucun pisteur et aucun se
 
 Chaque contact de confiance possède localement son numéro, sa phrase-clé et une autorisation limitée dans le temps. Un accès peut être révoqué immédiatement depuis le téléphone.
 
-La phrase-clé est comparée sans tenir compte de la casse et après normalisation des espaces insécables et apostrophes typographiques courants. Depuis 0.3.11, la phrase-clé peut apparaître au milieu d'un SMS plus long : `Salut, position maintenant s'il te plaît` peut donc reconnaître la clé `position maintenant`. Le numéro expéditeur, l'autorisation active et les limites anti-suivi restent obligatoires.
+La phrase-clé est comparée sans tenir compte de la casse et après normalisation de la typographie SMS. Depuis 0.3.12, la comparaison se fait par suite de mots : les espaces et la ponctuation autour d'une apostrophe, d'un tiret ou d'un point d'interrogation ne font plus échouer un SMS naturel. La phrase-clé peut apparaître au milieu d'un message plus long. Le numéro expéditeur, l'autorisation active et les limites anti-suivi restent obligatoires.
 
 ## Notifications
 
@@ -37,13 +37,13 @@ Pour une demande SMS normale et autorisée, VeVak essaie dans cet ordre :
 4. la dernière coordonnée mémorisée, quelle que soit son ancienneté ;
 5. `position indisponible` seulement si aucune source exploitable n'a jamais fourni d'information.
 
-VeVak ne déclare pas `ACCESS_BACKGROUND_LOCATION`.
+La résolution déclenchée par SMS ne nécessite pas `ACCESS_BACKGROUND_LOCATION`.
 
 ## Rafraîchissement périodique optionnel
 
 L'utilisateur peut activer `Essayer de garder une dernière position récente` avec une fréquence cible de 15, 30 ou 60 minutes (30 minutes par défaut).
 
-Cette fonction remplace toujours un seul point local : elle ne crée aucun historique. Elle programme un prochain passage ponctuel à la fois et n'utilise ni WorkManager périodique, ni alarme répétitive exacte, ni service de localisation permanent. Android et Doze peuvent retarder une tentative.
+Cette fonction remplace toujours un seul point local : elle ne crée aucun historique. Elle programme un prochain passage ponctuel à la fois et n'utilise ni WorkManager périodique, ni alarme répétitive exacte, ni service de localisation permanent. Pour acquérir un nouveau point Android lorsque VeVak n'est pas affiché, Android impose une autorisation distincte de localisation en arrière-plan. VeVak ne la demande que lorsque le propriétaire choisit cette fonction. Sans elle, le rafraîchissement peut encore renouveler la zone réseau/IP si cette autre option a été activée ; sinon le planificateur reste suspendu au lieu d'afficher un faux état actif. Android et Doze peuvent malgré tout retarder ou espacer une tentative.
 
 À chaque passage, VeVak vérifie que l'option est toujours active et qu'au moins un contact dispose encore d'une autorisation active. L'estimation réseau/IP n'est utilisée que si elle a été activée séparément.
 
@@ -53,7 +53,7 @@ Une option distincte permet de reprogrammer ce fonctionnement après le redémar
 
 L'estimation réseau est désactivée par défaut. Lorsqu'elle est activée, VeVak peut envoyer une requête HTTPS fondée uniquement sur l'adresse IP au service public beaconDB. VeVak n'envoie dans cette requête ni SSID, ni BSSID, ni Cell ID, ni numéro de téléphone, ni contenu SMS, ni phrase-clé, ni coordonnée locale.
 
-Le service distant voit nécessairement l'adresse IP publique de la connexion. Le résultat reste présenté comme une zone approximative et ne devient jamais un faux point GPS précis.
+Le service distant voit nécessairement l'adresse IP publique de la connexion. Le résultat reste présenté comme une zone approximative et ne devient jamais un faux point GPS précis. Le client accepte une réponse valide même si beaconDB omet le champ indicatif `fallback`, puisque la requête envoyée ne contient aucune balise Wi-Fi ou cellulaire et demande explicitement le repli IP.
 
 ## Wi-Fi Maison
 

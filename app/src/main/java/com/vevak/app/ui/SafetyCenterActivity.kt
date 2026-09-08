@@ -4,9 +4,16 @@
  */
 package com.vevak.app.ui
 
+import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.vevak.app.background.PositionRefreshScheduler
+import com.vevak.app.background.BackgroundLocationAccess
 import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.VeVakSettingsRepository
 import com.vevak.app.emergency.EmergencyShortcutManager
@@ -82,6 +90,26 @@ private fun SafetyCenter(
     var replacementArmed by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        settings?.let(refreshScheduler::sync)
+        message = if (granted) {
+            "Localisation en arrière-plan autorisée. Le rafraîchissement périodique peut maintenant fonctionner."
+        } else {
+            "Autorisation refusée : Android empêchera la mise à jour périodique lorsque VeVak n'est pas affiché."
+        }
+    }
+    val appSettingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        settings?.let(refreshScheduler::sync)
+        message = if (BackgroundLocationAccess.isGranted(context)) {
+            "Localisation en arrière-plan autorisée. Le rafraîchissement périodique peut maintenant fonctionner."
+        } else {
+            "L'accès « Toujours autoriser » n'est pas actif : la mise à jour périodique reste suspendue."
+        }
+    }
 
     fun saveRefreshSettings(updated: VeVakSettings, confirmation: String) {
         scope.launch {
@@ -216,6 +244,8 @@ private fun SafetyCenter(
         Text("Mémoire de position", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("VeVak peut essayer périodiquement de rafraîchir une seule dernière position locale. Chaque nouveau point remplace le précédent : aucun trajet ni historique de positions n'est conservé.")
         if (current != null) {
+            val backgroundLocationGranted = BackgroundLocationAccess.isGranted(context)
+            val backgroundRefreshCanRun = backgroundLocationGranted || current.allowNetworkApproximation
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
                     checked = current.backgroundRefreshEnabled,
@@ -226,7 +256,13 @@ private fun SafetyCenter(
                                 startOnBoot = if (enabled) current.startOnBoot else false
                             ),
                             if (enabled) {
-                                "Rafraîchissement périodique activé. Android peut décaler certains passages pour économiser la batterie."
+                                if (backgroundLocationGranted) {
+                                    "Rafraîchissement périodique activé. Android peut décaler certains passages pour économiser la batterie."
+                                } else if (current.allowNetworkApproximation) {
+                                    "Rafraîchissement activé pour la zone réseau approximative. Autorisez l'arrière-plan pour obtenir aussi de nouveaux points Android hors écran."
+                                } else {
+                                    "Option enregistrée, mais suspendue tant que la localisation en arrière-plan n'est pas autorisée dans Android."
+                                }
                             } else {
                                 "Rafraîchissement périodique désactivé. La dernière position déjà mémorisée reste disponible."
                             }
@@ -237,6 +273,46 @@ private fun SafetyCenter(
             }
 
             if (current.backgroundRefreshEnabled) {
+                Card {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            when {
+                                backgroundLocationGranted -> "Mise à jour réelle hors écran autorisée ✓"
+                                current.allowNetworkApproximation -> "Mise à jour approximative disponible"
+                                else -> "Mise à jour périodique suspendue"
+                            },
+                            fontWeight = FontWeight.Bold,
+                            color = if (backgroundRefreshCanRun) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            if (backgroundRefreshCanRun && !backgroundLocationGranted) {
+                                "Sans accès Android « Toujours autoriser », VeVak peut seulement renouveler la zone réseau/IP si cette option est active. Pour obtenir un nouveau point Android hors écran, accordez l'autorisation ci-dessous."
+                            } else {
+                                "Pour obtenir un nouveau point Android quand VeVak n'est pas affiché, Android exige l'accès à la localisation en arrière-plan. VeVak l'utilise seulement aux passages que vous activez ici et ne conserve qu'un point."
+                            }
+                        )
+                        if (!backgroundLocationGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            Button(
+                                onClick = {
+                                    if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                                        backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                                    } else {
+                                        appSettingsLauncher.launch(
+                                            Intent(
+                                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                                Uri.parse("package:${context.packageName}")
+                                            )
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) "Autoriser en arrière-plan" else "Choisir « Toujours autoriser » dans Android")
+                            }
+                        }
+                    }
+                }
+
                 Text("Fréquence cible", fontWeight = FontWeight.SemiBold)
                 VeVakSettings.BACKGROUND_REFRESH_INTERVAL_CHOICES_MINUTES.forEach { minutes ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -273,7 +349,7 @@ private fun SafetyCenter(
                 Card {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Fonctionnement économe", fontWeight = FontWeight.Bold)
-                        Text("La fréquence est une cible, pas une horloge exacte : Android peut retarder un passage en veille profonde. VeVak n'utilise ni alarme répétitive exacte, ni historique de déplacement, ni notification permanente pour forcer le téléphone à rester éveillé.")
+                        Text("La fréquence est une cible, pas une horloge exacte : Android peut espacer les mises à jour en arrière-plan et retarder un passage en veille profonde. VeVak n'utilise ni alarme répétitive exacte, ni historique de déplacement, ni notification permanente pour forcer le téléphone à rester éveillé.")
                     }
                 }
             }

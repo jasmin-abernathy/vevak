@@ -45,16 +45,17 @@ class OnlineApproximateLocationProvider {
                             .put("ipf", true)
                     )
                     .toString()
+                    .toByteArray(Charsets.UTF_8)
+
+                connection.setFixedLengthStreamingMode(payload.size)
 
                 connection.outputStream.use { output ->
-                    output.write(payload.toByteArray(Charsets.UTF_8))
+                    output.write(payload)
                 }
 
                 if (connection.responseCode !in 200..299) return@withContext null
                 val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 val json = JSONObject(body)
-                if (json.optString("fallback") != "ipf") return@withContext null
-
                 val location = json.optJSONObject("location") ?: return@withContext null
                 val latitude = location.optDouble("lat", Double.NaN)
                 val longitude = location.optDouble("lng", Double.NaN)
@@ -83,6 +84,6 @@ class OnlineApproximateLocationProvider {
     companion object {
         const val SERVICE_NAME = "beaconDB"
         private const val ENDPOINT = "https://api.beacondb.net/v1/geolocate"
-        private const val DEFAULT_TIMEOUT_MILLIS = 3_000
+        private const val DEFAULT_TIMEOUT_MILLIS = 6_000
     }
 }

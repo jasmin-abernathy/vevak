@@ -1,5 +1,7 @@
 # VeVak 0.3.9 — contrat de non-régression
 
+> Note historique : l'absence totale de `ACCESS_BACKGROUND_LOCATION` a rendu la mise à jour hors écran non fonctionnelle sur Android récent. La 0.3.12 la remplace par une autorisation facultative, strictement réservée au rafraîchissement d'un point explicitement activé. Elle reste inutile au traitement SMS normal.
+
 Cette révision complète la refonte 0.3.8 en transformant plusieurs améliorations historiques en invariants vérifiés par les tests et la CI.
 
 ## Phrase-clé
@@ -38,7 +40,7 @@ Le reverse geocoding ajouté historiquement est restauré : lorsqu'une adresse a
 
 ## Permissions et suivi
 
-`ACCESS_BACKGROUND_LOCATION` ne fait pas partie du contrat VeVak. La CI échoue si cette permission est réintroduite dans le manifeste.
+Dans la 0.3.9, `ACCESS_BACKGROUND_LOCATION` ne faisait pas partie du contrat VeVak. Depuis la 0.3.12, elle reste absente du parcours SMS normal mais peut être demandée séparément pour rendre fonctionnel le rafraîchissement facultatif hors écran.
 
 VeVak peut mémoriser opportunément une position lorsque l'application est utilisable et que la localisation Android est accessible. Aucun scheduler périodique, WorkManager récurrent, alarme répétitive ou suivi permanent n'est ajouté.
 

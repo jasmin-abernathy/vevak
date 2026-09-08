@@ -7,7 +7,7 @@ Cette feuille de route présente la direction du projet. Elle ne constitue pas u
 - la variante `foss` reste canonique ;
 - le cœur reste utilisable sans Internet, compte ou serveur VeVak ;
 - aucune publicité, aucun pisteur et aucune télémétrie ;
-- aucune localisation périodique dans le cœur actuel ;
+- aucun suivi continu ni historique ; seul le rafraîchissement facultatif d'une dernière position peut être planifié ;
 - le cache est consulté avant l'activation d'un capteur ;
 - le chemin critique SMS/localisation ne dépend ni de WorkManager ni d'un serveur ;
 - aucune nouvelle dépendance sans justification de fonction, licence et poids ;
@@ -75,7 +75,7 @@ Contraintes déjà intégrées :
 - réutilisation du moteur local de localisation et d'envoi SMS ;
 - aucune télémétrie ni stockage centralisé ;
 - aucune notification Android supplémentaire créée par le partage manuel ; en mode discret temporaire, le résultat reste uniquement dans l'interface de VeVak ;
-- la notification persistante `VeVak est actif`, lorsqu'elle est requise par le modèle général, reste indépendante ;
+- aucune notification de demande ou notification permanente n'est créée ; le résultat du partage manuel reste uniquement dans l'interface VeVak ;
 - utilisation uniquement de la SIM définie comme SIM SMS par défaut dans Android ; si aucune SIM par défaut n'est définie, l'envoi est bloqué plutôt que de sélectionner une SIM arbitrairement ;
 - aucun déclenchement à distance et aucun envoi périodique.
 

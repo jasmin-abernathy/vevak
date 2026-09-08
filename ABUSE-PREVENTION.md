@@ -16,7 +16,7 @@ No application can prove that consent was freely given. VeVak therefore combines
 4. **Immediate local revocation per contact.** One contact can be stopped without deleting VeVak or affecting another contact.
 5. **Hard anti-tracking limits remain global.** Automatic replies are separated by at least 15 minutes and capped at four replies per 24-hour window for the entire device. Adding contacts never multiplies this cap.
 6. **No route/history.** VeVak may keep one latest coordinate for resilience, but it does not retain a sequence of positions, journeys or breadcrumbs.
-7. **No permanent background-location permission.** `ACCESS_BACKGROUND_LOCATION` is not declared.
+7. **No continuous background tracking.** Background-location access is optional, requested only for the owner's single-slot refresh setting, and never required for incoming SMS replies. Disabling the setting cancels its next alarm.
 8. **No remote sensors.** Remote photo, microphone/audio capture and similar surveillance capabilities are out of scope.
 9. **Minimal local audit.** At most 20 recent request outcomes are kept, without coordinates, SMS bodies, contact numbers, Wi-Fi identifiers or request phrases.
 10. **No secret leakage in diagnostics.** Phone numbers, phrases, Wi-Fi identifiers, coordinates and whether a request used the protection fallback are excluded from redacted diagnostics.
@@ -57,7 +57,7 @@ The owner may opt in to a best-effort refresh target of 15, 30 or 60 minutes. Th
 
 Implementation constraints:
 
-- no `ACCESS_BACKGROUND_LOCATION`;
+- background-location access is optional and dedicated to this user-enabled feature;
 - no exact/repeating alarm loop;
 - no periodic WorkManager loop;
 - no foreground location service kept alive merely to force a cadence;

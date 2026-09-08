@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.12 - real-device regression repair (2026-09-08)
+
+### Fixed
+
+- phrase keys are matched as a contiguous sequence of Unicode words, so punctuation spacing, apostrophes and hyphens used by SMS keyboards no longer prevent a configured phrase from being found inside a natural message;
+- the IP-only beaconDB fallback now uses a fixed-length HTTPS request, allows more realistic mobile-network latency and accepts valid coordinate responses even when the optional `fallback` marker is absent;
+- periodic one-slot refresh no longer pretends to be operational without Android's off-screen location access;
+- optional background-location access is now explicitly requested only from the periodic-refresh screen and checked by both scheduler and receiver;
+- stale notification-dependent messages and diagnostic checks left over from pre-0.3.11 builds were removed from active code paths.
+
+### Still true
+
+- incoming SMS replies do not depend on notification permission;
+- network approximation remains off by default and sends no phone number, SMS, phrase, Wi-Fi/cell identifier or local coordinate;
+- periodic refresh stores one replaceable point, never a route or history, and Android may still defer its target cadence;
+- real-device validation remains mandatory before a stable release.
+
 ## 0.3.1 - location-off resilience beta (2026-08-29)
 
 ### Fixed

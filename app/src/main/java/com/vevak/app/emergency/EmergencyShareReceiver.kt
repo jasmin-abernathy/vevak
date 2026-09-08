@@ -17,17 +17,16 @@ import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.sms.SmsReplyFormatter
 import com.vevak.app.sms.SmsReplySender
 import com.vevak.app.system.BatteryReader
-import com.vevak.app.system.RequestVisibilityNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * Explicit receiver used by the persistent notification's emergency action.
+ * Explicit receiver used by the local emergency shortcut.
  *
- * There is deliberately no confirmation screen: tapping the notification action is the user's
- * local confirmation. Automatic-request anti-tracking limits do not apply to this voluntary alert.
+ * There is deliberately no confirmation screen after the shortcut's cancellable arming delay.
+ * Automatic-request anti-tracking limits do not apply to this voluntary alert.
  */
 class EmergencyShareReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -45,27 +44,22 @@ class EmergencyShareReceiver : BroadcastReceiver() {
     }
 
     private suspend fun sendEmergency(context: Context) {
-        val notifier = RequestVisibilityNotifier(context)
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            notifier.showEmergencyResult(0, 0, "Autorisation SMS absente : aucune alerte envoyée.")
             return
         }
 
         val subscriptionId = SubscriptionManager.getDefaultSmsSubscriptionId().takeIf { it >= 0 }
         if (subscriptionId == null) {
-            notifier.showEmergencyResult(0, 0, "Aucune SIM SMS par défaut : aucune alerte envoyée.")
             return
         }
 
         val settings = VeVakSettingsRepository(context).current()
         if (!settings.completedOnboarding) {
-            notifier.showEmergencyResult(0, 0, "VeVak n'est pas encore configuré.")
             return
         }
 
         val recipients = EmergencyRecipientStore(context).recipients(settings)
         if (recipients.isEmpty()) {
-            notifier.showEmergencyResult(0, 0, "Aucun contact d'urgence actuellement autorisé.")
             return
         }
 
@@ -78,20 +72,12 @@ class EmergencyShareReceiver : BroadcastReceiver() {
         }
 
         val sender = SmsReplySender(context)
-        var accepted = 0
         recipients.forEach { contact ->
-            if (runCatching { sender.send(contact.phone, body, subscriptionId) }.isSuccess) accepted++
+            runCatching { sender.send(contact.phone, body, subscriptionId) }
         }
 
-        notifier.showEmergencyResult(
-            accepted,
-            recipients.size,
-            if (lastKnown != null) {
-                "Dernière position connue ${lastKnown.ageLabel()}."
-            } else {
-                "Aucune position connue ; l'alerte a indiqué cette indisponibilité."
-            }
-        )
+        // The shortcut contract is intentionally silent. SmsManager acceptance is not presented as
+        // delivery confirmation and no notification is created after an emergency action.
     }
 
     companion object {

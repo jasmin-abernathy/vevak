@@ -8,7 +8,7 @@
 > [!WARNING]
 > VeVak ne contacte pas les services de secours et ne remplace pas le 112/911 ni les fonctions d'urgence natives du téléphone. Le projet est encore en bêta et doit être validé sur davantage d'appareils réels.
 
-## VeVak 0.3.11 — candidat bêta de durcissement final
+## VeVak 0.3.12 — corrections issues des tests réels
 
 VeVak permet à des contacts explicitement autorisés de demander une information de localisation par SMS pendant une durée limitée. Jusqu'à cinq contacts peuvent être configurés localement, chacun avec son numéro, sa phrase-clé, son autorisation finie et sa révocation locale.
 
@@ -16,7 +16,7 @@ Aucun compte VeVak, publicité, télémétrie ou serveur applicatif obligatoire 
 
 ### Phrase-clé dans un SMS normal
 
-La phrase-clé est insensible à la casse et tolère les espaces insécables et apostrophes typographiques courants. Depuis 0.3.11, elle peut apparaître **au milieu d'un message plus long**.
+La phrase-clé est insensible à la casse et peut apparaître **au milieu d'un message plus long**. La 0.3.12 compare une suite de mots plutôt qu'une sous-chaîne typographique exacte : les variations courantes de ponctuation, d'apostrophe, de tiret et d'espacement ne bloquent plus le déclenchement.
 
 Exemple : la clé `position maintenant` reconnaît aussi `Salut, position maintenant s'il te plaît`.
 
@@ -49,7 +49,7 @@ L'utilisateur peut activer un rafraîchissement best-effort de **la seule derni�
 
 Chaque nouveau point remplace le précédent. VeVak ne conserve aucun trajet, historique ou breadcrumb. Android/Doze peut retarder les tentatives.
 
-VeVak ne déclare pas `ACCESS_BACKGROUND_LOCATION`, n'utilise pas de service de localisation permanent, d'alarme répétitive exacte ou de boucle WorkManager périodique. Une option distincte peut reprogrammer la mémoire après le redémarrage du téléphone.
+VeVak ne demande jamais la localisation en arrière-plan pour son fonctionnement SMS normal. Cette autorisation Android devient facultative uniquement si le propriétaire active la mise à jour périodique d'un seul point. VeVak n'utilise ni service de localisation permanent, ni alarme répétitive exacte, ni boucle WorkManager périodique. Une option distincte peut reprogrammer la mémoire après le redémarrage du téléphone.
 
 ### Pas de notifications pour les demandes
 
@@ -128,13 +128,13 @@ Documentation détaillée : [`PRIVACY.md`](PRIVACY.md), [`ABUSE-PREVENTION.md`](
 
 VeVak is an open-source Android application for limited, explicitly authorised location requests by SMS. No VeVak account, advertising, telemetry or mandatory application server is required.
 
-### 0.3.11 highlights
+### 0.3.12 highlights
 
 - A configured phrase may appear inside a longer SMS; matching remains case-insensitive and typography-normalised.
 - Automatic SMS replies no longer depend on Android notifications. There are no per-request or permanent status notifications and `POST_NOTIFICATIONS` is not declared.
 - Normal resolution remains: Android location → trusted place → opt-in network/IP estimate → latest remembered coordinate → unavailable.
 - VeVak keeps separate any-source memory for automatic requests and last-real/local memory for manual/emergency actions.
-- The owner may opt into a single-slot last-position refresh target of 15/30/60 minutes (30 by default), with optional re-scheduling after boot. There is no route/history and no `ACCESS_BACKGROUND_LOCATION`.
+- The owner may opt into a single-slot last-position refresh target of 15/30/60 minutes (30 by default), with optional re-scheduling after boot. Optional background-location access is requested only for this off-screen refresh; it is never required for SMS replies. There is no route/history.
 - Protection is targeted at a selected trusted contact while keeping that contact's existing phrase. The protected path only uses the pre-recorded fallback and never consults real location, trusted Wi-Fi or network approximation.
 - Emergency recipients are preselected locally. A generic pinned home-screen shortcut can arm the emergency SMS for four seconds; a second tap cancels it. Emergency uses last-real/local position only and bypasses the remote-request quota.
 - The sideload/restricted-settings flow explains Android's `Allow restricted settings` step before opening app settings and rechecks permissions automatically on return.

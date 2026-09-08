@@ -33,7 +33,6 @@ import com.vevak.app.sms.PhoneNumberMatcher
 import com.vevak.app.sms.SmsReplyFormatter
 import com.vevak.app.sms.SmsReplySender
 import com.vevak.app.system.BatteryReader
-import com.vevak.app.system.RequestVisibilityNotifier
 import com.vevak.app.system.TrustedNetworkReader
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -78,7 +77,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val positionResolver = VeVakPositionResolver(application)
     private val smsSender = SmsReplySender(application)
     private val batteryReader = BatteryReader(application)
-    private val notifier = RequestVisibilityNotifier(application)
     private val trustedNetworkReader = TrustedNetworkReader(application)
     private val phoneMatcher = PhoneNumberMatcher(application)
     private val backupRepository = SettingsBackupRepository(application)
@@ -99,7 +97,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     )
                 }
-                notifier.syncActiveStatus(settings)
                 refreshDiagnostics()
             }
         }
@@ -171,7 +168,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val settings = _state.value.settings
         if (settings.hasTrustedWifiConfiguration() && !trustedNetworkReader.matches(settings)) {
             _state.update {
-                it.copy(message = "Le réseau Maison est verrouillé contre les remplacements accidentels. Ouvrez « Sécurité » depuis la notification VeVak pour changer de réseau avec une double confirmation locale.")
+                it.copy(message = "Le réseau Maison est verrouillé contre les remplacements accidentels. Ouvrez Réglages, puis « Sécurité, urgence et mémoire de position » pour le changer avec une double confirmation locale.")
             }
             return
         }
@@ -199,28 +196,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearTrustedWifi() {
         _state.update {
-            it.copy(message = "Le réseau Maison ne peut plus être supprimé ou remplacé depuis cet écran. Utilisez « Sécurité » dans la notification VeVak afin que le changement soit explicitement confirmé.")
+            it.copy(message = "Le réseau Maison ne peut plus être supprimé ou remplacé depuis cet écran. Ouvrez Réglages, puis « Sécurité, urgence et mémoire de position » afin de confirmer explicitement le changement.")
         }
-    }
-
-    fun setDiscreetMode(hours: Int) {
-        if (hours !in setOf(1, 8, 24)) return
-        val settings = _state.value.settings
-        val now = System.currentTimeMillis()
-        val latestExpiry = settings.latestActiveAuthorizationExpiry(now)
-        if (latestExpiry == null) {
-            _state.update { it.copy(message = "Réactivez d'abord au moins un contact VeVak.") }
-            return
-        }
-        val until = minOf(now + hours * HOUR_MILLIS, latestExpiry)
-        persistSettings(
-            settings.copy(discreetModeUntilEpochMs = until),
-            "Mode discret activé jusqu'au ${java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(until))}. Les demandes restent visibles dans Android, mais sans son ni vibration."
-        )
-    }
-
-    fun disableDiscreetMode() {
-        persistSettings(_state.value.settings.copy(discreetModeUntilEpochMs = 0L), "Mode discret désactivé.")
     }
 
     fun updateNewContactName(value: String) = _state.update { it.copy(newContactName = value.take(80), message = null) }
@@ -248,10 +225,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             !current.newContactConsentChecked -> {
                 _state.update { it.copy(message = "Confirmez explicitement que ce nouveau contact est autorisé à demander votre position.") }
-                return
-            }
-            !notifier.notificationsAllowedForRequests() -> {
-                _state.update { it.copy(message = "Activez les notifications VeVak avant d'autoriser un nouveau contact : aucune réponse automatique n'est permise sans visibilité locale.") }
                 return
             }
             settings.trustedContacts().any { phoneMatcher.matches(phone, it.phone) } -> {
@@ -298,10 +271,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun reauthorizeContact(contactId: String, duration: AuthorizationDuration) {
-        if (!notifier.notificationsAllowedForRequests()) {
-            _state.update { it.copy(message = "Activez les notifications VeVak avant de réautoriser ce contact : aucune réponse automatique n'est permise sans visibilité locale.") }
-            return
-        }
         val settings = _state.value.settings
         val contact = settings.contactById(contactId) ?: return
         val now = System.currentTimeMillis()
@@ -427,11 +396,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(message = "La protection sous contrainte n'est pas correctement configurée.") }
                 return@launch
             }
-            if (!notifier.notificationsAllowedForRequests()) {
-                _state.update { it.copy(message = "Activez les notifications VeVak : une réponse automatique n'est jamais autorisée sans visibilité locale.") }
-                return@launch
-            }
-
             val now = System.currentTimeMillis()
             val final = settings.copy(
                 completedOnboarding = true,
@@ -441,7 +405,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
             settingsRepository.save(final)
             runtimeRepository.reset()
-            notifier.syncActiveStatus(final)
             _state.update {
                 it.copy(
                     settings = final,
@@ -462,7 +425,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun reset() {
         viewModelScope.launch {
-            notifier.cancelActiveStatus()
             settingsRepository.reset()
             runtimeRepository.reset()
             auditRepository.clear()
@@ -530,7 +492,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
             settingsRepository.save(safe)
             runtimeRepository.reset()
-            notifier.cancelActiveStatus()
             _state.update {
                 it.copy(
                     backupBusy = false,
@@ -643,7 +604,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(settings = settings, message = message ?: it.message) }
         viewModelScope.launch {
             settingsRepository.save(settings)
-            notifier.syncActiveStatus(settings)
             refreshDiagnostics()
         }
     }
@@ -667,9 +627,5 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         OnboardingStep.Safety -> OnboardingStep.Permissions
         OnboardingStep.Summary -> OnboardingStep.Safety
         OnboardingStep.Home -> OnboardingStep.Home
-    }
-
-    private companion object {
-        const val HOUR_MILLIS = 60L * 60L * 1_000L
     }
 }

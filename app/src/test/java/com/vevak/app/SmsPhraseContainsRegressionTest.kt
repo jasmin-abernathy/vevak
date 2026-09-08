@@ -41,6 +41,18 @@ class SmsPhraseContainsRegressionTest {
     }
 
     @Test
+    fun phraseKey_matchesDespiteNaturalPunctuationSpacing() {
+        assertTrue(SmsCommandParser.matches("Coucou, où es-tu? Merci.", "où es-tu ?"))
+        assertTrue(SmsCommandParser.matches("Coucou : où es-tu — merci", "où es-tu ?"))
+    }
+
+    @Test
+    fun phraseKey_matchesDespiteHyphenAndApostropheVariants() {
+        assertTrue(SmsCommandParser.matches("Salut, OU ES TU maintenant", "où es-tu"))
+        assertTrue(SmsCommandParser.matches("Dis-moi où est l app, merci", "où est l'app"))
+    }
+
+    @Test
     fun normalRequest_routesWhenPhraseIsContainedInLongerMessage() {
         val settings = VeVakSettings(triggerPhrase = "position maintenant")
 

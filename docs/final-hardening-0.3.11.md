@@ -1,5 +1,7 @@
 # VeVak 0.3.11 — final hardening candidate
 
+> Note historique : la 0.3.12 corrige trois écarts révélés par les tests réels (phrase naturelle, estimation IP et autorisation nécessaire au rafraîchissement hors écran). Le contrat courant est décrit dans [`audit-0.3.12.md`](audit-0.3.12.md).
+
 Cette version part directement de la 0.3.10 et conserve ses invariants : contacts multiples, autorisations finies, quota anti-suivi global, résolution de position toute-source, mémoire séparée du dernier point réel pour le partage manuel/l'urgence, protection ciblée par contact, Google Maps proposé en premier, estimation réseau opt-in, sauvegarde chiffrée et variantes FOSS/Play.
 
 ## Phrase-clé dans une phrase normale

@@ -10,16 +10,15 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.vevak.app.BuildConfig
+import com.vevak.app.background.BackgroundLocationAccess
 import com.vevak.app.location.OnlineApproximateLocationProvider
 import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
-import com.vevak.app.system.RequestVisibilityNotifier
 
 class DiagnosticsRepository(private val context: Context) {
     private val locationRepository = VeVakLocationRepository(context)
     private val capabilityProbe = LocationCapabilityProbe(context)
-    private val notifier = RequestVisibilityNotifier(context)
 
     fun snapshot(settings: VeVakSettings): DiagnosticsSnapshot {
         val receive = granted(Manifest.permission.RECEIVE_SMS)
@@ -35,7 +34,7 @@ class DiagnosticsRepository(private val context: Context) {
         val configuredContacts = settings.trustedContacts()
         val activeContacts = settings.activeTrustedContacts()
         val authorization = activeContacts.isNotEmpty()
-        val visibility = notifier.notificationsAllowedForRequests(settings.isDiscreetModeActive())
+        val backgroundLocation = BackgroundLocationAccess.isGranted(context)
         val duressValid = DuressPolicy.configurationIsValid(settings)
 
         val locationServiceCheck = if (capabilities.locationEnabled) {
@@ -90,11 +89,24 @@ class DiagnosticsRepository(private val context: Context) {
             check(configuredContacts.all { it.triggerPhrase.isNotBlank() }, "Phrases de déclenchement", "Toutes les phrases sont configurées.", "Chaque contact doit avoir une phrase non vide."),
             check(authorization, "Autorisations locales", "${activeContacts.size} autorisation(s) active(s) et limitée(s) dans le temps.", "Réactivez explicitement au moins un contact."),
             check(duressValid, "Protection sous contrainte", "Configuration cohérente.", "La phrase de sécurité doit être distincte de toutes les phrases normales et une position de repli doit être enregistrée."),
-            check(visibility, "Visibilité des demandes", "Notifications disponibles.", "Activez les notifications VeVak : aucune position ne sera envoyée sans notification visible."),
             check(telephony, "Téléphonie SMS", "Appareil compatible.", "Cet appareil ne déclare pas la fonction SMS."),
             check(receive, "Réception des SMS", "Autorisation accordée.", "Autorisation RECEIVE_SMS manquante."),
             check(send, "Envoi des SMS", "Autorisation accordée.", "Autorisation SEND_SMS manquante."),
-            check(foreground, "Permission de localisation ponctuelle", "Accès Android accordé. Aucune permission de localisation permanente n'est requise par VeVak.", "Autorisez la localisation lorsque l'application peut l'utiliser afin qu'elle puisse mémoriser un point réel."),
+            check(foreground, "Permission de localisation ponctuelle", "Accès Android accordé pour les demandes et les usages au premier plan.", "Autorisez la localisation lorsque l'application peut l'utiliser afin qu'elle puisse mémoriser un point réel."),
+            ReadinessCheck(
+                "Mise à jour périodique",
+                when {
+                    !settings.backgroundRefreshEnabled -> "Désactivée par le propriétaire."
+                    backgroundLocation -> "Activée et autorisée pour de nouveaux points Android hors écran ; Android peut néanmoins espacer les passages."
+                    settings.allowNetworkApproximation -> "Activée pour renouveler la zone réseau/IP ; les nouveaux points Android hors écran exigent « Toujours autoriser »."
+                    else -> "Activée dans VeVak, mais suspendue : ni accès Android « Toujours autoriser », ni estimation réseau active."
+                },
+                when {
+                    !settings.backgroundRefreshEnabled -> CheckState.Ok
+                    backgroundLocation || settings.allowNetworkApproximation -> CheckState.Ok
+                    else -> CheckState.Error
+                }
+            ),
             homeFingerprintCheck,
             locationServiceCheck,
             backendCheck
@@ -121,8 +133,8 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("locationLab.activeTransport=${capabilities.activeTransport}")
             appendLine("locationLab.finePermission=${capabilities.fineLocationPermission}")
             appendLine("rememberedLocationRetention=until_replaced_cleared_or_reset")
-            appendLine("backgroundLocationRequired=false")
-            appendLine("discreetModeActive=${settings.isDiscreetModeActive()}")
+            appendLine("backgroundRefreshEnabled=${settings.backgroundRefreshEnabled}")
+            appendLine("backgroundLocationGranted=$backgroundLocation")
             checks.forEachIndexed { index, value ->
                 appendLine("check.$index=${value.state}:${value.title}")
             }

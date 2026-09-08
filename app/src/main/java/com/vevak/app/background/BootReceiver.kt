@@ -27,7 +27,8 @@ class BootReceiver : BroadcastReceiver() {
                     settings.startOnBoot &&
                     settings.backgroundRefreshEnabled &&
                     settings.completedOnboarding &&
-                    settings.hasActiveAuthorization()
+                    settings.hasActiveAuthorization() &&
+                    (BackgroundLocationAccess.isGranted(appContext) || settings.allowNetworkApproximation)
                 ) {
                     // Give Android a little time to finish boot before the first best-effort refresh.
                     scheduler.scheduleNext(

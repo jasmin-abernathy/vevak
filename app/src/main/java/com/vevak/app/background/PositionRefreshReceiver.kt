@@ -24,7 +24,12 @@ class PositionRefreshReceiver : BroadcastReceiver() {
             try {
                 val settings = VeVakSettingsRepository(appContext).current()
                 val scheduler = PositionRefreshScheduler(appContext)
-                if (!settings.completedOnboarding || !settings.backgroundRefreshEnabled || !settings.hasActiveAuthorization()) {
+                if (
+                    !settings.completedOnboarding ||
+                    !settings.backgroundRefreshEnabled ||
+                    !settings.hasActiveAuthorization() ||
+                    (!BackgroundLocationAccess.isGranted(appContext) && !settings.allowNetworkApproximation)
+                ) {
                     scheduler.cancel()
                     return@launch
                 }

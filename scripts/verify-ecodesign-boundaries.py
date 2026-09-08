@@ -40,10 +40,16 @@ if build_budget.get("releaseMinification") and "isMinifyEnabled = true" not in b
 if build_budget.get("releaseResourceShrinking") and "isShrinkResources = true" not in build:
     errors.append("Release resource shrinking budget is not enforced.")
 
-# VeVak must not require permanent background-location permission. Optional last-position refresh is
-# a best-effort one-shot scheduler and may only use sources Android legitimately exposes at each tick.
-if "android.permission.ACCESS_BACKGROUND_LOCATION" in manifest:
-    errors.append("Background location permission must not be declared.")
+# Periodic refresh may use optional background-location access, but only behind the explicit setting
+# and a runtime permission check. It must never become a prerequisite for SMS or onboarding.
+refresh_scheduler_path = ROOT / "app/src/main/java/com/vevak/app/background/PositionRefreshScheduler.kt"
+refresh_receiver_path = ROOT / "app/src/main/java/com/vevak/app/background/PositionRefreshReceiver.kt"
+if "android.permission.ACCESS_BACKGROUND_LOCATION" not in manifest:
+    errors.append("Optional periodic refresh requires ACCESS_BACKGROUND_LOCATION to work off-screen.")
+for path in (refresh_scheduler_path, refresh_receiver_path):
+    text = path.read_text(encoding="utf-8")
+    if "BackgroundLocationAccess" not in text:
+        errors.append(f"Background refresh is missing its permission gate: {path.relative_to(ROOT)}")
 
 # 0.3.11 deliberately removes notification permission and all normal notification surfaces. A
 # future refactor must not silently make request replies or the discreet emergency shortcut depend on
@@ -126,6 +132,7 @@ for path in main_kotlin_paths:
         "AlarmManager.setRepeating",
         "AlarmManager.setExact",
         "AlarmManager.setExactAndAllowWhileIdle",
+        "startForegroundService",
     ):
         if forbidden in text:
             errors.append(f"Periodic/background scheduling boundary violated by {path.relative_to(ROOT)}: {forbidden}")
