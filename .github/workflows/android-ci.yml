@@ -1,12 +1,16 @@
 name: Android CI
 
 on:
-  # Branch pushes no longer launch the full dual-flavour Android build. Use
-  # "Run workflow" on main when a beta APK/release is actually wanted.
+  # A beta build stays deliberate: use "Run workflow" on main, or update the
+  # dedicated release trigger in the same batch as the version to publish.
   workflow_dispatch:
   push:
+    branches:
+      - "main"
     tags:
       - "v*"
+    paths:
+      - ".github/BETA_RELEASE_TRIGGER.md"
   pull_request:
     paths:
       - "app/**"
@@ -122,8 +126,10 @@ jobs:
   publish-beta:
     name: publish-beta
     needs: verify
-    # A rolling beta is published only for an explicit manual run on main.
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    # Both supported main-branch triggers are deliberate; tag builds only validate artifacts.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: write
