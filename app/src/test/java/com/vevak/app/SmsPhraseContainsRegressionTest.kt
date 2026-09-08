@@ -48,7 +48,7 @@ class SmsPhraseContainsRegressionTest {
 
     @Test
     fun phraseKey_matchesDespiteHyphenAndApostropheVariants() {
-        assertTrue(SmsCommandParser.matches("Salut, OU ES TU maintenant", "où es-tu"))
+        assertTrue(SmsCommandParser.matches("Salut, OÙ ES TU maintenant", "où es-tu"))
         assertTrue(SmsCommandParser.matches("Dis-moi où est l app, merci", "où est l'app"))
     }
 
