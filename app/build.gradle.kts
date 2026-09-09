@@ -39,7 +39,7 @@ android {
         }
         create("play") {
             dimension = "services"
-            applicationIdSuffix = ".play"
+            applicationId = "vevak.lepotager.org"
             buildConfigField("String", "LOCATION_BACKEND", "\"Google Fused Location Provider\"")
             buildConfigField("Boolean", "USES_GOOGLE_PLAY_SERVICES", "true")
         }
