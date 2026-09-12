@@ -14,12 +14,14 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -41,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -174,14 +177,10 @@ private fun VeVakOptionsStep(state: AppUiState, viewModel: AppViewModel) {
                 }
             }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = viewModel::previous, modifier = Modifier.weight(1f)) {
-                    Text("Retour")
-                }
-                Button(onClick = viewModel::next, modifier = Modifier.weight(1f)) {
-                    Text("Continuer")
-                }
-            }
+            SetupNavigationButtons(
+                onBack = viewModel::previous,
+                onContinue = viewModel::next
+            )
         }
     }
 }
@@ -193,18 +192,30 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
         val context = LocalContext.current
         val lifecycleOwner = LocalLifecycleOwner.current
         var showSettingsHelp by remember { mutableStateOf(false) }
+        var permissionRequestAttempted by remember { mutableStateOf(false) }
 
-        val permissions = remember {
+        val smsPermissions = remember {
             arrayOf(
                 Manifest.permission.RECEIVE_SMS,
-                Manifest.permission.SEND_SMS,
+                Manifest.permission.SEND_SMS
+            )
+        }
+        val locationPermissions = remember {
+            arrayOf(
                 Manifest.permission.ACCESS_COARSE_LOCATION,
                 Manifest.permission.ACCESS_FINE_LOCATION
             )
         }
-        val permissionLauncher = rememberLauncherForActivityResult(
+        val smsPermissionLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) {
+            permissionRequestAttempted = true
+            viewModel.refreshDiagnostics()
+        }
+        val locationPermissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) {
+            permissionRequestAttempted = true
             viewModel.refreshDiagnostics()
         }
 
@@ -214,7 +225,8 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
         val sendSms = hasPermission(context, Manifest.permission.SEND_SMS)
         val foregroundLocation = hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ||
             hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
-        val allNeededGranted = receiveSms && sendSms && foregroundLocation
+        val smsReady = receiveSms && sendSms
+        val allNeededGranted = smsReady && foregroundLocation
 
         LaunchedEffect(allNeededGranted) {
             if (allNeededGranted) viewModel.next()
@@ -224,49 +236,72 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
             SetupHeader(
                 step = "Étape 4 sur 6",
                 title = "Autorisations",
-                subtitle = "Une fois les accès réellement nécessaires accordés, cette étape se valide automatiquement."
+                subtitle = "VeVak vous demande les accès dans l'ordre, un bloc à la fois. Dès que tout est prêt, l'étape suivante s'ouvre automatiquement."
             )
 
             PermissionStatusCard(
-                title = "SMS",
-                ready = receiveSms && sendSms,
-                detail = "Lire uniquement les SMS entrants nécessaires à la phrase-clé et envoyer la réponse au contact autorisé."
+                title = "1 · SMS",
+                ready = smsReady,
+                detail = "Recevoir la phrase-clé uniquement lorsqu'un SMS arrive, puis envoyer la réponse au contact autorisé. VeVak ne parcourt pas votre historique de messages."
             )
             PermissionStatusCard(
-                title = "Localisation quand VeVak peut y accéder",
+                title = "2 · Localisation ponctuelle",
                 ready = foregroundLocation,
-                detail = "Permet de mettre à jour la dernière position lorsque VeVak est au premier plan ou qu'Android autorise une acquisition ponctuelle."
-            )
-            PermissionStatusCard(
-                title = "Demandes silencieuses",
-                ready = true,
-                detail = "Aucune permission de notification n'est demandée : les réponses SMS fonctionnent sans notification de demande ni notification permanente."
+                detail = "Mettre à jour la dernière position quand Android permet une acquisition. La localisation permanente n'est pas nécessaire pour terminer la configuration."
             )
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Pas de permission de localisation permanente imposée", fontWeight = FontWeight.Bold)
+                    Text("Pourquoi deux demandes ?", fontWeight = FontWeight.Bold)
                     Text(
-                        "VeVak mémorise localement les positions qu'Android lui permet d'obtenir. Le rafraîchissement périodique de cette mémoire, s'il est utilisé, reste une option distincte et n'est jamais nécessaire pour terminer cette configuration."
+                        "Android affiche mieux ce que vous autorisez quand chaque besoin est demandé au bon moment. VeVak commence donc par les SMS, puis demande la localisation seulement après."
                     )
                 }
             }
 
-            if (!allNeededGranted) {
-                Button(
-                    onClick = { permissionLauncher.launch(permissions) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Autoriser ce qui manque")
+            PermissionStatusCard(
+                title = "Notifications",
+                ready = true,
+                detail = "Aucune autorisation nécessaire : VeVak répond sans notification de demande ni notification permanente."
+            )
+
+            when {
+                !smsReady -> {
+                    Button(
+                        onClick = {
+                            val missing = smsPermissions.filterNot { hasPermission(context, it) }.toTypedArray()
+                            smsPermissionLauncher.launch(missing)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("1 · Autoriser les SMS")
+                    }
                 }
+
+                !foregroundLocation -> {
+                    Button(
+                        onClick = {
+                            val missing = locationPermissions.filterNot { hasPermission(context, it) }.toTypedArray()
+                            locationPermissionLauncher.launch(missing)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("2 · Autoriser la localisation")
+                    }
+                }
+
+                else -> {
+                    Text("Tout est prêt ✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            if (!allNeededGranted && permissionRequestAttempted) {
                 OutlinedButton(
                     onClick = { showSettingsHelp = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Ouvrir les paramètres Android de VeVak")
+                    Text("Une autorisation reste bloquée ?")
                 }
-            } else {
-                Text("Tout est prêt ✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
 
             state.message?.let {
@@ -283,10 +318,10 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
         if (showSettingsHelp) {
             AlertDialog(
                 onDismissRequest = { showSettingsHelp = false },
-                title = { Text("Autoriser les paramètres Android") },
+                title = { Text("Vérifier les autorisations Android") },
                 text = {
                     Text(
-                        "Android peut bloquer certaines autorisations d'une application installée manuellement. Dans la fiche de VeVak, ouvrez le menu ⋮ puis choisissez « Autoriser les paramètres restreints » si cette option apparaît. Accordez ensuite les autorisations nécessaires et revenez simplement dans VeVak : l'application les revérifiera automatiquement et validera cette étape dès qu'elles sont actives."
+                        "Ouvrez la fiche Android de VeVak puis vérifiez ses autorisations. Sur certains téléphones et pour certaines installations manuelles, Android peut aussi afficher dans le menu ⋮ l'option « Autoriser les paramètres restreints ». N'utilisez cette option que si vous avez installé VeVak depuis une source en laquelle vous avez confiance. Revenez ensuite dans VeVak : l'application revérifiera automatiquement les accès."
                     )
                 },
                 confirmButton = {
@@ -307,37 +342,96 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
 
 @Composable
 private fun SetupColumn(content: @Composable () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        content()
+    val compactWidth = LocalConfiguration.current.screenWidthDp < 360
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .widthIn(max = 720.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    horizontal = if (compactWidth) 12.dp else 18.dp,
+                    vertical = if (compactWidth) 12.dp else 18.dp
+                ),
+            verticalArrangement = Arrangement.spacedBy(if (compactWidth) 11.dp else 14.dp)
+        ) {
+            content()
+        }
     }
 }
 
 @Composable
 private fun SetupHeader(step: String, title: String, subtitle: String) {
+    val compactWidth = LocalConfiguration.current.screenWidthDp < 360
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = MaterialTheme.shapes.large
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            androidx.compose.foundation.Image(
-                painter = painterResource(R.drawable.ic_launcher_foreground),
-                contentDescription = "Logo VeVak",
-                modifier = Modifier.size(58.dp)
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(step, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        if (compactWidth) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(R.drawable.ic_launcher_foreground),
+                        contentDescription = "Logo VeVak",
+                        modifier = Modifier.size(46.dp)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(step, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    }
+                }
                 Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(R.drawable.ic_launcher_foreground),
+                    contentDescription = "Logo VeVak",
+                    modifier = Modifier.size(58.dp)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(step, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SetupNavigationButtons(onBack: () -> Unit, onContinue: () -> Unit) {
+    val compactWidth = LocalConfiguration.current.screenWidthDp < 360
+    if (compactWidth) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(onClick = onContinue, modifier = Modifier.fillMaxWidth()) {
+                Text("Continuer")
+            }
+            OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                Text("Retour")
+            }
+        }
+    } else {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) {
+                Text("Retour")
+            }
+            Button(onClick = onContinue, modifier = Modifier.weight(1f)) {
+                Text("Continuer")
             }
         }
     }
