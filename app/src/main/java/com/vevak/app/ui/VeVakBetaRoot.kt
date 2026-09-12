@@ -19,12 +19,20 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -41,6 +49,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,6 +64,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -98,6 +110,8 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
         if (!state.loaded) return@VeVakTheme
 
         var homeTabName by rememberSaveable { mutableStateOf(HomeTab.Home.name) }
+        val compactNavigation = LocalConfiguration.current.screenWidthDp < 390 ||
+            LocalDensity.current.fontScale > 1.3f
         val homeTab = runCatching { HomeTab.valueOf(homeTabName) }.getOrDefault(HomeTab.Home)
         var openProtectionSetup by rememberSaveable { mutableStateOf(false) }
         val rootLifecycleOwner = LocalLifecycleOwner.current
@@ -127,7 +141,22 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 if (state.step == OnboardingStep.Home) {
-                    NavigationBar(
+                    if (compactNavigation) {
+                        ScrollableTabRow(
+                            modifier = Modifier.navigationBarsPadding(),
+                            selectedTabIndex = HomeTab.entries.indexOf(homeTab),
+                            edgePadding = 8.dp,
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ) {
+                            HomeTab.entries.forEach { tab ->
+                                Tab(
+                                    selected = homeTab == tab,
+                                    onClick = { homeTabName = tab.name },
+                                    text = { Text(tab.label) }
+                                )
+                            }
+                        }
+                    } else NavigationBar(
                         containerColor = MaterialTheme.colorScheme.surface,
                         tonalElevation = 6.dp
                     ) {
@@ -140,8 +169,8 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
                                     Text(
                                         tab.glyph,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 32.sp,
-                                        lineHeight = 34.sp,
+                                        fontSize = 24.sp,
+                                        lineHeight = 26.sp,
                                         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 },
@@ -161,8 +190,13 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .wrapContentWidth(Alignment.CenterHorizontally)
+                    .consumeWindowInsets(padding)
+                    .widthIn(max = 720.dp)
+                    .fillMaxSize()
+                    .imePadding()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                    .padding(horizontal = if (LocalConfiguration.current.screenWidthDp < 360) 12.dp else 18.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 BrandHeader(compact = state.step == OnboardingStep.Home)
@@ -204,7 +238,7 @@ private fun BrandHeader(compact: Boolean) {
             androidx.compose.foundation.Image(
                 painter = painterResource(R.drawable.ic_launcher_foreground),
                 contentDescription = "Logo VeVak",
-                modifier = Modifier.size(if (compact) 44.dp else 76.dp)
+                modifier = Modifier.size(if (compact || LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale > 1.3f) 44.dp else 76.dp)
             )
             Column {
                 Text(
@@ -483,8 +517,8 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
     }
 
     message?.let { InlineMessage(it) }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedButton(onClick = vm::previous, modifier = Modifier.weight(1f)) { Text("Retour") }
+    AdaptiveActions { actionModifier ->
+        OutlinedButton(onClick = vm::previous, modifier = actionModifier) { Text("Retour") }
         Button(
             onClick = {
                 recipientStore.setSelectedContactIds(selected)
@@ -496,7 +530,7 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
                 }
             },
             enabled = selected.isNotEmpty() && shortcutManager.isSupported(),
-            modifier = Modifier.weight(1f)
+            modifier = actionModifier
         ) { Text("Activer et continuer") }
     }
     TextButton(
@@ -536,11 +570,11 @@ private fun ConsentScreen(state: AppUiState, vm: AppViewModel) {
     SimpleInfo("Résumé", "${contact.displayLabel()} pourra demander votre position jusqu'au ${formatDate(expiry)}. Vous pourrez couper cet accès à tout moment depuis VeVak.")
     CheckRow("J'autorise ce contact pendant la durée choisie", state.consentChecked, vm::setConsentChecked)
     state.message?.let { InlineMessage(it) }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedButton(onClick = vm::previous, modifier = Modifier.weight(1f)) { Text("Retour") }
+    AdaptiveActions { actionModifier ->
+        OutlinedButton(onClick = vm::previous, modifier = actionModifier) { Text("Retour") }
         Button(
             onClick = vm::complete,
-            modifier = Modifier.weight(1f),
+            modifier = actionModifier,
             enabled = state.consentChecked && contact.phone.isNotBlank() && contact.triggerPhrase.isNotBlank()
         ) { Text("Autoriser ${duration.label}") }
     }
@@ -637,9 +671,9 @@ private fun HomeTabContent(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Envoyer votre dernière position connue à ${target.displayLabel()} ?", fontWeight = FontWeight.Bold)
                     Text("VeVak n'essaiera pas de produire un nouveau point : il enverra uniquement la dernière position réelle déjà connue et indiquera depuis combien de temps elle date. La livraison du SMS n'est pas garantie.")
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(onClick = vm::cancelManualPositionShare, modifier = Modifier.weight(1f)) { Text("Annuler") }
-                        Button(onClick = vm::confirmManualPositionShare, modifier = Modifier.weight(1f)) { Text("Envoyer") }
+                    AdaptiveActions { actionModifier ->
+                        OutlinedButton(onClick = vm::cancelManualPositionShare, modifier = actionModifier) { Text("Annuler") }
+                        Button(onClick = vm::confirmManualPositionShare, modifier = actionModifier) { Text("Envoyer") }
                     }
                 }
             }
@@ -672,12 +706,12 @@ private fun HomeTabContent(
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Une option de protection peut être utile", fontWeight = FontWeight.Bold)
                 Text("Avez-vous peur que ${pendingContact.displayLabel()} puisse utiliser votre phrase-clé pour savoir où vous êtes sans que vous le souhaitiez ?")
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AdaptiveActions { actionModifier ->
                     OutlinedButton(
                         onClick = {
                             vm.continueWithoutProtection(pendingContact.id)
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = actionModifier
                     ) { Text("Continuer sans protection") }
                     Button(
                         onClick = {
@@ -685,7 +719,7 @@ private fun HomeTabContent(
                             setOpenProtectionSetup(true)
                             selectTab(HomeTab.Settings)
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = actionModifier
                     ) { Text("Me protéger") }
                 }
             }
@@ -742,6 +776,7 @@ private fun HistoryTabContent(state: AppUiState, vm: AppViewModel) {
     state.message?.let { InlineMessage(it) }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MonitoringHeroCard(
     state: AppUiState,
@@ -788,10 +823,14 @@ private fun MonitoringHeroCard(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.18f))
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MiniStatus("SMS", smsReady, Modifier.weight(1f))
-                MiniStatus("Silencieux", true, Modifier.weight(1f))
-                MiniStatus("Anti-suivi", true, Modifier.weight(1f))
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MiniStatus("SMS", smsReady)
+                MiniStatus("Silencieux", true)
+                MiniStatus("Anti-suivi", true)
             }
 
             Text(
@@ -904,9 +943,9 @@ private fun ContactCard(contact: TrustedContact, state: AppUiState, vm: AppViewM
                 OutlinedButton(onClick = { vm.revokeContact(contact.id) }, modifier = Modifier.fillMaxWidth()) { Text("Révoquer l'accès") }
             } else {
                 Text("Réautoriser", fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                AdaptiveActions { actionModifier ->
                     AuthorizationDuration.entries.forEach { duration ->
-                        TextButton(onClick = { vm.reauthorizeContact(contact.id, duration) }, modifier = Modifier.weight(1f)) { Text(duration.label) }
+                        TextButton(onClick = { vm.reauthorizeContact(contact.id, duration) }, modifier = actionModifier) { Text(duration.label) }
                     }
                 }
             }
@@ -1217,7 +1256,7 @@ private fun SimpleInfo(title: String, detail: String) = Card(colors = CardDefaul
 private fun SectionToggle(title: String, expanded: Boolean, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.fillMaxWidth().padding(15.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(title, fontWeight = FontWeight.Bold)
+            Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
             Text(if (expanded) "−" else "+", style = MaterialTheme.typography.titleLarge)
         }
     }
@@ -1263,11 +1302,28 @@ private fun Primary(label: String, enabled: Boolean = true, onClick: () -> Unit)
     Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text(label) }
 }
 
+/** Keep actions readable at narrow widths and enlarged Android font sizes. */
+@Composable
+private fun AdaptiveActions(content: @Composable (Modifier) -> Unit) {
+    val fontScale = LocalDensity.current.fontScale
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth < 360.dp || fontScale > 1.3f) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                content(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                content(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
 @Composable
 private fun NavigationButtons(vm: AppViewModel, canContinue: Boolean) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedButton(onClick = vm::previous, modifier = Modifier.weight(1f)) { Text("Retour") }
-        Button(onClick = vm::next, enabled = canContinue, modifier = Modifier.weight(1f)) { Text("Continuer") }
+    AdaptiveActions { actionModifier ->
+        OutlinedButton(onClick = vm::previous, modifier = actionModifier) { Text("Retour") }
+        Button(onClick = vm::next, enabled = canContinue, modifier = actionModifier) { Text("Continuer") }
     }
 }
 

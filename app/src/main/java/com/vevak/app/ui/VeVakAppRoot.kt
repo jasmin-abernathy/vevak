@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -44,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -342,13 +345,15 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
 
 @Composable
 private fun SetupColumn(content: @Composable () -> Unit) {
-    val compactWidth = LocalConfiguration.current.screenWidthDp < 360
+    val compactWidth = LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale > 1.3f
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .widthIn(max = 720.dp)
                 .fillMaxWidth()
+                .safeDrawingPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(
                     horizontal = if (compactWidth) 12.dp else 18.dp,
@@ -363,7 +368,7 @@ private fun SetupColumn(content: @Composable () -> Unit) {
 
 @Composable
 private fun SetupHeader(step: String, title: String, subtitle: String) {
-    val compactWidth = LocalConfiguration.current.screenWidthDp < 360
+    val compactWidth = LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale > 1.3f
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = MaterialTheme.shapes.large
@@ -412,7 +417,7 @@ private fun SetupHeader(step: String, title: String, subtitle: String) {
 
 @Composable
 private fun SetupNavigationButtons(onBack: () -> Unit, onContinue: () -> Unit) {
-    val compactWidth = LocalConfiguration.current.screenWidthDp < 360
+    val compactWidth = LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale > 1.3f
     if (compactWidth) {
         Column(
             modifier = Modifier.fillMaxWidth(),
