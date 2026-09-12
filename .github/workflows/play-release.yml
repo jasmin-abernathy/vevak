@@ -12,16 +12,15 @@ concurrency:
 
 jobs:
   signed-play-bundle:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    env:
-      VEVAK_UPLOAD_STORE_PASSWORD: ${{ secrets.VEVAK_UPLOAD_STORE_PASSWORD }}
-      VEVAK_UPLOAD_KEY_ALIAS: ${{ secrets.VEVAK_UPLOAD_KEY_ALIAS }}
-      VEVAK_UPLOAD_KEY_PASSWORD: ${{ secrets.VEVAK_UPLOAD_KEY_PASSWORD }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -56,9 +55,6 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$VEVAK_UPLOAD_KEYSTORE_BASE64"
-          test -n "$VEVAK_UPLOAD_STORE_PASSWORD"
-          test -n "$VEVAK_UPLOAD_KEY_ALIAS"
-          test -n "$VEVAK_UPLOAD_KEY_PASSWORD"
           VEVAK_KEYSTORE_PATH="$RUNNER_TEMP/vevak-upload.jks"
           printf '%s' "$VEVAK_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$VEVAK_KEYSTORE_PATH"
           test -s "$VEVAK_KEYSTORE_PATH"
@@ -66,7 +62,15 @@ jobs:
           echo "VEVAK_UPLOAD_STORE_FILE=$VEVAK_KEYSTORE_PATH" >> "$GITHUB_ENV"
 
       - name: Validate and build signed Play bundle
+        env:
+          VEVAK_UPLOAD_STORE_PASSWORD: ${{ secrets.VEVAK_UPLOAD_STORE_PASSWORD }}
+          VEVAK_UPLOAD_KEY_ALIAS: ${{ secrets.VEVAK_UPLOAD_KEY_ALIAS }}
+          VEVAK_UPLOAD_KEY_PASSWORD: ${{ secrets.VEVAK_UPLOAD_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
+          test -n "$VEVAK_UPLOAD_STORE_PASSWORD"
+          test -n "$VEVAK_UPLOAD_KEY_ALIAS"
+          test -n "$VEVAK_UPLOAD_KEY_PASSWORD"
           python3 scripts/verify-foss-boundary.py
           python3 scripts/verify-ecodesign-boundaries.py
           python3 scripts/check-sensitive-logs.py
@@ -91,3 +95,8 @@ jobs:
             app/build/outputs/mapping/playRelease/mapping.txt
           if-no-files-found: error
           retention-days: 7
+
+      - name: Remove temporary upload keystore
+        if: always()
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/vevak-upload.jks"
