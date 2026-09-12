@@ -84,7 +84,7 @@ jobs:
       - name: Upload Google Play hand-off
         uses: actions/upload-artifact@v4
         with:
-          name: VeVak-0.3.13-play-signed
+          name: VeVak-0.3.14-play-signed
           path: |
             app/build/outputs/bundle/playRelease/app-play-release.aab
             app/build/outputs/bundle/playRelease/app-play-release.aab.sha256
