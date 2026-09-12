@@ -23,8 +23,8 @@ android {
         applicationId = "com.vevak.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 16
-        versionName = "0.3.13"
+        versionCode = 17
+        versionName = "0.3.14"
 
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
