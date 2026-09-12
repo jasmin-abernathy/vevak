@@ -144,7 +144,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download validated FOSS APK
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vevak-foss-debug-${{ github.sha }}
           path: beta-apk
