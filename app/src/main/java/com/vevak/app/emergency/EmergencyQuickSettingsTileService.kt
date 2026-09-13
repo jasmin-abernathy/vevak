@@ -37,6 +37,7 @@ class EmergencyQuickSettingsTileService : TileService() {
     private var settings: VeVakSettings? = null
     private var unlockRequest = 0L
     private var listening = false
+    private var cancellationShown = false
 
     override fun onStartListening() {
         super.onStartListening()
@@ -78,9 +79,9 @@ class EmergencyQuickSettingsTileService : TileService() {
         }
         // Cancellation relies on the controller's current deadline rather than the last rendered
         // tile state, which may be stale immediately after the Quick Settings panel is reopened.
-        if (controller.remainingMillis() > 0L) {
+        if (cancellationShown || controller.state().isCancellable) {
             val cancelled = controller.cancelIfArmed()
-            Toast.makeText(this, if (cancelled) "Envoi annulé" else "Délai d'annulation terminé", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, if (cancelled) "Envoi annulé" else "Aucune urgence en attente à annuler", Toast.LENGTH_SHORT).show()
             renderIfListening()
             return
         }
@@ -107,7 +108,7 @@ class EmergencyQuickSettingsTileService : TileService() {
             val reason = unavailableReason()
             if (reason != null) {
                 Toast.makeText(this@EmergencyQuickSettingsTileService, reason, Toast.LENGTH_LONG).show()
-            } else if (!isLocked && controller.remainingMillis() == 0L) {
+            } else if (!isLocked && !controller.state().isCancellable) {
                 // Share the same recipient selection, deadline and single-consumption receiver.
                 controller.toggle()
             }
@@ -132,17 +133,24 @@ class EmergencyQuickSettingsTileService : TileService() {
     private fun renderIfListening() {
         if (!listening) return
         val tile = qsTile ?: return
-        val remaining = controller.remainingMillis()
-        val armed = remaining > 0L
-        val unavailable = if (armed) null else unavailableReason()
+        val state = controller.state()
+        val remaining = state.remainingMillis
+        val armed = state.phase == EmergencyArmPhase.CANCEL_WINDOW
+        val pending = state.phase == EmergencyArmPhase.PENDING_SYSTEM
+        cancellationShown = state.isCancellable
+        val unavailable = if (state.isCancellable) null else unavailableReason()
         tile.state = when {
-            armed -> Tile.STATE_ACTIVE
+            state.isCancellable -> Tile.STATE_ACTIVE
             unavailable != null -> Tile.STATE_UNAVAILABLE
             else -> Tile.STATE_INACTIVE
         }
-        tile.label = if (armed) "Annuler · ${(remaining + 999L) / 1_000L} s" else getString(R.string.emergency_tile_label)
+        tile.label = when {
+            armed -> "Annuler · ${(remaining + 999L) / 1_000L} s"
+            pending -> "Urgence en attente"
+            else -> getString(R.string.emergency_tile_label)
+        }
         val detail = when {
-            armed -> "Touchez pour annuler"
+            armed || pending -> "Touchez pour annuler"
             unavailable != null -> unavailable
             isLocked -> "Déverrouiller pour préparer"
             else -> "Préparer l'envoi"

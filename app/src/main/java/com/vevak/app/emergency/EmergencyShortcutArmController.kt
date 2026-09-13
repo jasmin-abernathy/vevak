@@ -34,42 +34,36 @@ class EmergencyShortcutArmController(context: Context) {
 
     /** Read-only display state; never extends the existing deadline. */
     fun remainingMillis(): Long = synchronized(lock) {
-        remainingMillisLocked(SystemClock.elapsedRealtime())
+        stateLocked(SystemClock.elapsedRealtime()).remainingMillis
+    }
+
+    internal fun state(): EmergencyArmState = synchronized(lock) {
+        stateLocked(SystemClock.elapsedRealtime())
     }
 
     /** An outdated Cancel tile must never arm a new alert after the deadline. */
     fun cancelIfArmed(): Boolean = synchronized(lock) {
-        if (remainingMillisLocked(SystemClock.elapsedRealtime()) <= 0L) return@synchronized false
+        if (!stateLocked(SystemClock.elapsedRealtime()).isCancellable) return@synchronized false
         clearArmLocked()
         true
     }
 
-    private fun remainingMillisLocked(now: Long): Long {
+    private fun stateLocked(now: Long): EmergencyArmState {
         val prefs = prefs()
-        if (prefs.getString(KEY_ARM_ID, null).isNullOrBlank()) return 0L
-
-        // elapsedRealtime() restarts from zero after a reboot. BOOT_COUNT is readable by regular
-        // apps from API 24 onward (VeVak minSdk is 26), so use it when available to distinguish two
-        // otherwise coincident uptime windows. Existing/migrated state without the marker keeps the
-        // conservative four-second fallback until the next arm writes one.
-        val armedBootCount = prefs.getInt(KEY_BOOT_COUNT, BOOT_COUNT_UNKNOWN)
-        val currentBootCount = currentBootCount()
-        if (
-            armedBootCount != BOOT_COUNT_UNKNOWN &&
-            currentBootCount != BOOT_COUNT_UNKNOWN &&
-            armedBootCount != currentBootCount
-        ) {
-            return 0L
-        }
-
-        return (prefs.getLong(KEY_DEADLINE, 0L) - now)
-            .takeIf { it in 1L..GRACE_PERIOD_MILLIS } ?: 0L
+        return EmergencyArmStatePolicy.resolve(
+            hasArm = !prefs.getString(KEY_ARM_ID, null).isNullOrBlank(),
+            deadline = prefs.getLong(KEY_DEADLINE, 0L),
+            now = now,
+            armedBootCount = prefs.getInt(KEY_BOOT_COUNT, BOOT_COUNT_UNKNOWN),
+            currentBootCount = currentBootCount(),
+            graceMillis = GRACE_PERIOD_MILLIS
+        )
     }
 
     fun toggle(): Result = synchronized(lock) {
         val now = SystemClock.elapsedRealtime()
 
-        if (remainingMillisLocked(now) > 0L) {
+        if (stateLocked(now).isCancellable) {
             clearArmLocked()
             return@synchronized Result.Cancelled
         }
@@ -117,7 +111,8 @@ class EmergencyShortcutArmController(context: Context) {
     fun consumeIfArmed(candidateArmId: String?): Boolean = synchronized(lock) {
         if (candidateArmId.isNullOrBlank()) return@synchronized false
         val prefs = prefs()
-        val matches = prefs.getString(KEY_ARM_ID, null) == candidateArmId
+        val matches = prefs.getString(KEY_ARM_ID, null) == candidateArmId &&
+            stateLocked(SystemClock.elapsedRealtime()).phase == EmergencyArmPhase.PENDING_SYSTEM
         if (matches) clearArmLocked()
         matches
     }
