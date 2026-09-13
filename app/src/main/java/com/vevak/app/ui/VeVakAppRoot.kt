@@ -151,7 +151,7 @@ private fun VeVakOptionsStep(state: AppUiState, viewModel: AppViewModel) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Garder une dernière position récente", fontWeight = FontWeight.Bold)
                     Text(
-                        "Facultatif : VeVak peut essayer de conserver un seul dernier point récent pour répondre plus utilement lorsque le téléphone ne peut pas obtenir une nouvelle position. Chaque nouveau point remplace le précédent. Aucun trajet ni historique n'est conservé.",
+                        "Facultatif : VeVak peut essayer de conserver un seul dernier point récent pour répondre plus utilement lorsque le téléphone ne peut pas obtenir une nouvelle position. Chaque nouveau point remplace le précédent. Aucun trajet ni historique n'est conservé. Pendant une veille prolongée, Android reporte les mises à jour : la position mémorisée peut donc être plus ancienne.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     CheckRow(

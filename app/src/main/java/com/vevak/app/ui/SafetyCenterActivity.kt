@@ -353,6 +353,7 @@ private fun SafetyCenter(
                 }
 
                 Text("Fréquence cible", fontWeight = FontWeight.SemiBold)
+                Text("Pendant une veille prolongée, Android reporte les mises à jour pour économiser la batterie. La position mémorisée peut donc être plus ancienne que la fréquence choisie.")
                 VeVakSettings.BACKGROUND_REFRESH_INTERVAL_CHOICES_MINUTES.forEach { minutes ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(

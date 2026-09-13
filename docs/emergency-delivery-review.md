@@ -1,6 +1,6 @@
 # Emergency delivery review — 2026-09-13
 
-Reviewed baseline: `2f69100230680f78d99742a65a17e676ccd02578`, PR #35.
+Reviewed baseline: `da7b91136972dd6d5b164aed8f2861ec84da7de0`, PR #35.
 This review does not establish device-test coverage or SMS delivery guarantees.
 
 ## Narrow cleanup implemented
@@ -39,7 +39,14 @@ Persisting after SmsManager instead introduces uncertain duplicate attempts.
 The multi-recipient loop can partially complete. No exactly-once claim is valid.
 Current policy remains unchanged; neither retry nor expiry was added.
 
-## Newly identified blocking work before SMS
+## Emergency cache lookup now implemented
+
+The issues below describe the former generic path. Since `da7b911`, the emergency
+receiver uses fetchEmergencyLastKnownLocation: remembered real point first,
+cancellable platform cache budget of 500 ms, no geocoder and no cache write before
+SMS. Android CI 34753840336 and Secret scan 34753840222 passed. JVM tests cover a
+stalled platform provider, candidate filtering and cancellation. This budget does
+not bound a blocking native call or the preceding DataStore read.
 
 The Play provider's lastKnownLocation suspends on client.lastLocation without an
 explicit timeout. VeVakLocationRepository.fetchCachedLocation waits for that
@@ -52,7 +59,7 @@ blocking platform call terminates within the requested interval. EmergencyShareR
 has already consumed the arm at this stage. These are code-level risks, not
 observed failures on a phone.
 
-Recommended next change: a dedicated emergency cache-only lookup, reading the
+Implemented change: a dedicated emergency cache-only lookup, reading the
 remembered real point independently, bounding the asynchronous Play cache lookup,
 and avoiding reverse geocoding before urgent dispatch. Preserve source/age and
 never substitute an IP estimate or start a new position acquisition. Verify
@@ -67,11 +74,27 @@ After the four-second grace period, an arm can remain pending while the tile
 looks idle. Ask whether a delayed emergency should remain eligible or expire;
 do not choose an arbitrary expiry. An honest pending state must follow that choice.
 
-Both position refresh and emergency use allow-while-idle alarms. Prefer reviewing
-whether optional refresh may wait for maintenance windows, but do not silently
-change its freshness contract. Cancelling refresh at emergency-arm time cannot
-undo quota already consumed. Standard alarms would not guarantee prompt emergency
-delivery either. Test under actual idle with a recent refresh.
+## Optional refresh now yields to idle maintenance
+
+PositionRefreshScheduler now uses an ordinary inexact AlarmManager.set alarm;
+only emergency fallback retains setAndAllowWhileIdle. Optional refresh no longer
+requests the per-app allow-while-idle quota. Onboarding and frequency settings
+explain that a prolonged idle period can leave the remembered point older than
+the selected target interval. This is an intentional freshness/battery tradeoff,
+not a guarantee that emergency fallback is prompt. No cadence, permissions,
+location acquisition or opt-in criteria changed.
+
+Android defers ordinary alarms during Doze; allow-while-idle alarms have per-app
+rate limits. The guide mentions nine minutes and the API reference gives longer
+idle intervals as examples: neither is a guaranteed maximum delivery delay.
+[Doze guide](https://developer.android.com/training/monitoring-device-state/doze-standby)
+and [AlarmManager reference](https://developer.android.com/reference/android/app/AlarmManager).
+
+An alarm already scheduled by the previous build adopts this policy when the
+scheduler next syncs or schedules a tick; this change does not retroactively undo
+quota already consumed. Test an upgrade with a pending old tick, prolonged Doze,
+resume to maintenance, and an emergency after refresh. Actual position freshness
+and dispatch timing still require device measurements.
 
 ## Validation still needed
 
