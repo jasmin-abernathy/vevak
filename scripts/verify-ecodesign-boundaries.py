@@ -145,6 +145,33 @@ if arm_path.exists():
         if forbidden in arm_text:
             errors.append(f"Emergency arm controller location boundary violated: {forbidden}")
 
+# Jasmin explicitly approved keeping a delayed voluntary emergency pending and locally cancellable
+# until the private receiver claims it. Freeze the key runtime/UI contract so a later cleanup cannot
+# silently revert to grace-window-only cancellation or an idle-looking tile while work is pending.
+arm_state_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyArmState.kt"
+tile_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyQuickSettingsTileService.kt"
+pending_contract_path = ROOT / "docs/emergency-pending-contract.md"
+if not arm_state_path.exists():
+    errors.append("Approved emergency pending-state policy is missing.")
+else:
+    arm_state_text = arm_state_path.read_text(encoding="utf-8")
+    for required in ("PENDING_SYSTEM", "isCancellable", "No expiry"):
+        if required not in arm_state_text:
+            errors.append(f"Emergency pending-state contract missing from policy: {required}")
+if arm_path.exists():
+    arm_text = arm_path.read_text(encoding="utf-8")
+    if "EmergencyArmPhase.PENDING_SYSTEM" not in arm_text or "consumeIfArmed" not in arm_text:
+        errors.append("Emergency receiver claim must remain gated on the PENDING_SYSTEM arm phase.")
+if not tile_path.exists():
+    errors.append("Quick Settings emergency tile is missing from the approved pending-state flow.")
+else:
+    tile_text = tile_path.read_text(encoding="utf-8")
+    for required in ("Urgence en attente", "Touchez pour annuler", "cancellationShown"):
+        if required not in tile_text:
+            errors.append(f"Emergency tile no longer preserves cancellable pending UX: {required}")
+if not pending_contract_path.exists():
+    errors.append("Approved pending-emergency product contract documentation is missing.")
+
 # Keep allow-while-idle exceptional: only the voluntary emergency fallback may use it. The optional
 # position-memory refresh explicitly accepts Doze deferral instead of competing for this app-wide quota.
 for path in main_kotlin_paths:
