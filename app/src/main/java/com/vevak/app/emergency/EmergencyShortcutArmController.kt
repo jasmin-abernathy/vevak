@@ -124,7 +124,13 @@ class EmergencyShortcutArmController(context: Context) {
 
     private fun clearArmLocked() {
         val existingId = prefs().getString(KEY_ARM_ID, null)
-        if (!existingId.isNullOrBlank()) alarmManager?.cancel(alarmIntent(existingId))
+        if (!existingId.isNullOrBlank()) {
+            // Look up without creating a new token just to discard it (for example after reboot).
+            existingAlarmIntent(existingId)?.let { alarm ->
+                alarmManager?.cancel(alarm)
+                alarm.cancel()
+            }
+        }
         prefs().edit().clear().apply()
         pendingJob?.cancel()
         pendingJob = null
@@ -137,6 +143,18 @@ class EmergencyShortcutArmController(context: Context) {
     private fun alarmIntent(armId: String): PendingIntent = PendingIntent.getBroadcast(
         appContext,
         ALARM_REQUEST_CODE,
+        emergencyAlarmIntent(armId),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    private fun existingAlarmIntent(armId: String): PendingIntent? = PendingIntent.getBroadcast(
+        appContext,
+        ALARM_REQUEST_CODE,
+        emergencyAlarmIntent(armId),
+        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    private fun emergencyAlarmIntent(armId: String): Intent =
         Intent(appContext, EmergencyShareReceiver::class.java).apply {
             action = EmergencyShareReceiver.ACTION_SEND_EMERGENCY_LOCATION
             data = Uri.Builder()
@@ -145,9 +163,7 @@ class EmergencyShortcutArmController(context: Context) {
                 .appendPath(armId)
                 .build()
             putExtra(EmergencyShareReceiver.EXTRA_ARM_ID, armId)
-        },
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-    )
+        }
 
     private fun currentBootCount(): Int = Settings.Global.getInt(
         appContext.contentResolver,
