@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="#5F6368"
-        android:pathData="M4,5h3v3H4zM9,5h11v2H9zM4,10.5h3v3H4zM9,11h11v2H9zM4,16h3v3H4zM9,16.5h11v2H9z" />
+<!-- Papirus contributors, GPL-3.0. Adapted 2026-09-13; see docs/discreet-shortcut-icons.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <path android:pathData="m40 42v-36c0-1.108-0.892-2-2-2h-28c-1.108 0-2 0.892-2 2v36c0 1.108 0.892 2 2 2h28c1.108 0 2-0.892 2-2z" android:fillColor="#e4e4e4"/>
+    <path android:pathData="m10 4c-1.108 0-2 0.892-2 2v1c0-1.108 0.892-2 2-2h28c1.108 0 2 0.892 2 2v-1c0-1.108-0.892-2-2-2z" android:fillColor="#ffffff" android:fillAlpha=".2"/>
+    <path android:pathData="m8 42v1c0 1.108 0.892 2 2 2h28c1.108 0 2-0.892 2-2v-1c0 1.108-0.892 2-2 2h-28c-1.108 0-2-0.892-2-2z" android:fillColor="#000000" android:fillAlpha=".2"/>
+    <path android:pathData="M13,13l2,2 4,-4M13,24l2,2 4,-4M13,35l2,2 4,-4" android:fillColor="#00000000" android:strokeColor="#298060" android:strokeWidth="2.5" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <path android:pathData="M24,12h11v3H24zM24,23h11v3H24zM24,34h11v3H24z" android:fillColor="#626b73"/>
 </vector>

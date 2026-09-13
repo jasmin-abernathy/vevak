@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -233,9 +234,9 @@ private fun SafetyCenter(
                 androidx.compose.foundation.Image(
                     painter = painterResource(preset.iconRes),
                     contentDescription = "Aperçu ${preset.label}",
-                    modifier = Modifier.padding(2.dp)
+                    modifier = Modifier.size(48.dp).padding(2.dp)
                 )
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(preset.label, fontWeight = FontWeight.SemiBold)
                     Text(preset.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

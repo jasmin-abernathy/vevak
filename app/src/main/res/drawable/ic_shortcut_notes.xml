@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="#5F6368"
-        android:pathData="M5,3h14v18H5zM8,7h8v1.5H8zM8,11h8v1.5H8zM8,15h6v1.5H8z" />
+<!-- Papirus contributors, GPL-3.0. Adapted 2026-09-13; see docs/discreet-shortcut-icons.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <path android:pathData="m40 42v-36c0-1.108-0.892-2-2-2h-28c-1.108 0-2 0.892-2 2v36c0 1.108 0.892 2 2 2h28c1.108 0 2-0.892 2-2z" android:fillColor="#e4e4e4"/>
+    <path android:pathData="m10 4c-1.108 0-2 0.892-2 2v1c0-1.108 0.892-2 2-2h28c1.108 0 2 0.892 2 2v-1c0-1.108-0.892-2-2-2z" android:fillColor="#ffffff" android:fillAlpha=".2"/>
+    <path android:pathData="m8 42v1c0 1.108 0.892 2 2 2h28c1.108 0 2-0.892 2-2v-1c0 1.108-0.892 2-2 2h-28c-1.108 0-2-0.892-2-2z" android:fillColor="#000000" android:fillAlpha=".2"/>
+    <path android:pathData="M25.0,37.0a11.0,11.0 0 1,0 22.0,0a11.0,11.0 0 1,0 -22.0,0Z" android:fillColor="#000000" android:fillAlpha=".2"/>
+    <path android:pathData="M25.0,36.0a11.0,11.0 0 1,0 22.0,0a11.0,11.0 0 1,0 -22.0,0Z" android:fillColor="#f34235"/>
+    <path android:pathData="m30 39.327v2.673h2.6728l6.7507-6.7507-2.6728-2.6728zm11.788-6.4337c0.28271-0.28271 0.28271-0.72818 0-1.0109l-1.6705-1.6705c-0.28271-0.28271-0.72818-0.28271-1.0109 0l-1.3964 1.405 2.6728 2.6728z" android:fillColor="#ffffff"/>
+    <path android:pathData="M12.0,8.0h24.0v3.0h-24.0Z" android:fillColor="#000000" android:fillAlpha="0.2"/>
+    <path android:pathData="M12.0,15.0h24.0v3.0h-24.0Z" android:fillColor="#000000" android:fillAlpha="0.2"/>
+    <path android:pathData="M12.0,22.0h14.0v3.0h-14.0Z" android:fillColor="#000000" android:fillAlpha="0.2"/>
 </vector>

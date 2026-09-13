@@ -22,8 +22,8 @@ enum class EmergencyShortcutPreset(
     Liste("Liste", "Petite checklist", R.drawable.ic_shortcut_list),
     Horaires("Horaires", "Horloge simple", R.drawable.ic_shortcut_clock),
     Dossier("Dossier", "Dossier générique", R.drawable.ic_shortcut_folder),
-    Outils("Outils", "Réglages abstraits", R.drawable.ic_shortcut_tools),
-    Memos("Mémos", "Carte mémo", R.drawable.ic_shortcut_memo)
+    Outils("Outils", "Boîte à outils", R.drawable.ic_shortcut_tools),
+    Memos("Mémos", "Carnet avec marque-page", R.drawable.ic_shortcut_memo)
 }
 
 class EmergencyShortcutManager(context: Context) {

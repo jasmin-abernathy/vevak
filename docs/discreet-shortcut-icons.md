@@ -1,4 +1,4 @@
-# Raccourcis discrets — piste d’icônes libres
+# Raccourcis discrets — icônes libres
 
 Cette note prépare le remplacement des pictogrammes monochromes actuels des raccourcis d’urgence par des icônes qui ressemblent davantage à de petits utilitaires Android, sans copier le nom ni la marque d’une application existante.
 
@@ -36,4 +36,22 @@ Le preset **Liste** reste à sélectionner : ne pas reprendre l’icône exacte 
 
 ## État
 
-La source et cinq candidats génériques sont validés au niveau licence/provenance. Le remplacement des ressources Android reste à faire après sélection d’un sixième candidat générique pour `Liste` et contrôle visuel de l’ensemble à taille de launcher.
+Les six ressources Android sont maintenant remplacées. Les cinq candidats ci-dessus sont intégrés ; Liste est une adaptation locale de la feuille `accessories-text-editor.svg` : le badge crayon et les lignes sont remplacés par trois coches et trois lignes génériques. Aucune icône Todoist ou GNOME To Do n'est utilisée.
+
+## Provenance des fichiers intégrés (13 septembre 2026)
+
+Les sources originales sont conservées dans `third_party/papirus/`, avec la licence GPL-3.0 complète (`LICENSE`). Copyright : contributeurs Papirus. L'adaptation Liste et la conversion Android sont réalisées par les contributeurs VeVak le 13 septembre 2026, sous GPL-3.0.
+
+| Source sous `Papirus/48x48/apps/` | SHA du blob source |
+| --- | --- |
+| accessories-text-editor.svg | d24fa101ea015447f0bd7cd48e16e1c6d704a076 |
+| preferences-system-time.svg | c7475704daf5f2ed12c3647657ddf111aaa4efdf |
+| system-file-manager.svg | e57cf245a0b49bf8e00eff1fe3502e98d59ba700 |
+| applications-utilities.svg | e779e2d10498345e910084a16f2301bb31a62cd0 |
+| accessories-dictionary.svg | 219c7bc22fcd446f550ae7b9b4534fdeea96394f |
+
+Source : https://github.com/PapirusDevelopmentTeam/papirus-icon-theme/tree/master/Papirus/48x48/apps
+
+Relancer `python3 scripts/build-shortcut-vectors.py` pour régénérer les six VectorDrawable. Le convertisseur préserve chemins, rectangles arrondis, cercles, opacités, traits et la transformation du carnet. Il refuse les formes/attributs non pris en charge. Aucune bibliothèque SVG ni connexion réseau n'est ajoutée à Android.
+
+Les aperçus du centre de sécurité sont limités à 48 dp et le texte reçoit l'espace restant. Le contrat d'armement/annulation et le jeton des raccourcis ne changent pas. Le rendu final et les badges éventuels restent à vérifier sur les launchers réels avant fusion.

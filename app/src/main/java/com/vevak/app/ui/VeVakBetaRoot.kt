@@ -704,8 +704,9 @@ private fun HomeTabContent(
     if (pendingContact != null && !state.settings.duressEnabled) {
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Une option de protection peut être utile", fontWeight = FontWeight.Bold)
-                Text("Avez-vous peur que ${pendingContact.displayLabel()} puisse utiliser votre phrase-clé pour savoir où vous êtes sans que vous le souhaitiez ?")
+                Text("Se protéger d'un contact", fontWeight = FontWeight.Bold)
+                Text("Souhaitez-vous vous protéger si ${pendingContact.displayLabel()} utilise la phrase-clé qui lui est associée pour obtenir votre position contre votre volonté ?")
+                Text("Cette proposition ne met pas les réponses SMS en attente : les autorisations et les limites anti-suivi continuent de s'appliquer.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 AdaptiveActions { actionModifier ->
                     OutlinedButton(
                         onClick = {
@@ -1103,9 +1104,9 @@ private fun SettingsTabContent(
     }
 
     val protectionExpanded = openProtectionSetup || state.settings.duressEnabled
-    SectionToggle("Protection avancée", protectionExpanded) { setOpenProtectionSetup(!protectionExpanded) }
+    SectionToggle("Se protéger d'un contact", protectionExpanded) { setOpenProtectionSetup(!protectionExpanded) }
     if (protectionExpanded) {
-        Text("Cette option sert si vous craignez qu'une personne déjà autorisée utilise sa propre phrase-clé pour connaître votre vraie position contre votre volonté.")
+        Text("Cette option sert si vous craignez qu'une personne déjà autorisée utilise la phrase-clé qui lui est associée pour obtenir votre vraie position contre votre volonté.")
 
         if (state.settings.usesLegacyProtectionPhrase() && state.settings.protectedContactId.isBlank()) {
             SimpleInfo(
@@ -1114,7 +1115,7 @@ private fun SettingsTabContent(
             )
         }
 
-        Text("Quel contact voulez-vous protéger ?", fontWeight = FontWeight.SemiBold)
+        Text("De quel contact souhaitez-vous vous protéger ?", fontWeight = FontWeight.SemiBold)
         state.settings.trustedContacts().forEach { contact ->
             ProtectionContactCard(
                 contact = contact,
@@ -1130,7 +1131,7 @@ private fun SettingsTabContent(
                 "${protectedContact.displayLabel()} continuera d'envoyer sa phrase-clé habituelle : « ${protectedContact.triggerPhrase} ». Elle peut apparaître au milieu d'un SMS normal, comme pour les autres contacts."
             )
             CheckRow(
-                "Activer la protection pour ${protectedContact.displayLabel()}",
+                "Me protéger de ${protectedContact.displayLabel()}",
                 state.settings.duressEnabled,
                 vm::setDuressEnabled
             )
@@ -1142,14 +1143,14 @@ private fun SettingsTabContent(
             }
             SimpleInfo(
                 "Ce qui se passera",
-                "Si ${protectedContact.displayLabel()} envoie un SMS contenant sa phrase-clé habituelle, VeVak n'ira pas lire votre position réelle : la réponse utilisera uniquement le lieu de repli enregistré. Les autres contacts gardent leur fonctionnement normal."
+                "Une fois la protection activée et enregistrée, si ${protectedContact.displayLabel()} envoie un SMS contenant sa phrase-clé habituelle, VeVak n'ira pas lire votre position réelle : la réponse utilisera uniquement le lieu de repli enregistré. Les autres contacts gardent leur fonctionnement normal."
             )
             SimpleInfo("Discrétion", "L'accueil, le diagnostic standard et l'historique visible n'indiquent pas que cette protection existe ou qu'elle a été utilisée.")
             OutlinedButton(onClick = vm::persistDraft, modifier = Modifier.fillMaxWidth(), enabled = vm.duressConfigurationValid()) {
                 Text("Enregistrer la protection")
             }
         } else {
-            InlineMessage("Sélectionnez d'abord le contact concerné. Sa phrase-clé existante sera utilisée automatiquement.")
+            InlineMessage("Sélectionnez le contact concerné. Sa phrase-clé actuelle sera conservée automatiquement. Une fois la protection activée et enregistrée, VeVak utilisera uniquement votre lieu de repli pour ce contact.")
         }
     }
 
@@ -1266,7 +1267,7 @@ private fun SectionToggle(title: String, expanded: Boolean, onClick: () -> Unit)
 private fun ReadinessCheckCard(check: ReadinessCheck) {
     val color = when (check.state) {
         CheckState.Ok -> MaterialTheme.colorScheme.primary
-        CheckState.Warning -> MaterialTheme.colorScheme.tertiary
+        CheckState.Warning -> MaterialTheme.colorScheme.onSurface
         CheckState.Error -> MaterialTheme.colorScheme.error
     }
     Card(modifier = Modifier.fillMaxWidth()) {
