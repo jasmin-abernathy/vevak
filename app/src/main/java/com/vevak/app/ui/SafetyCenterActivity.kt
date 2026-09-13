@@ -53,6 +53,7 @@ import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.VeVakSettingsRepository
 import com.vevak.app.emergency.EmergencyShortcutManager
 import com.vevak.app.emergency.EmergencyShortcutPreset
+import com.vevak.app.emergency.EmergencyTileInstaller
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.system.TrustedNetworkReader
 import com.vevak.app.ui.theme.VeVakTheme
@@ -218,6 +219,7 @@ private fun SafetyCenter(
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text("Protection contre l'appui accidentel", fontWeight = FontWeight.Bold)
                 Text("Premier appui : l'envoi est armé pendant 4 secondes. Un deuxième appui sur le même raccourci pendant ce délai annule l'envoi. Sans deuxième appui, le SMS d'urgence part automatiquement aux destinataires choisis ci-dessus.")
+                Text("Ce n'est pas un double appui rapide pour envoyer.")
             }
         }
 
@@ -274,6 +276,17 @@ private fun SafetyCenter(
         if (activeContacts.isEmpty()) {
             Text("Autorisez au moins un contact avant de créer le raccourci d'urgence.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+
+        HorizontalDivider()
+        Text("Urgence dans les réglages rapides", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Facultatif : ajoutez une tuile Urgence VeVak au volet Android, à côté du Wi-Fi et de la lampe torche. Son nom sera visible dans ce volet.")
+        Text("Un appui prépare l'envoi aux destinataires choisis. Un deuxième appui dans les quatre secondes l'annule. Sans deuxième appui, l'envoi est déclenché après ce délai. Ce n'est pas un double appui rapide pour envoyer. Le téléphone doit être déverrouillé pour préparer un envoi. La tuile ne confirme pas la livraison du SMS.")
+        OutlinedButton(
+            enabled = emergencyConfigured && activeContacts.isNotEmpty() &&
+                (allRecipients || selectedIds.any { id -> activeContacts.any { it.id == id } }),
+            onClick = { EmergencyTileInstaller.request(context) { message = it } },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) "Ajouter la tuile Urgence" else "Comment ajouter la tuile") }
 
         HorizontalDivider()
         Text("Mémoire de position", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)

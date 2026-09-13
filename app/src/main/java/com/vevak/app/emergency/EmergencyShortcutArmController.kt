@@ -28,6 +28,25 @@ class EmergencyShortcutArmController(context: Context) {
     private val appContext = context.applicationContext
     private val alarmManager = appContext.getSystemService(AlarmManager::class.java)
 
+    /** Read-only display state; never extends the existing deadline. */
+    fun remainingMillis(): Long = synchronized(lock) {
+        remainingMillisLocked(SystemClock.elapsedRealtime())
+    }
+
+    /** An outdated Cancel tile must never arm a new alert after the deadline. */
+    fun cancelIfArmed(): Boolean = synchronized(lock) {
+        if (remainingMillisLocked(SystemClock.elapsedRealtime()) <= 0L) return@synchronized false
+        clearArmLocked()
+        true
+    }
+
+    private fun remainingMillisLocked(now: Long): Long {
+        val prefs = prefs()
+        if (prefs.getString(KEY_ARM_ID, null).isNullOrBlank()) return 0L
+        return (prefs.getLong(KEY_DEADLINE, 0L) - now)
+            .takeIf { it in 1L..GRACE_PERIOD_MILLIS } ?: 0L
+    }
+
     fun toggle(): Result = synchronized(lock) {
         val prefs = prefs()
         val now = SystemClock.elapsedRealtime()

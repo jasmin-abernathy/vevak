@@ -69,6 +69,18 @@
             android:taskAffinity=""
             android:theme="@style/Theme.VeVak.ShortcutInvisible" />
 
+        <!-- Only Android System UI may bind this optional Quick Settings tile. -->
+        <service
+            android:name=".emergency.EmergencyQuickSettingsTileService"
+            android:exported="true"
+            android:label="@string/emergency_tile_label"
+            android:icon="@drawable/ic_emergency_tile"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".sms.SmsReceiver"
             android:enabled="true"
