@@ -8,6 +8,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -77,7 +78,15 @@ private val VeVakShapes = Shapes(
 fun VeVakTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) Dark else Light,
-        shapes = VeVakShapes,
-        content = content
-    )
+        shapes = VeVakShapes
+    ) {
+        // MaterialTheme provides the palette but does not establish a root content color by itself.
+        // A root Surface makes every screen inherit the correct onBackground color and prevents
+        // standalone activities from falling back to black text when Android is in dark mode.
+        Surface(
+            color = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+            content = content
+        )
+    }
 }
