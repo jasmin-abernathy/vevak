@@ -5,6 +5,8 @@
 package com.vevak.app.location
 
 import android.content.Context
+import java.util.concurrent.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 
 class VeVakLocationRepository(context: Context) {
     private val appContext = context.applicationContext
@@ -15,12 +17,28 @@ class VeVakLocationRepository(context: Context) {
     /**
      * Legacy/explicit-share contract: returns only the newest real/local position already known.
      *
-     * Manual sharing and the emergency shortcut intentionally keep using this method so an opted-in
-     * IP estimate can never silently replace the stricter "last real point" behaviour introduced in
-     * 0.3.6. No new positioning request is started here.
+     * Manual sharing intentionally keeps using this enriched path so an opted-in IP estimate can
+     * never silently replace the stricter "last real point" behaviour introduced in 0.3.6. No new
+     * positioning request is started here.
      */
     suspend fun fetchLastKnownLocation(): VeVakLocationSnapshot? =
         fetchCachedLocation(includeNetworkApproximation = false)
+
+    /**
+     * Emergency-only cached lookup. It reads VeVak's remembered real point first, then gives the
+     * Android provider cache a short bounded chance to offer something newer. It never starts a new
+     * positioning request, never accepts an IP/network estimate and deliberately skips reverse
+     * geocoding because emergency SMS formatting does not include an address.
+     */
+    suspend fun fetchEmergencyLastKnownLocation(): VeVakLocationSnapshot? =
+        EmergencyLocationLookup.resolve(
+            remembered = { rememberedLocationStore.readReal() },
+            platform = {
+                provider.lastKnownLocation()
+                    ?.toVeVakSnapshot(provider.lastKnownSource)
+            },
+            platformTimeoutMillis = EMERGENCY_PLATFORM_CACHE_TIMEOUT_MILLIS
+        )
 
     /**
      * Automatic phrase-key contract: returns the newest coordinate-bearing position already known,
@@ -113,5 +131,45 @@ class VeVakLocationRepository(context: Context) {
     private suspend fun enrich(location: VeVakLocationSnapshot): VeVakLocationSnapshot {
         val address = reverseGeocoder.resolve(location) ?: return location
         return location.copy(address = address)
+    }
+
+    companion object {
+        private const val EMERGENCY_PLATFORM_CACHE_TIMEOUT_MILLIS = 500L
+    }
+}
+
+/**
+ * Pure emergency selection policy kept separate from Android providers so timeout/failure behaviour
+ * can be unit-tested without pretending to emulate the Android location stack.
+ */
+internal object EmergencyLocationLookup {
+    suspend fun resolve(
+        remembered: suspend () -> VeVakLocationSnapshot?,
+        platform: suspend () -> VeVakLocationSnapshot?,
+        platformTimeoutMillis: Long
+    ): VeVakLocationSnapshot? {
+        val rememberedSnapshot = valueOrNull(remembered)
+            ?.takeIf(RememberedLocationPolicy::isRealLocal)
+
+        val platformSnapshot = if (platformTimeoutMillis > 0L) {
+            withTimeoutOrNull(platformTimeoutMillis) {
+                valueOrNull(platform)
+            }
+        } else {
+            null
+        }?.takeIf(RememberedLocationPolicy::isRealLocal)
+
+        return listOfNotNull(rememberedSnapshot, platformSnapshot)
+            .minByOrNull { it.ageMillis }
+    }
+
+    private suspend fun valueOrNull(
+        block: suspend () -> VeVakLocationSnapshot?
+    ): VeVakLocationSnapshot? = try {
+        block()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
     }
 }
