@@ -48,12 +48,12 @@ class EmergencyShortcutArmController(context: Context) {
     }
 
     fun toggle(): Result = synchronized(lock) {
-        val prefs = prefs()
         val now = SystemClock.elapsedRealtime()
-        val currentDeadline = prefs.getLong(KEY_DEADLINE, 0L)
-        val currentArmId = prefs.getString(KEY_ARM_ID, null)
 
-        if (!currentArmId.isNullOrBlank() && currentDeadline > now) {
+        // elapsedRealtime() resets after reboot. Treat only a deadline inside the current four-second
+        // window as armed; an old persisted deadline must never turn the first post-reboot tap into
+        // a phantom cancellation.
+        if (remainingMillisLocked(now) > 0L) {
             clearArmLocked()
             return@synchronized Result.Cancelled
         }
@@ -61,7 +61,7 @@ class EmergencyShortcutArmController(context: Context) {
         clearArmLocked()
         val armId = UUID.randomUUID().toString()
         val deadline = now + GRACE_PERIOD_MILLIS
-        prefs.edit()
+        prefs().edit()
             .putString(KEY_ARM_ID, armId)
             .putLong(KEY_DEADLINE, deadline)
             .apply()

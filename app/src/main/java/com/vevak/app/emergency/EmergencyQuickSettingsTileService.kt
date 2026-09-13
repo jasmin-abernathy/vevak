@@ -35,7 +35,6 @@ class EmergencyQuickSettingsTileService : TileService() {
     private var listeningJob: Job? = null
     private var actionJob: Job? = null
     private var settings: VeVakSettings? = null
-    private var displayedArmed = false
     private var unlockRequest = 0L
     private var listening = false
 
@@ -77,8 +76,9 @@ class EmergencyQuickSettingsTileService : TileService() {
             renderIfListening()
             return
         }
-        // Cancellation does not require unlocking, and never becomes a new arm on an old label.
-        if (displayedArmed || controller.remainingMillis() > 0L) {
+        // Cancellation relies on the controller's current deadline rather than the last rendered
+        // tile state, which may be stale immediately after the Quick Settings panel is reopened.
+        if (controller.remainingMillis() > 0L) {
             val cancelled = controller.cancelIfArmed()
             Toast.makeText(this, if (cancelled) "Envoi annulé" else "Délai d'annulation terminé", Toast.LENGTH_SHORT).show()
             renderIfListening()
@@ -133,16 +133,16 @@ class EmergencyQuickSettingsTileService : TileService() {
         if (!listening) return
         val tile = qsTile ?: return
         val remaining = controller.remainingMillis()
-        displayedArmed = remaining > 0L
-        val unavailable = if (displayedArmed) null else unavailableReason()
+        val armed = remaining > 0L
+        val unavailable = if (armed) null else unavailableReason()
         tile.state = when {
-            displayedArmed -> Tile.STATE_ACTIVE
+            armed -> Tile.STATE_ACTIVE
             unavailable != null -> Tile.STATE_UNAVAILABLE
             else -> Tile.STATE_INACTIVE
         }
-        tile.label = if (displayedArmed) "Annuler · ${(remaining + 999L) / 1_000L} s" else getString(R.string.emergency_tile_label)
+        tile.label = if (armed) "Annuler · ${(remaining + 999L) / 1_000L} s" else getString(R.string.emergency_tile_label)
         val detail = when {
-            displayedArmed -> "Touchez pour annuler"
+            armed -> "Touchez pour annuler"
             unavailable != null -> unavailable
             isLocked -> "Déverrouiller pour préparer"
             else -> "Préparer l'envoi"
