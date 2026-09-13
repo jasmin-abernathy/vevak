@@ -51,6 +51,25 @@ for path in (refresh_scheduler_path, refresh_receiver_path):
     if "BackgroundLocationAccess" not in text:
         errors.append(f"Background refresh is missing its permission gate: {path.relative_to(ROOT)}")
 
+# Since 0.3.14 the optional freshness tick deliberately yields during deep idle. It must not consume
+# the app-wide allow-while-idle budget also used by the voluntary emergency fallback.
+refresh_scheduler_text = refresh_scheduler_path.read_text(encoding="utf-8")
+if "setAndAllowWhileIdle(" in refresh_scheduler_text:
+    errors.append(
+        "Optional position refresh must not use setAndAllowWhileIdle; reserve that idle budget "
+        "for the voluntary emergency fallback."
+    )
+
+# Exact-alarm privileges and battery-optimization exemptions are deliberately out of VeVak's
+# architecture. Do not introduce a scary/high-privilege installation surface to force timing.
+for forbidden_permission in (
+    "android.permission.SCHEDULE_EXACT_ALARM",
+    "android.permission.USE_EXACT_ALARM",
+    "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+):
+    if forbidden_permission in manifest:
+        errors.append(f"Forbidden scheduling/battery permission declared: {forbidden_permission}")
+
 # 0.3.11 deliberately removes notification permission and all normal notification surfaces. A
 # future refactor must not silently make request replies or the discreet emergency shortcut depend on
 # POST_NOTIFICATIONS again.
@@ -118,9 +137,23 @@ if arm_path.exists():
     arm_text = arm_path.read_text(encoding="utf-8")
     if "EmergencyShareReceiver" not in arm_text:
         errors.append("Emergency arm controller must dispatch the canonical EmergencyShareReceiver.")
+    if "setAndAllowWhileIdle(" not in arm_text:
+        errors.append(
+            "Emergency process-death fallback must retain its inexact setAndAllowWhileIdle alarm."
+        )
     for forbidden in ("VeVakPositionResolver", "VeVakLocationRepository", "OnlineApproximateLocationProvider"):
         if forbidden in arm_text:
             errors.append(f"Emergency arm controller location boundary violated: {forbidden}")
+
+# Keep allow-while-idle exceptional: only the voluntary emergency fallback may use it. The optional
+# position-memory refresh explicitly accepts Doze deferral instead of competing for this app-wide quota.
+for path in main_kotlin_paths:
+    text = path.read_text(encoding="utf-8")
+    if path != arm_path and "setAndAllowWhileIdle(" in text:
+        errors.append(
+            "allow-while-idle boundary violated outside EmergencyShortcutArmController: "
+            f"{path.relative_to(ROOT)}"
+        )
 
 # Best-effort periodic memory is allowed, but VeVak still rejects repeating/exact polling frameworks
 # and WorkManager loops. The implementation must schedule one future tick at a time instead.
