@@ -17,6 +17,7 @@ import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.sms.SmsReplyFormatter
 import com.vevak.app.sms.SmsReplySender
 import com.vevak.app.system.BatteryReader
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -64,7 +65,13 @@ class EmergencyShareReceiver : BroadcastReceiver() {
             return
         }
 
-        val lastKnown = runCatching { VeVakLocationRepository(context).fetchLastKnownLocation() }.getOrNull()
+        val lastKnown = try {
+            VeVakLocationRepository(context).fetchEmergencyLastKnownLocation()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
         val batteryLabel = BatteryReader(context).label()
         val body = if (lastKnown != null) {
             SmsReplyFormatter.formatEmergencyShareWithBatteryLabel(settings, lastKnown, batteryLabel)
