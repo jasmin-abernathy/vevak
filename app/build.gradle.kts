@@ -16,7 +16,10 @@ val hasUploadSigning = listOf(
 ).all { it.isPresent }
 
 // CI supplies the exact checked-out commit. Local builds are explicitly identified as local.
-val sourceRevision = providers.environmentVariable("GITHUB_SHA").orElse("local").map {
+val sourceRevision = providers.environmentVariable("VEVAK_SOURCE_REVISION")
+    .orElse(providers.environmentVariable("GITHUB_SHA"))
+    .orElse("local")
+    .map {
     if (it.matches(Regex("[0-9a-fA-F]{40}"))) it.take(12) else "local"
 }
 
