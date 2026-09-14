@@ -81,6 +81,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vevak.app.R
 import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.RequestAuditOutcome
+import com.vevak.app.emergency.EmergencyTileInstaller
 import com.vevak.app.emergency.EmergencyShortcutManager
 import com.vevak.app.emergency.EmergencyShortcutPreset
 import com.vevak.app.diagnostics.CheckState
@@ -442,7 +443,7 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
 
     StepLabel("Étape 5 sur 6")
     Title("Envoi d'urgence — facultatif")
-    Text("VeVak peut aussi envoyer rapidement votre dernière position réelle connue à des contacts choisis à l'avance. Ce n'est pas un appel aux services de secours.")
+    Text("VeVak peut aussi envoyer votre position à des contacts choisis à l'avance, avec les mêmes sources que les réponses SMS habituelles. Ce n'est pas un appel aux services de secours.")
     SimpleInfo(
         "Déclenchement protégé",
         "Un raccourci discret peut être placé sur l'écran d'accueil. Un appui prépare l'envoi ; un deuxième appui dans les 4 secondes l'annule. Ce n'est pas un double appui rapide pour envoyer. Après ce délai, VeVak demande l'envoi. Si Android le retarde, un nouvel appui annule l'urgence tant qu'elle n'est pas prise en charge. La livraison du SMS n'est pas confirmée."
@@ -513,9 +514,38 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
     if (!shortcutManager.isSupported()) {
         SimpleInfo(
             "Raccourci non pris en charge",
-            "Ce lanceur Android ne permet pas à VeVak d'ajouter automatiquement un raccourci. Vous pouvez continuer sans activer l'urgence."
+            "Ce lanceur Android ne permet pas d'ajouter automatiquement un raccourci d'accueil. Vous pouvez utiliser la tuile des réglages rapides et enregistrer votre destinataire ci-dessous."
         )
     }
+
+    if (shortcutManager.isSupported()) {
+        OutlinedButton(
+            onClick = {
+                message = if (shortcutManager.requestPin(preset)) {
+                    "Demande transmise au lanceur. Confirmez l'ajout sur Android, puis enregistrez votre destinataire ci-dessous."
+                } else {
+                    "Le lanceur n'a pas ouvert l'ajout. Vous pouvez utiliser la tuile ou réessayer plus tard dans Sécurité."
+                }
+            },
+            enabled = selected.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Ajouter le raccourci d'accueil") }
+    }
+
+    Text("Accès par les réglages rapides", fontWeight = FontWeight.SemiBold)
+    Text("La tuile Urgence VeVak apparaît dans le volet Android, à côté du Wi-Fi. Son nom y sera visible. Le téléphone doit être déverrouillé pour préparer l'envoi.")
+    OutlinedButton(
+        onClick = { EmergencyTileInstaller.request(context) { message = it } },
+        enabled = selected.isNotEmpty(),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            "Ajouter la tuile Urgence"
+        } else {
+            "Comment ajouter la tuile"
+        })
+    }
+    Text("L'ajout d'un accès est facultatif et ne confirme pas l'envoi d'un SMS. Enregistrez votre destinataire, puis terminez l'assistant pour pouvoir utiliser l'urgence. Vous pourrez ajouter un accès plus tard dans Sécurité.")
 
     message?.let { InlineMessage(it) }
     AdaptiveActions { actionModifier ->
@@ -523,16 +553,11 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
         Button(
             onClick = {
                 recipientStore.setSelectedContactIds(selected)
-                val pinRequested = shortcutManager.requestPin(preset)
-                if (!pinRequested && shortcutManager.isSupported()) {
-                    message = "Android n'a pas pu ouvrir la confirmation du raccourci. Réessayez ou configurez-le plus tard dans Sécurité."
-                } else {
-                    vm.next()
-                }
+                vm.next()
             },
-            enabled = selected.isNotEmpty() && shortcutManager.isSupported(),
+            enabled = selected.isNotEmpty(),
             modifier = actionModifier
-        ) { Text("Activer et continuer") }
+        ) { Text("Enregistrer et continuer") }
     }
     TextButton(
         onClick = {
