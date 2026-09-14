@@ -16,6 +16,16 @@ sealed interface VeVakPositionResolution {
     data object Unavailable : VeVakPositionResolution
 }
 
+/** Injectable platform inputs; all three actions still use this single decision engine. */
+internal interface PositionSources {
+    fun isSystemLocationEnabled(): Boolean
+    suspend fun fresh(policy: LocationRequestPolicy): VeVakLocationSnapshot?
+    fun matchesTrustedPlace(settings: VeVakSettings): Boolean
+    suspend fun approximate(): VeVakLocationSnapshot?
+    suspend fun remember(location: VeVakLocationSnapshot)
+    suspend fun cached(): VeVakLocationSnapshot?
+}
+
 /**
  * Canonical position decision engine shared by authorised automatic replies and diagnostic flows.
  *
@@ -32,52 +42,61 @@ sealed interface VeVakPositionResolution {
  *    or age, with that age made explicit in the SMS;
  * 5. unavailable only when no source has ever produced usable information.
  *
- * Explicit manual sharing keeps a stricter last-real-only repository path. Local emergency
- * uses this same canonical resolver. The duress/protection path deliberately bypasses this resolver in SmsRequestHandler.
+ * Explicit manual sharing and local emergency use this same canonical resolver. The duress/protection path deliberately bypasses this resolver in SmsRequestHandler.
  */
-class VeVakPositionResolver(context: Context) {
-    private val appContext = context.applicationContext
-    private val locationRepository = VeVakLocationRepository(appContext)
-    private val trustedNetworkReader = TrustedNetworkReader(appContext)
-    private val onlineApproximation = OnlineApproximateLocationProvider()
-    private val locationManager = appContext.getSystemService(LocationManager::class.java)
+class VeVakPositionResolver internal constructor(private val sources: PositionSources) {
+    constructor(context: Context) : this(AndroidPositionSources(context.applicationContext))
 
     suspend fun resolve(
         settings: VeVakSettings,
         includeTrustedPlace: Boolean = true
     ): VeVakPositionResolution {
-        if (isSystemLocationEnabled()) {
+        if (sources.isSystemLocationEnabled()) {
             val freshPolicy = LocationRequestPolicy(
                 maxAcceptedCacheAgeMillis = settings.maxCachedLocationAgeSeconds * 1_000L,
                 currentLocationTimeoutMillis = settings.locationTimeoutSeconds * 1_000L,
                 allowStaleFallback = false
             )
-            locationAttempt { locationRepository.fetchBestLocation(freshPolicy) }
+            locationAttempt { sources.fresh(freshPolicy) }
                 .getOrNull()
                 ?.let { return VeVakPositionResolution.Coordinates(it) }
         }
 
-        if (includeTrustedPlace && settings.hasTrustedWifiConfiguration() && trustedNetworkReader.matches(settings)) {
+        if (includeTrustedPlace && settings.hasTrustedWifiConfiguration() && locationAttempt { sources.matchesTrustedPlace(settings) }.getOrDefault(false)) {
             return VeVakPositionResolution.KnownPlace(settings.trustedPlaceLabel.trim().ifBlank { "Maison" })
         }
 
         if (settings.allowNetworkApproximation) {
-            locationAttempt { onlineApproximation.locate() }
+            locationAttempt { sources.approximate() }
                 .getOrNull()
                 ?.let { approximate ->
-                    locationAttempt { locationRepository.rememberLocation(approximate) }
+                    locationAttempt { sources.remember(approximate) }
                     return VeVakPositionResolution.Coordinates(approximate)
                 }
         }
 
-        locationAttempt { locationRepository.fetchLastKnownAnyLocation() }
+        locationAttempt { sources.cached() }
             .getOrNull()
             ?.let { return VeVakPositionResolution.Coordinates(it) }
 
         return VeVakPositionResolution.Unavailable
     }
 
-    private fun isSystemLocationEnabled(): Boolean {
+}
+
+private class AndroidPositionSources(context: Context) : PositionSources {
+    private val locationRepository = VeVakLocationRepository(context)
+    private val trustedNetworkReader = TrustedNetworkReader(context)
+    private val onlineApproximation = OnlineApproximateLocationProvider()
+    private val locationManager = context.getSystemService(LocationManager::class.java)
+
+    override suspend fun fresh(policy: LocationRequestPolicy) = locationRepository.fetchBestLocation(policy)
+    override fun matchesTrustedPlace(settings: VeVakSettings) = trustedNetworkReader.matches(settings)
+    override suspend fun approximate() = onlineApproximation.locate()
+    override suspend fun remember(location: VeVakLocationSnapshot) = locationRepository.rememberLocation(location)
+    override suspend fun cached() = locationRepository.fetchLastKnownAnyLocation()
+
+    override fun isSystemLocationEnabled(): Boolean {
         val manager = locationManager ?: return false
         return locationAttempt {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

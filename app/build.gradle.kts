@@ -15,6 +15,11 @@ val hasUploadSigning = listOf(
     uploadKeyPassword
 ).all { it.isPresent }
 
+// CI supplies the exact checked-out commit. Local builds are explicitly identified as local.
+val sourceRevision = providers.environmentVariable("GITHUB_SHA").orElse("local").map {
+    if (it.matches(Regex("[0-9a-fA-F]{40}"))) it.take(12) else "local"
+}
+
 android {
     namespace = "com.vevak.app"
     compileSdk = 36
@@ -25,6 +30,7 @@ android {
         targetSdk = 36
         versionCode = 17
         versionName = "0.3.14"
+        buildConfigField("String", "SOURCE_REVISION", "\"${sourceRevision.get()}\"")
 
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

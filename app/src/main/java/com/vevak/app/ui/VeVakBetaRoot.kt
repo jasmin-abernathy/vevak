@@ -670,7 +670,7 @@ private fun HomeTabContent(
     if (contacts.isNotEmpty()) {
         ActionCard(
             title = "Partager volontairement ma position",
-            detail = "Envoie uniquement la dernière position réelle déjà connue. VeVak ne lance pas un suivi pour cette action.",
+            detail = "Utilise les mêmes sources que les réponses SMS : position Android, lieu reconnu, estimation réseau si activée, puis mémoire. Aucun suivi continu.",
             actionLabel = if (state.manualShareLoading) "Lecture en cours…" else "Choisir un destinataire"
         ) {
             if (!state.manualShareLoading) {
@@ -680,7 +680,7 @@ private fun HomeTabContent(
     }
 
     if (shareChooser) {
-        SimpleInfo("Choisir le destinataire", "VeVak enverra uniquement la dernière position réelle déjà connue, avec son ancienneté, après votre confirmation.")
+        SimpleInfo("Choisir le destinataire", "Après votre confirmation, VeVak cherchera une position ou un lieu reconnu avec les mêmes sources que les réponses SMS.")
         contacts.forEach { contact ->
             OutlinedButton(
                 onClick = { shareChooser = false; vm.requestManualPositionShare(contact.id) },
@@ -696,7 +696,7 @@ private fun HomeTabContent(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Envoyer votre dernière position connue à ${target.displayLabel()} ?", fontWeight = FontWeight.Bold)
-                    Text("VeVak n'essaiera pas de produire un nouveau point : il enverra uniquement la dernière position réelle déjà connue et indiquera depuis combien de temps elle date. La livraison du SMS n'est pas garantie.")
+                    Text("VeVak peut demander une position ponctuelle, reconnaître Maison ou utiliser une position mémorisée. Une estimation réseau n'est utilisée que si vous l'avez activée et reste signalée comme approximative. La livraison du SMS n'est pas garantie.")
                     AdaptiveActions { actionModifier ->
                         OutlinedButton(onClick = vm::cancelManualPositionShare, modifier = actionModifier) { Text("Annuler") }
                         Button(onClick = vm::confirmManualPositionShare, modifier = actionModifier) { Text("Envoyer") }
@@ -1054,6 +1054,8 @@ private fun SettingsTabContent(
     var diagnosticOpen by rememberSaveable { mutableStateOf(false) }
 
     Title("Réglages")
+    Text("Version ${com.vevak.app.BuildConfig.VERSION_NAME} · ${com.vevak.app.BuildConfig.FLAVOR} · build ${com.vevak.app.BuildConfig.SOURCE_REVISION}", style = MaterialTheme.typography.bodySmall)
+    Text(com.vevak.app.BuildConfig.APPLICATION_ID, style = MaterialTheme.typography.bodySmall)
     OutlinedButton(
         onClick = { context.startActivity(Intent(context, SafetyCenterActivity::class.java)) },
         modifier = Modifier.fillMaxWidth()

@@ -130,6 +130,8 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("VeVak diagnostic — redacted")
             appendLine("version=${BuildConfig.VERSION_NAME}")
             appendLine("flavor=${BuildConfig.FLAVOR}")
+            appendLine("sourceRevision=${BuildConfig.SOURCE_REVISION}")
+            appendLine("applicationId=${BuildConfig.APPLICATION_ID}")
             appendLine("androidApi=${Build.VERSION.SDK_INT}")
             appendLine("locationBackend=${backend.name}")
             appendLine("usesGooglePlayServices=${BuildConfig.USES_GOOGLE_PLAY_SERVICES}")
