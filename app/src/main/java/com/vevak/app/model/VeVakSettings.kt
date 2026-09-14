@@ -44,9 +44,10 @@ data class VeVakSettings(
     // refresh only replaces the locally remembered last position. Android may defer alarm ticks.
     val backgroundRefreshEnabled: Boolean = false,
     val backgroundRefreshIntervalMinutes: Int = 30,
-    // When enabled, VeVak re-schedules the opt-in refresh loop after BOOT_COMPLETED. This does not
-    // open the UI or create a permanent foreground service/notification.
-    val startOnBoot: Boolean = false,
+    // Re-scheduling after BOOT_COMPLETED is the useful default once the user explicitly enables
+    // one-slot background refresh. It has no effect while backgroundRefreshEnabled remains false,
+    // opens no UI and creates no permanent foreground service/notification.
+    val startOnBoot: Boolean = true,
     // These timestamps belong to the primary contact. Additional contacts carry their own.
     val authorizationGrantedAtEpochMs: Long = 0L,
     val authorizationExpiresAtEpochMs: Long = 0L,
