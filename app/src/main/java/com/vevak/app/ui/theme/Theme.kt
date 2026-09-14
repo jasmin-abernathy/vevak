@@ -6,12 +6,14 @@ package com.vevak.app.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
@@ -80,13 +82,17 @@ fun VeVakTheme(content: @Composable () -> Unit) {
         colorScheme = if (isSystemInDarkTheme()) Dark else Light,
         shapes = VeVakShapes
     ) {
-        // MaterialTheme provides the palette but does not establish a root content color by itself.
-        // A root Surface makes every screen inherit the correct onBackground color and prevents
-        // standalone activities from falling back to black text when Android is in dark mode.
+        // MaterialTheme exposes the palette, but some root/nested containers can otherwise leave
+        // plain Text() nodes with a stale inherited content color. Keep the root background and
+        // LocalContentColor explicitly paired so dark mode never falls back to black-on-dark text.
         Surface(
             color = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.onBackground,
-            content = content
-        )
+            contentColor = MaterialTheme.colorScheme.onBackground
+        ) {
+            CompositionLocalProvider(
+                LocalContentColor provides MaterialTheme.colorScheme.onBackground,
+                content = content
+            )
+        }
     }
 }
