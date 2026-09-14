@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Papirus contributors, GPL-3.0. Adapted 2026-09-13; see docs/discreet-shortcut-icons.md. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
-    <path android:pathData="M6.0,4.0H42.0a2.0,2.0 0 0,1 2.0,2.0V42.0a2.0,2.0 0 0,1 -2.0,2.0H6.0a2.0,2.0 0 0,1 -2.0,-2.0V6.0a2.0,2.0 0 0,1 2.0,-2.0Z" android:fillColor="#e4e4e4"/>
-    <group android:rotation="-90" android:scaleY="-1"><path android:pathData="m-42-44h36c1.108 0 2 0.892 2 2v18h-40v-18c0-1.108 0.892-2 2-2z" android:fillColor="#000000" android:fillAlpha=".1"/></group>
-    <path android:pathData="m6 4c-1.108 0-2 0.892-2 2v1c0-1.108 0.892-2 2-2h36c1.108 0 2 0.892 2 2v-1c0-1.108-0.892-2-2-2h-36z" android:fillColor="#ffffff" android:fillAlpha=".2"/>
-    <path android:pathData="m6 45c-1.108 0-2-0.892-2-2v-1c0 1.108 0.892 2 2 2h36c1.108 0 2-0.892 2-2v1c0 1.108-0.892 2-2 2h-36z" android:fillColor="#000000" android:fillAlpha=".2"/>
-    <path android:pathData="m20 3c-1 0-1 1.0286-1 1.0286v16.971l2.5-1.543 2.5 1.543v-16.971c0-1.029-1-1.029-1-1.029z" android:fillColor="#c2352a"/>
+<!-- Original VeVak neutral utility icon, GPL-3.0-or-later. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#E6DDF0" android:pathData="M24,8H84C92.8,8 100,15.2 100,24V84C100,92.8 92.8,100 84,100H24C15.2,100 8,92.8 8,84V24C8,15.2 15.2,8 24,8Z"/>
+    <path android:fillColor="#5D4B69" android:pathData="M29,25H79C82.3,25 85,27.7 85,31V68L68,85H29C25.7,85 23,82.3 23,79V31C23,27.7 25.7,25 29,25Z"/>
+    <path android:fillColor="#E6DDF0" android:pathData="M68,68H85L68,85ZM35,40H72V46H35ZM35,53H66V59H35Z"/>
 </vector>

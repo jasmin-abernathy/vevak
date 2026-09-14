@@ -1,13 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Papirus contributors, GPL-3.0. Adapted 2026-09-13; see docs/discreet-shortcut-icons.md. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
-    <path android:pathData="m40 42v-36c0-1.108-0.892-2-2-2h-28c-1.108 0-2 0.892-2 2v36c0 1.108 0.892 2 2 2h28c1.108 0 2-0.892 2-2z" android:fillColor="#e4e4e4"/>
-    <path android:pathData="m10 4c-1.108 0-2 0.892-2 2v1c0-1.108 0.892-2 2-2h28c1.108 0 2 0.892 2 2v-1c0-1.108-0.892-2-2-2z" android:fillColor="#ffffff" android:fillAlpha=".2"/>
-    <path android:pathData="m8 42v1c0 1.108 0.892 2 2 2h28c1.108 0 2-0.892 2-2v-1c0 1.108-0.892 2-2 2h-28c-1.108 0-2-0.892-2-2z" android:fillColor="#000000" android:fillAlpha=".2"/>
-    <path android:pathData="M25.0,37.0a11.0,11.0 0 1,0 22.0,0a11.0,11.0 0 1,0 -22.0,0Z" android:fillColor="#000000" android:fillAlpha=".2"/>
-    <path android:pathData="M25.0,36.0a11.0,11.0 0 1,0 22.0,0a11.0,11.0 0 1,0 -22.0,0Z" android:fillColor="#f34235"/>
-    <path android:pathData="m30 39.327v2.673h2.6728l6.7507-6.7507-2.6728-2.6728zm11.788-6.4337c0.28271-0.28271 0.28271-0.72818 0-1.0109l-1.6705-1.6705c-0.28271-0.28271-0.72818-0.28271-1.0109 0l-1.3964 1.405 2.6728 2.6728z" android:fillColor="#ffffff"/>
-    <path android:pathData="M12.0,8.0h24.0v3.0h-24.0Z" android:fillColor="#000000" android:fillAlpha="0.2"/>
-    <path android:pathData="M12.0,15.0h24.0v3.0h-24.0Z" android:fillColor="#000000" android:fillAlpha="0.2"/>
-    <path android:pathData="M12.0,22.0h14.0v3.0h-14.0Z" android:fillColor="#000000" android:fillAlpha="0.2"/>
+<!-- Original VeVak neutral utility icon, GPL-3.0-or-later. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#E9E3D5" android:pathData="M24,8H84C92.8,8 100,15.2 100,24V84C100,92.8 92.8,100 84,100H24C15.2,100 8,92.8 8,84V24C8,15.2 15.2,8 24,8Z"/>
+    <path android:fillColor="#4F4A42" android:pathData="M34,28H74C77.3,28 80,30.7 80,34V76C80,79.3 77.3,82 74,82H34C30.7,82 28,79.3 28,76V34C28,30.7 30.7,28 34,28Z"/>
+    <path android:fillColor="#E9E3D5" android:pathData="M38,41H70V46H38ZM38,53H70V58H38ZM38,65H61V70H38Z"/>
 </vector>

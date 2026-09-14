@@ -6,6 +6,7 @@ package com.vevak.app
 
 import com.vevak.app.location.LocationSource
 import com.vevak.app.location.VeVakLocationSnapshot
+import com.vevak.app.location.VeVakPositionResolution
 import com.vevak.app.model.MapProvider
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.sms.MapLinkBuilder
@@ -20,18 +21,8 @@ class LocationReplyTest {
 
     @Test
     fun normalCoordinateReply_keepsAddressUrlRadiusAndBattery() {
-        val location = VeVakLocationSnapshot(
-            latitude = 49.1193,
-            longitude = 6.1757,
-            accuracyMeters = 24f,
-            source = LocationSource.AndroidCurrent,
-            ageMillis = 0L,
-            isMocked = false,
-            address = "12 rue Exemple, 57000 Metz, France"
-        )
-
+        val location = VeVakLocationSnapshot(49.1193, 6.1757, 24f, LocationSource.AndroidCurrent, 0L, false, "12 rue Exemple, 57000 Metz, France")
         val body = SmsReplyFormatter.formatWithBatteryLabel(settings, location, "Batterie : 49 %")
-
         assertTrue(body.contains("Dernière position connue"))
         assertTrue(body.contains("openstreetmap.org"))
         assertTrue(body.contains("49.119300"))
@@ -43,18 +34,8 @@ class LocationReplyTest {
 
     @Test
     fun manualCoordinateReply_keepsRestoredAddressPayloadContract() {
-        val location = VeVakLocationSnapshot(
-            latitude = 49.1193,
-            longitude = 6.1757,
-            accuracyMeters = 24f,
-            source = LocationSource.AndroidLastKnown,
-            ageMillis = 7 * 60_000L,
-            isMocked = false,
-            address = "12 rue Exemple, 57000 Metz, France"
-        )
-
+        val location = VeVakLocationSnapshot(49.1193, 6.1757, 24f, LocationSource.AndroidLastKnown, 7 * 60_000L, false, "12 rue Exemple, 57000 Metz, France")
         val body = SmsReplyFormatter.formatManualShareWithBatteryLabel(settings, location, "Batterie en charge")
-
         assertTrue(body.contains("Dernière position connue : il y a 7 min"))
         assertTrue(body.contains("Adresse approx. : 12 rue Exemple, 57000 Metz, France"))
         assertTrue(body.contains("Rayon approximatif : env. 24 m"))
@@ -63,18 +44,8 @@ class LocationReplyTest {
 
     @Test
     fun emergencyReply_isExplicitAndDoesNotAddReverseGeocoderText() {
-        val location = VeVakLocationSnapshot(
-            latitude = 49.1193,
-            longitude = 6.1757,
-            accuracyMeters = 38f,
-            source = LocationSource.VeVakRemembered,
-            ageMillis = 2 * 60 * 60_000L,
-            isMocked = false,
-            address = "12 rue Exemple, 57000 Metz, France"
-        )
-
+        val location = VeVakLocationSnapshot(49.1193, 6.1757, 38f, LocationSource.VeVakRemembered, 2 * 60 * 60_000L, false, "12 rue Exemple, 57000 Metz, France")
         val body = SmsReplyFormatter.formatEmergencyShareWithBatteryLabel(settings, location, "Batterie : 31 %")
-
         assertTrue(body.startsWith("URGENCE VeVak"))
         assertTrue(body.contains("Dernière position connue : il y a 2 h"))
         assertTrue(body.contains("openstreetmap.org"))
@@ -84,42 +55,49 @@ class LocationReplyTest {
     }
 
     @Test
+    fun emergencyTrustedPlace_usesSameCanonicalResolutionAsNormalRequest() {
+        val body = SmsReplyFormatter.formatEmergencyResolutionWithBatteryLabel(
+            settings,
+            VeVakPositionResolution.KnownPlace("Maison"),
+            "Batterie : 76 %"
+        )
+        assertTrue(body.startsWith("URGENCE VeVak"))
+        assertTrue(body.contains("Je suis chez moi"))
+        assertTrue(body.contains("Batterie : 76 %"))
+        assertFalse(body.contains("Aucune position connue"))
+        assertFalse(body.contains("http"))
+    }
+
+    @Test
+    fun emergencyNetworkApproximation_keepsApproximationWarning() {
+        val location = VeVakLocationSnapshot(47.7427, 6.82733, 25_000f, LocationSource.NetworkApproximation, 60_000L, false)
+        val body = SmsReplyFormatter.formatEmergencyResolutionWithBatteryLabel(settings, VeVakPositionResolution.Coordinates(location), null)
+        assertTrue(body.startsWith("URGENCE VeVak"))
+        assertTrue(body.contains("Dernière zone connue"))
+        assertTrue(body.contains("Estimation via le réseau"))
+        assertTrue(body.contains("pas une position exacte"))
+        assertFalse(body.contains("Dernière position connue"))
+    }
+
+    @Test
     fun emergencyUnavailable_doesNotInventCoordinates() {
         val body = SmsReplyFormatter.formatEmergencyUnavailableWithBatteryLabel(settings, "Batterie : 18 %")
-
         assertTrue(body.startsWith("URGENCE VeVak"))
-        assertTrue(body.contains("Aucune dernière position connue"))
+        assertTrue(body.contains("Aucune position connue"))
         assertTrue(body.contains("Batterie : 18 %"))
         assertFalse(body.contains("http"))
     }
 
     @Test
     fun ageLabel_usesDaysWhenNeeded() {
-        val location = VeVakLocationSnapshot(
-            latitude = 49.1193,
-            longitude = 6.1757,
-            accuracyMeters = null,
-            source = LocationSource.AndroidLastKnown,
-            ageMillis = 2 * 24 * 60 * 60_000L,
-            isMocked = false
-        )
-
+        val location = VeVakLocationSnapshot(49.1193, 6.1757, null, LocationSource.AndroidLastKnown, 2 * 24 * 60 * 60_000L, false)
         assertEquals("il y a 2 jours", location.ageLabel())
     }
 
     @Test
     fun networkApproximation_isPresentedAsAnAgedAreaNotAnExactFix() {
-        val location = VeVakLocationSnapshot(
-            latitude = 47.7427,
-            longitude = 6.82733,
-            accuracyMeters = 25_000f,
-            source = LocationSource.NetworkApproximation,
-            ageMillis = 0L,
-            isMocked = false
-        )
-
+        val location = VeVakLocationSnapshot(47.7427, 6.82733, 25_000f, LocationSource.NetworkApproximation, 0L, false)
         val body = SmsReplyFormatter.format(settings, location, null)
-
         assertTrue(body.contains("Dernière zone connue : maintenant"))
         assertTrue(body.contains("Estimation via le réseau"))
         assertTrue(body.contains("pas une position exacte"))
@@ -141,21 +119,14 @@ class LocationReplyTest {
     }
 
     @Test
-    fun networkApproximation_isOptInByDefault() {
-        assertFalse(VeVakSettings().allowNetworkApproximation)
-    }
+    fun networkApproximation_isOptInByDefault() { assertFalse(VeVakSettings().allowNetworkApproximation) }
 
     @Test
-    fun trustedHomeReply_isExactlyTheRequestedSentence() {
-        assertEquals("Je suis chez moi", SmsReplyFormatter.formatTrustedPlace())
-    }
+    fun trustedHomeReply_isExactlyTheRequestedSentence() { assertEquals("Je suis chez moi", SmsReplyFormatter.formatTrustedPlace()) }
 
     @Test
     fun trustedHomeReply_canIncludeChargingState() {
-        assertEquals(
-            "Je suis chez moi\nBatterie en charge",
-            SmsReplyFormatter.formatTrustedPlaceWithBattery("Maison", "Batterie en charge", true)
-        )
+        assertEquals("Je suis chez moi\nBatterie en charge", SmsReplyFormatter.formatTrustedPlaceWithBattery("Maison", "Batterie en charge", true))
     }
 
     @Test

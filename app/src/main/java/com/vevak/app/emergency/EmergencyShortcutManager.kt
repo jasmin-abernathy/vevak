@@ -13,17 +13,13 @@ import androidx.annotation.DrawableRes
 import com.vevak.app.R
 import java.util.UUID
 
-enum class EmergencyShortcutPreset(
-    val label: String,
-    val description: String,
-    @DrawableRes val iconRes: Int
-) {
-    Notes("Notes", "Carnet neutre", R.drawable.ic_shortcut_notes),
-    Liste("Liste", "Petite checklist", R.drawable.ic_shortcut_list),
+enum class EmergencyShortcutPreset(val label: String, val description: String, @DrawableRes val iconRes: Int) {
+    Notes("Notes", "Feuille neutre", R.drawable.ic_shortcut_notes),
+    Liste("Liste", "Checklist simple", R.drawable.ic_shortcut_list),
     Horaires("Horaires", "Horloge simple", R.drawable.ic_shortcut_clock),
     Dossier("Dossier", "Dossier générique", R.drawable.ic_shortcut_folder),
-    Outils("Outils", "Boîte à outils", R.drawable.ic_shortcut_tools),
-    Memos("Mémos", "Carnet avec marque-page", R.drawable.ic_shortcut_memo)
+    Outils("Outils", "Réglages simples", R.drawable.ic_shortcut_tools),
+    Memos("Mémos", "Mémo neutre", R.drawable.ic_shortcut_memo)
 }
 
 class EmergencyShortcutManager(context: Context) {
@@ -33,15 +29,9 @@ class EmergencyShortcutManager(context: Context) {
 
     fun isSupported(): Boolean = shortcutManager?.isRequestPinShortcutSupported == true
 
-    /**
-     * Android still shows its own launcher confirmation when pinning a shortcut. Once pinned, using
-     * the shortcut itself never opens a confirmation screen: it only arms/cancels the delayed local
-     * emergency action.
-     */
     fun requestPin(preset: EmergencyShortcutPreset): Boolean {
         val manager = shortcutManager ?: return false
         if (!manager.isRequestPinShortcutSupported) return false
-
         val token = existingOrNewToken()
         val target = Intent(appContext, EmergencyShortcutActivity::class.java).apply {
             action = EmergencyShortcutActivity.ACTION_TOGGLE_EMERGENCY
@@ -50,24 +40,16 @@ class EmergencyShortcutManager(context: Context) {
         val shortcut = ShortcutInfo.Builder(appContext, SHORTCUT_ID)
             .setShortLabel(preset.label)
             .setLongLabel(preset.label)
-            // Keep the launcher-facing failure message generic so the discreet shortcut does not
-            // disclose its association with VeVak if Android ever marks it disabled.
             .setDisabledMessage("Raccourci indisponible.")
             .setIcon(Icon.createWithResource(appContext, preset.iconRes))
             .setIntent(target)
             .build()
-
         prefs.edit().putString(KEY_PRESET, preset.name).apply()
         return manager.requestPinShortcut(shortcut, null)
     }
 
-    fun isValidToken(candidate: String?): Boolean =
-        !candidate.isNullOrBlank() && candidate == prefs.getString(KEY_TOKEN, null)
-
-    fun selectedPreset(): EmergencyShortcutPreset =
-        runCatching {
-            EmergencyShortcutPreset.valueOf(prefs.getString(KEY_PRESET, null).orEmpty())
-        }.getOrDefault(EmergencyShortcutPreset.Notes)
+    fun isValidToken(candidate: String?): Boolean = !candidate.isNullOrBlank() && candidate == prefs.getString(KEY_TOKEN, null)
+    fun selectedPreset(): EmergencyShortcutPreset = runCatching { EmergencyShortcutPreset.valueOf(prefs.getString(KEY_PRESET, null).orEmpty()) }.getOrDefault(EmergencyShortcutPreset.Notes)
 
     private fun existingOrNewToken(): String {
         prefs.getString(KEY_TOKEN, null)?.takeIf { it.isNotBlank() }?.let { return it }

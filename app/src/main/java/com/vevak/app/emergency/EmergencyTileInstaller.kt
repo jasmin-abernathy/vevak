@@ -14,12 +14,18 @@ import com.vevak.app.R
 object EmergencyTileInstaller {
     fun request(context: Context, result: (String) -> Unit) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            result("Ouvrez deux fois le volet Android, touchez le crayon ou Modifier, puis faites glisser Urgence VeVak parmi vos réglages rapides.")
+            result(
+                "Sur cette version d'Android, VeVak ne peut pas ajouter la tuile automatiquement. " +
+                    "Ouvrez complètement les réglages rapides, touchez le crayon ou Modifier, puis " +
+                    "cherchez « Urgence VeVak » parmi les tuiles disponibles et faites-la glisser. " +
+                    "Si elle n'apparaît pas du tout dans cette liste, signalez le modèle du téléphone " +
+                    "et la version Android : ce n'est pas le comportement attendu."
+            )
             return
         }
         val manager = context.getSystemService(StatusBarManager::class.java)
         if (manager == null) {
-            result("L'ajout automatique n'est pas disponible sur ce téléphone. Utilisez Modifier dans le volet Android.")
+            result("L'ajout automatique n'est pas disponible sur ce téléphone. Ouvrez Modifier dans le volet Android et cherchez « Urgence VeVak » parmi les tuiles disponibles.")
             return
         }
         try {
@@ -35,11 +41,11 @@ object EmergencyTileInstaller {
                     StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> "Tuile non ajoutée. Vous pourrez réessayer plus tard."
                     StatusBarManager.TILE_ADD_REQUEST_ERROR_REQUEST_IN_PROGRESS -> "Une demande d'ajout est déjà ouverte dans Android."
                     StatusBarManager.TILE_ADD_REQUEST_ERROR_APP_NOT_IN_FOREGROUND -> "Revenez dans VeVak puis réessayez d'ajouter la tuile."
-                    else -> "Android n'a pas ajouté la tuile. Vous pouvez utiliser Modifier dans le volet Android."
+                    else -> "Android n'a pas ajouté la tuile. Vous pouvez utiliser Modifier dans le volet Android et chercher « Urgence VeVak »."
                 })
             }
         } catch (_: IllegalArgumentException) {
-            result("Android ne permet pas l'ajout automatique ici. Utilisez Modifier dans le volet Android.")
+            result("Android ne permet pas l'ajout automatique ici. Utilisez Modifier dans le volet Android et cherchez « Urgence VeVak ».")
         } catch (_: SecurityException) {
             result("Ouvrez VeVak au premier plan pour proposer l'ajout de la tuile.")
         }

@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Papirus contributors, GPL-3.0. Adapted 2026-09-13; see docs/discreet-shortcut-icons.md. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
-    <path android:pathData="m40 42v-36c0-1.108-0.892-2-2-2h-28c-1.108 0-2 0.892-2 2v36c0 1.108 0.892 2 2 2h28c1.108 0 2-0.892 2-2z" android:fillColor="#e4e4e4"/>
-    <path android:pathData="m10 4c-1.108 0-2 0.892-2 2v1c0-1.108 0.892-2 2-2h28c1.108 0 2 0.892 2 2v-1c0-1.108-0.892-2-2-2z" android:fillColor="#ffffff" android:fillAlpha=".2"/>
-    <path android:pathData="m8 42v1c0 1.108 0.892 2 2 2h28c1.108 0 2-0.892 2-2v-1c0 1.108-0.892 2-2 2h-28c-1.108 0-2-0.892-2-2z" android:fillColor="#000000" android:fillAlpha=".2"/>
-    <path android:pathData="M13,13l2,2 4,-4M13,24l2,2 4,-4M13,35l2,2 4,-4" android:fillColor="#00000000" android:strokeColor="#298060" android:strokeWidth="2.5" android:strokeLineCap="round" android:strokeLineJoin="round"/>
-    <path android:pathData="M24,12h11v3H24zM24,23h11v3H24zM24,34h11v3H24z" android:fillColor="#626b73"/>
+<!-- Original VeVak neutral utility icon, GPL-3.0-or-later. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#DCE8D5" android:pathData="M24,8H84C92.8,8 100,15.2 100,24V84C100,92.8 92.8,100 84,100H24C15.2,100 8,92.8 8,84V24C8,15.2 15.2,8 24,8Z"/>
+    <path android:fillColor="#4B5D45" android:pathData="M28,33L35,40L46,27L51,31L35,49L23,37ZM28,55L35,62L46,49L51,53L35,71L23,59ZM56,34H82V40H56ZM56,56H82V62H56Z"/>
 </vector>

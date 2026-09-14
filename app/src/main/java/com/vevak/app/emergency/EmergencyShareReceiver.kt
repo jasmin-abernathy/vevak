@@ -13,7 +13,8 @@ import android.telephony.SubscriptionManager
 import androidx.core.content.ContextCompat
 import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.VeVakSettingsRepository
-import com.vevak.app.location.VeVakLocationRepository
+import com.vevak.app.location.VeVakPositionResolution
+import com.vevak.app.location.VeVakPositionResolver
 import com.vevak.app.sms.SmsReplyFormatter
 import com.vevak.app.sms.SmsReplySender
 import com.vevak.app.system.BatteryReader
@@ -65,19 +66,23 @@ class EmergencyShareReceiver : BroadcastReceiver() {
             return
         }
 
-        val lastKnown = try {
-            VeVakLocationRepository(context).fetchEmergencyLastKnownLocation()
+        // Emergency uses the same canonical resolver as an authorised phrase-key request. This keeps
+        // trusted-place, current Android position, optional network approximation and remembered
+        // fallback semantics consistent instead of maintaining a second location policy.
+        val resolution = try {
+            VeVakPositionResolver(context).resolve(settings)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            null
+            VeVakPositionResolution.Unavailable
         }
+
         val batteryLabel = BatteryReader(context).label()
-        val body = if (lastKnown != null) {
-            SmsReplyFormatter.formatEmergencyShareWithBatteryLabel(settings, lastKnown, batteryLabel)
-        } else {
-            SmsReplyFormatter.formatEmergencyUnavailableWithBatteryLabel(settings, batteryLabel)
-        }
+        val body = SmsReplyFormatter.formatEmergencyResolutionWithBatteryLabel(
+            settings = settings,
+            resolution = resolution,
+            batteryLabel = batteryLabel
+        )
 
         val sender = SmsReplySender(context)
         recipients.forEach { contact ->

@@ -5,6 +5,7 @@
 package com.vevak.app.sms
 
 import com.vevak.app.location.VeVakLocationSnapshot
+import com.vevak.app.location.VeVakPositionResolution
 import com.vevak.app.model.VeVakSettings
 
 object SmsReplyFormatter {
@@ -46,26 +47,55 @@ object SmsReplyFormatter {
         batteryLabel: String?
     ): String = formatWithBatteryLabel(settings, location, batteryLabel)
 
+    /**
+     * Emergency keeps its explicit label but uses the same position-resolution result as the normal
+     * authorised SMS path. Only presentation differs: real coordinates stay compact and omit
+     * reverse-geocoder text; trusted places and opted-in network estimates remain honest about their
+     * source instead of being discarded as "no position".
+     */
+    fun formatEmergencyResolutionWithBatteryLabel(
+        settings: VeVakSettings,
+        resolution: VeVakPositionResolution,
+        batteryLabel: String?
+    ): String = buildString {
+        append("URGENCE VeVak")
+        when (resolution) {
+            is VeVakPositionResolution.KnownPlace -> {
+                append('\n')
+                append(trustedPlaceText(resolution.label))
+            }
+            is VeVakPositionResolution.Coordinates -> {
+                val location = resolution.location
+                if (location.isApproximateNetworkEstimate()) {
+                    appendNetworkEstimate(settings, location)
+                } else {
+                    appendRealLocation(settings, location, includeAddress = false)
+                }
+            }
+            VeVakPositionResolution.Unavailable ->
+                append("\nAucune position connue n'est disponible sur le téléphone.")
+        }
+        appendBattery(settings.includeBattery, batteryLabel)
+    }
+
     fun formatEmergencyShareWithBatteryLabel(
         settings: VeVakSettings,
         location: VeVakLocationSnapshot,
         batteryLabel: String?
-    ): String = buildString {
-        append("URGENCE VeVak")
-        // Keep the emergency shortcut compact and deterministic: it carries the last real point,
-        // its age and the selected optional information, but does not add reverse-geocoder text.
-        appendRealLocation(settings, location, includeAddress = false)
-        appendBattery(settings.includeBattery, batteryLabel)
-    }
+    ): String = formatEmergencyResolutionWithBatteryLabel(
+        settings,
+        VeVakPositionResolution.Coordinates(location),
+        batteryLabel
+    )
 
     fun formatEmergencyUnavailableWithBatteryLabel(
         settings: VeVakSettings,
         batteryLabel: String?
-    ): String = buildString {
-        append("URGENCE VeVak")
-        append("\nAucune dernière position connue n'est disponible sur le téléphone.")
-        appendBattery(settings.includeBattery, batteryLabel)
-    }
+    ): String = formatEmergencyResolutionWithBatteryLabel(
+        settings,
+        VeVakPositionResolution.Unavailable,
+        batteryLabel
+    )
 
     fun formatTrustedPlace(label: String = "Maison"): String = trustedPlaceText(label)
 
