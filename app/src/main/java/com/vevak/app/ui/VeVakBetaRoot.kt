@@ -464,6 +464,8 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
         return
     }
 
+    EmergencyFeedbackSettings()
+
     Text("Qui recevra le message ?", fontWeight = FontWeight.SemiBold)
     Text("Aucun contact n'est sélectionné automatiquement.", color = MaterialTheme.colorScheme.onSurfaceVariant)
     Card(modifier = Modifier.fillMaxWidth()) {

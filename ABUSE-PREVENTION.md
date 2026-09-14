@@ -191,3 +191,12 @@ Before a stable public release, test at minimum:
 ## External review
 
 Code review and tests cannot fully model coercive control. Before positioning VeVak as a stable public safety product, the abuse-prevention model should be reviewed with people or organisations experienced in technology-facilitated intimate-partner abuse and stalkerware safety.
+
+
+## Retour d’urgence facultatif (choix du 14 septembre 2026)
+
+Le silence reste le défaut. L’assistant et Sécurité proposent aussi une vibration courte à l’armement ou une notification temporaire, sans son. Ce choix remplace les anciennes affirmations de silence absolu pour l’urgence. Les SMS automatiques restent silencieux.
+
+L’autorisation Android de notification n’est demandée qu’au choix de cette option ; un refus ne bloque jamais l’urgence. La vibration utilise la permission Android normale VIBRATE. Aucun service permanent ajouté.
+
+La notification ne contient ni position, ni destinataire, ni contenu SMS. Elle est masquée sur écran verrouillé, mais révèle VeVak dans le volet. Elle disparaît après une minute sans annuler une demande en attente ; la tuile/le raccourci restent utilisables pour annuler avant prise en charge. Son action Annuler cible uniquement l’armement d’origine. Après prise en charge, elle indique la remise des demandes à Android ou l’échec local ; elle ne prouve jamais la livraison et ne déclenche aucun retry.

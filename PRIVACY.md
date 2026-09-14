@@ -102,3 +102,12 @@ Les SMS passent par le réseau et l'application de messagerie Android. VeVak uti
 La variante `foss` n'utilise pas Google Play Services. La variante `play` utilise le fournisseur de localisation Google, isolé dans sa flavor dédiée.
 
 Voir aussi [`ABUSE-PREVENTION.md`](ABUSE-PREVENTION.md) et [`docs/final-hardening-0.3.11.md`](docs/final-hardening-0.3.11.md).
+
+
+## Retour d’urgence facultatif (choix du 14 septembre 2026)
+
+Le silence reste le défaut. L’assistant et Sécurité proposent aussi une vibration courte à l’armement ou une notification temporaire, sans son. Ce choix remplace les anciennes affirmations de silence absolu pour l’urgence. Les SMS automatiques restent silencieux.
+
+L’autorisation Android de notification n’est demandée qu’au choix de cette option ; un refus ne bloque jamais l’urgence. La vibration utilise la permission Android normale VIBRATE. Aucun service permanent ajouté.
+
+La notification ne contient ni position, ni destinataire, ni contenu SMS. Elle est masquée sur écran verrouillé, mais révèle VeVak dans le volet. Elle disparaît après une minute sans annuler une demande en attente ; la tuile/le raccourci restent utilisables pour annuler avant prise en charge. Son action Annuler cible uniquement l’armement d’origine. Après prise en charge, elle indique la remise des demandes à Android ou l’échec local ; elle ne prouve jamais la livraison et ne déclenche aucun retry.

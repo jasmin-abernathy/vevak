@@ -212,6 +212,8 @@ private fun SafetyCenter(
             }
         }
 
+        EmergencyFeedbackSettings()
+
         HorizontalDivider()
         Text("Raccourci discret d'envoi d'urgence", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("VeVak peut ajouter sur l'écran d'accueil une icône qui ressemble à un petit utilitaire banal. Les noms et logos proposés sont génériques et ne copient aucune application existante.")

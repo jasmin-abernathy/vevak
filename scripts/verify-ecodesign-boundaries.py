@@ -70,20 +70,17 @@ for forbidden_permission in (
     if forbidden_permission in manifest:
         errors.append(f"Forbidden scheduling/battery permission declared: {forbidden_permission}")
 
-# 0.3.11 deliberately removes notification permission and all normal notification surfaces. A
-# future refactor must not silently make request replies or the discreet emergency shortcut depend on
-# POST_NOTIFICATIONS again.
-if "android.permission.POST_NOTIFICATIONS" in manifest:
-    errors.append("POST_NOTIFICATIONS must not be declared: VeVak 0.3.11 core is notification-free.")
-
+# User-approved exception (2026-09-14): optional emergency feedback only.
+# The default and the core incoming-SMS path remain notification-free.
+feedback_permission_paths = {
+    ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyFeedback.kt",
+    ROOT / "app/src/main/java/com/vevak/app/ui/EmergencyFeedbackSettings.kt",
+}
 main_kotlin_paths = list((ROOT / "app/src/main").rglob("*.kt"))
 for path in main_kotlin_paths:
     text = path.read_text(encoding="utf-8")
-    if "POST_NOTIFICATIONS" in text:
-        errors.append(
-            "Notification-permission reference reintroduced in main source: "
-            f"{path.relative_to(ROOT)}"
-        )
+    if "POST_NOTIFICATIONS" in text and path not in feedback_permission_paths:
+        errors.append(f"Notification permission outside optional emergency feedback: {path.relative_to(ROOT)}")
 
 notifier_path = ROOT / "app/src/main/java/com/vevak/app/system/RequestVisibilityNotifier.kt"
 if notifier_path.exists():

@@ -42,7 +42,8 @@ class EmergencyShortcutArmController(context: Context) {
     }
 
     /** An outdated Cancel tile must never arm a new alert after the deadline. */
-    fun cancelIfArmed(): Boolean = synchronized(lock) {
+    fun cancelIfArmed(candidateArmId: String? = null): Boolean = synchronized(lock) {
+        if (candidateArmId != null && prefs().getString(KEY_ARM_ID, null) != candidateArmId) return@synchronized false
         if (!stateLocked(SystemClock.elapsedRealtime()).isCancellable) return@synchronized false
         clearArmLocked()
         true
@@ -87,8 +88,9 @@ class EmergencyShortcutArmController(context: Context) {
             alarm
         )
 
+        EmergencyFeedback(appContext).armed(armId)
         pendingJob = scope.launch {
-            delay(GRACE_PERIOD_MILLIS)
+            delay((deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0L))
             val shouldDispatch = synchronized(lock) {
                 // Keep the system fallback registered until the receiver consumes the arm. If the
                 // process dies after this check but before sendBroadcast, AlarmManager still has a
@@ -120,6 +122,7 @@ class EmergencyShortcutArmController(context: Context) {
     private fun clearArmLocked() {
         val existingId = prefs().getString(KEY_ARM_ID, null)
         if (!existingId.isNullOrBlank()) {
+            EmergencyFeedback(appContext).clear(existingId)
             // Look up without creating a new token just to discard it (for example after reboot).
             existingAlarmIntent(existingId)?.let { alarm ->
                 alarmManager?.cancel(alarm)
