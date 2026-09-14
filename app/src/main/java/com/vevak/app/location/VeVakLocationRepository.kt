@@ -102,7 +102,7 @@ class VeVakLocationRepository(context: Context) {
     }
 
     private suspend fun platformCachedLocation(): VeVakLocationSnapshot? = locationAttempt {
-        provider.lastKnownLocation()
+        platformCacheLookup { provider.lastKnownLocation() }
             ?.toVeVakSnapshot(provider.lastKnownSource)
             ?.takeUnless { it.isMocked }
     }.getOrNull()
