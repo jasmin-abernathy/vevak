@@ -84,14 +84,14 @@ must make an explicit choice before a shortcut can send anything.
 
 The emergency send:
 
-- uses only the last real/local position already known;
-- preserves its age;
-- does not use network/IP estimation;
+- uses the same canonical resolver as authorised normal requests, including trusted places;
+- preserves the source and age of coordinate-bearing results;
+- uses network/IP estimation only with the existing explicit opt-in and an inexact-position warning;
 - does not add reverse-geocoder address text;
 - is not subject to the automatic-request rate limiter;
 - remains local-only and cannot be requested remotely.
 
-VeVak may ask Android to pin an additional generic home-screen shortcut. The provided names/icons are original/generic and do not imitate an existing application. The real VeVak launcher entry remains available.
+VeVak may ask Android to pin an additional generic home-screen shortcut. The provided names are generic; the object icons come from Streamline Ultimate Color (CC BY 4.0, attribution included) and do not imitate an existing application. The real VeVak launcher entry remains available.
 
 The shortcut uses a local random token and only delegates to the canonical emergency action. It is not a second location resolver.
 
