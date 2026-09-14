@@ -1,7 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Original VeVak neutral utility icon, GPL-3.0-or-later. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#D8E2F0" android:pathData="M24,8H84C92.8,8 100,15.2 100,24V84C100,92.8 92.8,100 84,100H24C15.2,100 8,92.8 8,84V24C8,15.2 15.2,8 24,8Z"/>
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#40536D" android:strokeWidth="7" android:strokeLineCap="round" android:pathData="M54,28A26,26 0,1 1,53.9,28"/>
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#40536D" android:strokeWidth="7" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54,38V55L66,62"/>
+<!-- Streamline Ultimate Color, CC BY 4.0. See third_party/streamline-ultimate-color/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="32" android:viewportHeight="32">
+  <group android:translateX="4" android:translateY="4">
+    <path android:pathData="M12 22.543c5.821 0 10.54-4.72 10.54-10.542S17.822 1.459 12 1.459c-5.823 0-10.542 4.72-10.542 10.542s4.72 10.542 10.541 10.542" android:fillColor="#66e1ff" />
+    <path android:pathData="M4.545 19.455A10.542 10.542 0 0 1 19.453 4.547z" android:fillColor="#c2f3ff" />
+    <path android:pathData="M12 22.543c5.821 0 10.54-4.72 10.54-10.542S17.822 1.459 12 1.459c-5.823 0-10.542 4.72-10.542 10.542s4.72 10.542 10.541 10.542" android:fillColor="#00000000" android:strokeColor="#191919" android:strokeWidth="1" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M12 6.96V12l5.5 5.043" android:fillColor="#00000000" android:strokeColor="#191919" android:strokeWidth="1" android:strokeLineCap="round" android:strokeLineJoin="round" />
+  </group>
 </vector>

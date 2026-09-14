@@ -122,7 +122,7 @@ if emergency_path.exists():
             )
 
 # The discreet shortcut may arm/cancel the existing local emergency action, but it must not become a
-# second location resolver or bypass the carefully separated emergency last-real-only contract.
+# second location resolver: emergency shares the canonical resolver used by normal requests.
 shortcut_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutActivity.kt"
 if shortcut_path.exists():
     shortcut_text = shortcut_path.read_text(encoding="utf-8")

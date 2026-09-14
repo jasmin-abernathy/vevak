@@ -445,7 +445,7 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
     Text("VeVak peut aussi envoyer rapidement votre dernière position réelle connue à des contacts choisis à l'avance. Ce n'est pas un appel aux services de secours.")
     SimpleInfo(
         "Déclenchement protégé",
-        "Un raccourci discret peut être placé sur l'écran d'accueil. Premier appui : envoi armé pendant 4 secondes. Second appui : annulation. Sinon, le SMS part automatiquement."
+        "Un raccourci discret peut être placé sur l'écran d'accueil. Un appui prépare l'envoi ; un deuxième appui dans les 4 secondes l'annule. Ce n'est pas un double appui rapide pour envoyer. Après ce délai, VeVak demande l'envoi. Si Android le retarde, un nouvel appui annule l'urgence tant qu'elle n'est pas prise en charge. La livraison du SMS n'est pas confirmée."
     )
 
     if (!configuring) {
@@ -482,6 +482,7 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
     }
 
     Text("Nom et icône du raccourci", fontWeight = FontWeight.SemiBold)
+        Text("Icônes : Streamline — streamlinehq.com — CC BY 4.0 (creativecommons.org/licenses/by/4.0/). Adaptées au format Android.", style = MaterialTheme.typography.bodySmall)
     EmergencyShortcutPreset.entries.forEach { candidate ->
         Card(
             modifier = Modifier.fillMaxWidth().clickable { presetName = candidate.name },

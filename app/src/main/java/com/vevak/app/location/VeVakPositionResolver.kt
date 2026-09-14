@@ -32,8 +32,8 @@ sealed interface VeVakPositionResolution {
  *    or age, with that age made explicit in the SMS;
  * 5. unavailable only when no source has ever produced usable information.
  *
- * Explicit manual sharing and the emergency shortcut keep a stricter last-real-only repository
- * path. The duress/protection path deliberately bypasses this resolver in SmsRequestHandler.
+ * Explicit manual sharing keeps a stricter last-real-only repository path. Local emergency
+ * uses this same canonical resolver. The duress/protection path deliberately bypasses this resolver in SmsRequestHandler.
  */
 class VeVakPositionResolver(context: Context) {
     private val appContext = context.applicationContext
@@ -52,7 +52,7 @@ class VeVakPositionResolver(context: Context) {
                 currentLocationTimeoutMillis = settings.locationTimeoutSeconds * 1_000L,
                 allowStaleFallback = false
             )
-            runCatching { locationRepository.fetchBestLocation(freshPolicy) }
+            locationAttempt { locationRepository.fetchBestLocation(freshPolicy) }
                 .getOrNull()
                 ?.let { return VeVakPositionResolution.Coordinates(it) }
         }
@@ -62,15 +62,15 @@ class VeVakPositionResolver(context: Context) {
         }
 
         if (settings.allowNetworkApproximation) {
-            runCatching { onlineApproximation.locate() }
+            locationAttempt { onlineApproximation.locate() }
                 .getOrNull()
                 ?.let { approximate ->
-                    runCatching { locationRepository.rememberLocation(approximate) }
+                    locationAttempt { locationRepository.rememberLocation(approximate) }
                     return VeVakPositionResolution.Coordinates(approximate)
                 }
         }
 
-        runCatching { locationRepository.fetchLastKnownAnyLocation() }
+        locationAttempt { locationRepository.fetchLastKnownAnyLocation() }
             .getOrNull()
             ?.let { return VeVakPositionResolution.Coordinates(it) }
 
@@ -79,7 +79,7 @@ class VeVakPositionResolver(context: Context) {
 
     private fun isSystemLocationEnabled(): Boolean {
         val manager = locationManager ?: return false
-        return runCatching {
+        return locationAttempt {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 manager.isLocationEnabled
             } else {

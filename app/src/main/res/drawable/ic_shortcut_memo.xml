@@ -1,7 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Original VeVak neutral utility icon, GPL-3.0-or-later. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#E6DDF0" android:pathData="M24,8H84C92.8,8 100,15.2 100,24V84C100,92.8 92.8,100 84,100H24C15.2,100 8,92.8 8,84V24C8,15.2 15.2,8 24,8Z"/>
-    <path android:fillColor="#5D4B69" android:pathData="M29,25H79C82.3,25 85,27.7 85,31V68L68,85H29C25.7,85 23,82.3 23,79V31C23,27.7 25.7,25 29,25Z"/>
-    <path android:fillColor="#E6DDF0" android:pathData="M68,68H85L68,85ZM35,40H72V46H35ZM35,53H66V59H35Z"/>
+<!-- Streamline Ultimate Color, CC BY 4.0. See third_party/streamline-ultimate-color/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="32" android:viewportHeight="32">
+  <group android:translateX="4" android:translateY="4">
+    <path android:pathData="M23 1.957v13.39h-6.696a.957.957 0 0 0-.956.957V23H1.957A.957.957 0 0 1 1 22.044V1.957A.957.957 0 0 1 1.957 1h20.087a.957.957 0 0 1 .956.957" android:fillColor="#ffef5e" />
+    <path android:pathData="M23 15.348L15.348 23v-6.696a.957.957 0 0 1 .956-.956z" android:fillColor="#ffbc44" />
+    <path android:pathData="M23 1.957v13.39h-6.696a.957.957 0 0 0-.956.957V23H1.957A.957.957 0 0 1 1 22.044V1.957A.957.957 0 0 1 1.957 1h20.087a.957.957 0 0 1 .956.957" android:fillColor="#00000000" android:strokeColor="#191919" android:strokeWidth="1" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M23 15.348L15.348 23v-6.696a.957.957 0 0 1 .956-.956zM5.304 10.044l.957-.957a1.354 1.354 0 0 1 1.913 0a1.354 1.354 0 0 0 1.913 0a1.354 1.354 0 0 1 1.913 0a1.353 1.353 0 0 0 1.913 0a1.354 1.354 0 0 1 1.913 0a1.354 1.354 0 0 0 1.913 0l.957-.956M5.304 14.827l.957-.957a1.353 1.353 0 0 1 1.913 0a1.354 1.354 0 0 0 1.913 0" android:fillColor="#00000000" android:strokeColor="#191919" android:strokeWidth="1" android:strokeLineCap="round" android:strokeLineJoin="round" />
+  </group>
 </vector>

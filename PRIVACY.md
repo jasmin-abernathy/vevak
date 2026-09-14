@@ -19,7 +19,7 @@ Après deux SMS normaux valides du même contact, VeVak peut mémoriser uniqueme
 VeVak conserve deux mémoires séparées :
 
 - la dernière coordonnée issue de toute source légitime, utilisée par les réponses automatiques ;
-- le dernier point réel/local, réservé au partage manuel et à l'urgence.
+- le dernier point réel/local, réservé au partage manuel.
 
 Une estimation réseau/IP activée volontairement peut alimenter la première mémoire mais ne remplace jamais le dernier point réel. Les coordonnées du lieu de repli de la protection sont exclues de ces deux mémoires.
 
@@ -73,7 +73,7 @@ Les anciennes sauvegardes contenant une seconde phrase de protection restent lis
 
 Le partage manuel exige une sélection locale du destinataire et une confirmation explicite. Il utilise uniquement le dernier point réel déjà connu et la SIM définie par Android comme SIM SMS par défaut.
 
-Les destinataires de l'urgence sont choisis à l'avance parmi les contacts autorisés. L'urgence locale n'est pas soumise au quota anti-suivi des demandes distantes et utilise uniquement le dernier point réel/local, sans estimation IP ni adresse géocodée.
+Les destinataires de l'urgence sont choisis à l'avance parmi les contacts autorisés. L'urgence locale n'est pas soumise au quota anti-suivi des demandes distantes et utilise le même resolver que les demandes normales : position Android, lieu de confiance, approximation réseau/IP uniquement si déjà activée volontairement, puis mémoire de position. L'estimation réseau est signalée comme non exacte. Aucune adresse géocodée n'est ajoutée au SMS d'urgence.
 
 VeVak peut créer un raccourci d'écran d'accueil avec un nom et une icône génériques. Le premier appui arme l'envoi pendant quatre secondes ; un second appui pendant ce délai annule l'action. Le raccourci et son résultat ne génèrent pas de notification VeVak. Le raccourci ne masque ni ne renomme l'application VeVak elle-même.
 

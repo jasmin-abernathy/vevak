@@ -51,7 +51,7 @@ After two valid normal SMS requests for the same contact, VeVak may keep a bound
 
 ## Position memory and optional refresh
 
-Automatic phrase-key replies may use the last coordinate VeVak legitimately obtained, regardless of age, and must state its age. Manual sharing and emergency use a separate last-real/local slot so a network/IP estimate cannot replace their stricter fallback.
+Automatic phrase-key replies may use the last coordinate VeVak legitimately obtained, regardless of age, and must state its age. Manual sharing uses a separate last-real/local slot. Local emergency shares the normal resolver, including trusted place and explicitly opted-in network estimates with an accuracy warning.
 
 The owner may opt in to a best-effort refresh target of 15, 30 or 60 minutes. This feature must remain a **single-slot memory**, not a movement history.
 
@@ -101,7 +101,8 @@ The shortcut uses a four-second grace period:
 
 - first tap arms the emergency send;
 - a second tap on the same shortcut during the grace period cancels it;
-- otherwise the canonical emergency send is dispatched after the delay;
+- otherwise dispatch is requested after the delay; Android may postpone it without arbitrary expiry;
+- a further tap cancels a pending request until receiver claim; a double tap cancels, not confirms;
 - after dispatch, the next tap starts a new sequence.
 
 No VeVak notification is shown after shortcut use, because such a notification would defeat the discretion of the shortcut.
@@ -181,7 +182,7 @@ Before a stable public release, test at minimum:
 - missing/corrupt protection fallback never exposing real location;
 - manual share confirmation, default-SIM handling and last-real-only behaviour;
 - emergency recipient subset and repeated emergency sends;
-- emergency shortcut first tap, second-tap cancellation and four-second dispatch;
+- emergency shortcut first tap, second-tap cancellation and dispatch requested after four seconds (system delays possible);
 - encrypted backup round-trip with every contact revoked;
 - audit/diagnostics contain no sensitive location/contact/phrase data;
 - FOSS and Play tests/build/lint plus static privacy/ecodesign checks;

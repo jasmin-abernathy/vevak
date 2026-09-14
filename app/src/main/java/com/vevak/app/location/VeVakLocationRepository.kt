@@ -44,7 +44,7 @@ class VeVakLocationRepository(context: Context) {
      */
     suspend fun fetchBestLocation(policy: LocationRequestPolicy): VeVakLocationSnapshot? {
         val androidCached = platformCachedLocation()
-        val rememberedCached = runCatching { rememberedLocationStore.readReal() }.getOrNull()
+        val rememberedCached = locationAttempt { rememberedLocationStore.readReal() }.getOrNull()
         val bestCached = freshest(androidCached, rememberedCached)
 
         if (bestCached != null && LocationSelectionPolicy.acceptsCache(
@@ -56,7 +56,7 @@ class VeVakLocationRepository(context: Context) {
             return enrich(bestCached)
         }
 
-        val current = runCatching {
+        val current = locationAttempt {
             provider.currentLocation(policy.currentLocationTimeoutMillis)
                 ?.toVeVakSnapshot(provider.currentSource)
         }.getOrNull()?.takeUnless { it.isMocked }
@@ -90,9 +90,9 @@ class VeVakLocationRepository(context: Context) {
 
     private suspend fun fetchCachedLocation(includeNetworkApproximation: Boolean): VeVakLocationSnapshot? {
         val androidCached = platformCachedLocation()
-        androidCached?.let { runCatching { rememberLocation(it) } }
+        androidCached?.let { locationAttempt { rememberLocation(it) } }
 
-        val rememberedCached = runCatching {
+        val rememberedCached = locationAttempt {
             if (includeNetworkApproximation) rememberedLocationStore.read()
             else rememberedLocationStore.readReal()
         }.getOrNull()
@@ -101,7 +101,7 @@ class VeVakLocationRepository(context: Context) {
         return enrich(bestCached)
     }
 
-    private suspend fun platformCachedLocation(): VeVakLocationSnapshot? = runCatching {
+    private suspend fun platformCachedLocation(): VeVakLocationSnapshot? = locationAttempt {
         provider.lastKnownLocation()
             ?.toVeVakSnapshot(provider.lastKnownSource)
             ?.takeUnless { it.isMocked }

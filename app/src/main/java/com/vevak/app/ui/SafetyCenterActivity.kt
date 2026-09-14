@@ -224,6 +224,7 @@ private fun SafetyCenter(
         }
 
         Text("Nom et icône du raccourci", fontWeight = FontWeight.SemiBold)
+        Text("Icônes : Streamline — streamlinehq.com — CC BY 4.0 (creativecommons.org/licenses/by/4.0/). Adaptées au format Android.", style = MaterialTheme.typography.bodySmall)
         EmergencyShortcutPreset.entries.forEach { preset ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,

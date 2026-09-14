@@ -14,12 +14,12 @@ import com.vevak.app.R
 import java.util.UUID
 
 enum class EmergencyShortcutPreset(val label: String, val description: String, @DrawableRes val iconRes: Int) {
-    Notes("Notes", "Feuille neutre", R.drawable.ic_shortcut_notes),
+    Notes("Notes", "Carnet à spirales", R.drawable.ic_shortcut_notes),
     Liste("Liste", "Checklist simple", R.drawable.ic_shortcut_list),
-    Horaires("Horaires", "Horloge simple", R.drawable.ic_shortcut_clock),
+    Horaires("Horaires", "Horloge bleue", R.drawable.ic_shortcut_clock),
     Dossier("Dossier", "Dossier générique", R.drawable.ic_shortcut_folder),
-    Outils("Outils", "Réglages simples", R.drawable.ic_shortcut_tools),
-    Memos("Mémos", "Mémo neutre", R.drawable.ic_shortcut_memo)
+    Outils("Outils", "Boîte à outils", R.drawable.ic_shortcut_tools),
+    Memos("Mémos", "Note jaune", R.drawable.ic_shortcut_memo)
 }
 
 class EmergencyShortcutManager(context: Context) {
