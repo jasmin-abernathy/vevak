@@ -26,6 +26,7 @@ import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.location.VeVakLocationSnapshot
 import com.vevak.app.location.VeVakPositionResolution
 import com.vevak.app.location.VeVakPositionResolver
+import com.vevak.app.location.locationAttempt
 import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.MapProvider
 import com.vevak.app.model.TrustedContact
@@ -352,30 +353,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         _state.update { it.copy(manualShareConfirmationPending = false, manualShareLoading = true, message = null) }
         viewModelScope.launch {
-            val lastKnown = runCatching { locationRepository.fetchLastKnownLocation() }.getOrNull()
-            if (lastKnown == null) {
+            val resolution = locationAttempt { positionResolver.resolve(settings) }
+                .getOrDefault(VeVakPositionResolution.Unavailable)
+            if (resolution == VeVakPositionResolution.Unavailable) {
                 _state.update {
                     it.copy(
                         manualShareLoading = false,
                         manualShareTargetContactId = null,
-                        message = "Aucune dernière position connue : aucun SMS n'a été envoyé."
+                        message = "Aucune position ni lieu reconnu : aucun SMS n'a été envoyé."
                     )
                 }
                 return@launch
             }
 
-            val body = SmsReplyFormatter.formatManualShareWithBatteryLabel(
+            val body = SmsReplyFormatter.formatManualResolutionWithBatteryLabel(
                 settings,
-                lastKnown,
+                resolution,
                 batteryReader.label()
             )
             val acceptedByAndroid = runCatching { smsSender.send(contact.phone, body, subscriptionId) }.isSuccess
+            val sourceLabel = when (resolution) {
+                is VeVakPositionResolution.KnownPlace -> "Lieu ${resolution.label}"
+                is VeVakPositionResolution.Coordinates -> if (resolution.location.isApproximateNetworkEstimate()) {
+                    "Zone approximative (${resolution.location.ageLabel()})"
+                } else {
+                    "Position connue (${resolution.location.ageLabel()})"
+                }
+                VeVakPositionResolution.Unavailable -> "Position"
+            }
             _state.update {
                 it.copy(
                     manualShareLoading = false,
                     manualShareTargetContactId = null,
                     message = if (acceptedByAndroid) {
-                        "Dernière position connue (${lastKnown.ageLabel()}) transmise à Android pour envoi à ${contact.displayLabel()}. La livraison n'est pas garantie."
+                        "$sourceLabel transmis à Android pour envoi à ${contact.displayLabel()}. La livraison n'est pas garantie."
                     } else {
                         "Échec de l'envoi du SMS. Rien ne permet de confirmer sa livraison."
                     }

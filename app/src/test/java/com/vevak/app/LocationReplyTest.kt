@@ -43,6 +43,34 @@ class LocationReplyTest {
     }
 
     @Test
+    fun manualTrustedPlace_usesCanonicalResolutionAndDoesNotInventCoordinates() {
+        val body = SmsReplyFormatter.formatManualResolutionWithBatteryLabel(
+            settings,
+            VeVakPositionResolution.KnownPlace("Maison"),
+            "Batterie : 48 %"
+        )
+        assertTrue(body.startsWith("VeVak"))
+        assertTrue(body.contains("Je suis chez moi"))
+        assertTrue(body.contains("Batterie : 48 %"))
+        assertFalse(body.contains("http"))
+    }
+
+    @Test
+    fun manualNetworkApproximation_keepsApproximationWarning() {
+        val location = VeVakLocationSnapshot(47.7427, 6.82733, 25_000f, LocationSource.NetworkApproximation, 60_000L, false)
+        val body = SmsReplyFormatter.formatManualResolutionWithBatteryLabel(
+            settings,
+            VeVakPositionResolution.Coordinates(location),
+            null
+        )
+        assertTrue(body.startsWith("VeVak"))
+        assertTrue(body.contains("Dernière zone connue"))
+        assertTrue(body.contains("Estimation via le réseau"))
+        assertTrue(body.contains("pas une position exacte"))
+        assertFalse(body.contains("Dernière position connue"))
+    }
+
+    @Test
     fun emergencyReply_isExplicitAndDoesNotAddReverseGeocoderText() {
         val location = VeVakLocationSnapshot(49.1193, 6.1757, 38f, LocationSource.VeVakRemembered, 2 * 60 * 60_000L, false, "12 rue Exemple, 57000 Metz, France")
         val body = SmsReplyFormatter.formatEmergencyShareWithBatteryLabel(settings, location, "Batterie : 31 %")

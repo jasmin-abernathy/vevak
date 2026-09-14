@@ -47,6 +47,31 @@ object SmsReplyFormatter {
         batteryLabel: String?
     ): String = formatWithBatteryLabel(settings, location, batteryLabel)
 
+    /** Manual sharing now uses the same canonical position resolution as normal and emergency SMS. */
+    fun formatManualResolutionWithBatteryLabel(
+        settings: VeVakSettings,
+        resolution: VeVakPositionResolution,
+        batteryLabel: String?
+    ): String = buildString {
+        append("VeVak")
+        when (resolution) {
+            is VeVakPositionResolution.KnownPlace -> {
+                append('\n')
+                append(trustedPlaceText(resolution.label))
+            }
+            is VeVakPositionResolution.Coordinates -> {
+                val location = resolution.location
+                if (location.isApproximateNetworkEstimate()) {
+                    appendNetworkEstimate(settings, location)
+                } else {
+                    appendRealLocation(settings, location, includeAddress = true)
+                }
+            }
+            VeVakPositionResolution.Unavailable -> append("\nPosition indisponible.")
+        }
+        appendBattery(settings.includeBattery, batteryLabel)
+    }
+
     /**
      * Emergency keeps its explicit label but uses the same position-resolution result as the normal
      * authorised SMS path. Only presentation differs: real coordinates stay compact and omit
