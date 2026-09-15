@@ -60,7 +60,7 @@ Depuis 0.3.11 :
 - `POST_NOTIFICATIONS` n'est plus déclaré ;
 - refuser les notifications ne bloque jamais une réponse SMS.
 
-La protection renforcée contre l'usage abusif d'un contact est désactivée par défaut et n'est jamais proposée automatiquement après un SMS. Elle se configure uniquement à la demande dans « Paramètres supplémentaires », derrière un mot de passe local défini par le propriétaire du téléphone.
+Vous gardez le contrôle des informations partagées. Des options personnelles facultatives sont disponibles dans « Paramètres supplémentaires », derrière un mot de passe local. Leur état n'est pas affiché dans l'accueil. La création du mot de passe demande une confirmation du verrouillage Android. Une fois défini, ce mot de passe est aussi nécessaire pour exporter, restaurer ou réinitialiser la configuration depuis VeVak.
 
 L'historique local expurgé est accessible dans un
 onglet dédié, reste limité à vingt résultats génériques datés et contient un test guidé du parcours

@@ -6,6 +6,7 @@ package com.vevak.app.ui
 
 import android.Manifest
 import android.app.Activity
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -1010,6 +1011,13 @@ private fun SettingsTabContent(
     var backupOpen by rememberSaveable { mutableStateOf(false) }
     var diagnosticOpen by rememberSaveable { mutableStateOf(false) }
     var additionalSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    var accessMessage by remember { mutableStateOf<String?>(null) }
+    val deviceConfirmation = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) additionalSettingsOpen = true
+        else accessMessage = "Confirmation annulée. Aucun paramètre n'a été modifié."
+    }
 
     if (additionalSettingsOpen) {
         PrivateAdditionalSettings(
@@ -1021,6 +1029,7 @@ private fun SettingsTabContent(
     }
 
     Title("Réglages")
+    Text("Vous gardez le contrôle des informations partagées. Des options personnelles facultatives sont disponibles dans les paramètres supplémentaires.")
     Text("Version ${com.vevak.app.BuildConfig.VERSION_NAME} · ${com.vevak.app.BuildConfig.FLAVOR} · build ${com.vevak.app.BuildConfig.SOURCE_REVISION}", style = MaterialTheme.typography.bodySmall)
     Text(com.vevak.app.BuildConfig.APPLICATION_ID, style = MaterialTheme.typography.bodySmall)
     OutlinedButton(
@@ -1057,6 +1066,7 @@ private fun SettingsTabContent(
 
     SectionToggle("Sauvegarde chiffrée", backupOpen) { backupOpen = !backupOpen }
     if (backupOpen) {
+        Text("Si vous avez défini un mot de passe pour les paramètres supplémentaires, renseignez-le aussi dans le champ de confirmation ci-dessous.")
         Text("La sauvegarde contient votre configuration, jamais l'historique des demandes ni les positions mémorisées. Après restauration, tous les accès sont révoqués par sécurité.")
         OutlinedTextField(value = state.backupPassword, onValueChange = vm::updateBackupPassword, label = { Text("Mot de passe") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
         Button(onClick = { exportLauncher.launch("VeVak-config.vvk") }, modifier = Modifier.fillMaxWidth(), enabled = !state.backupBusy) { Text("Créer une sauvegarde") }
@@ -1099,9 +1109,22 @@ private fun SettingsTabContent(
     }
 
     OutlinedButton(
-        onClick = { additionalSettingsOpen = true },
+        onClick = {
+            val access = PrivateSettingsAccessRepository(context.applicationContext)
+            if (access.hasPassword()) {
+                additionalSettingsOpen = true
+            } else {
+                val keyguard = context.getSystemService(KeyguardManager::class.java)
+                val confirmation = keyguard?.createConfirmDeviceCredentialIntent(
+                    "Paramètres supplémentaires", "Confirmez le verrouillage du téléphone pour créer votre mot de passe local."
+                )
+                if (confirmation != null) deviceConfirmation.launch(confirmation)
+                else accessMessage = "Configurez d'abord un code, un schéma ou un mot de passe de verrouillage Android."
+            }
+        },
         modifier = Modifier.fillMaxWidth()
     ) { Text("Paramètres supplémentaires") }
+    accessMessage?.let { InlineMessage(it) }
 
     HorizontalDivider()
     Text("À propos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1111,6 +1134,16 @@ private fun SettingsTabContent(
     }
     SimpleInfo("Projet libre et gratuit", "Si VeVak vous est utile, vous pouvez soutenir volontairement son développement. Un don ne débloque aucune fonction et n'est jamais nécessaire pour utiliser le socle de sécurité.")
     OutlinedButton(onClick = { openSupportPage(context) }, modifier = Modifier.fillMaxWidth()) { Text("Soutenir VeVak 🌱") }
+    OutlinedTextField(
+        value = state.settingsAccessPassword,
+        onValueChange = vm::updateSettingsAccessPassword,
+        label = { Text("Mot de passe des paramètres supplémentaires (si défini)") },
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
+    )
+    Text("Confirmation utilisée une seule fois pour une sauvegarde, une restauration ou une réinitialisation.")
     TextButton(onClick = vm::reset, modifier = Modifier.fillMaxWidth()) { Text("Réinitialiser VeVak") }
     state.message?.let { InlineMessage(it) }
 }
@@ -1410,7 +1443,7 @@ private fun ProtectionSettingsContent(state: AppUiState, vm: AppViewModel) {
     )
     SimpleInfo(
         "Discrétion",
-        "Cette fonction n'est proposée automatiquement après aucun SMS. Son état et son utilisation n'apparaissent ni sur l'accueil, ni dans l'historique, ni dans le diagnostic standard."
+        "Cette option ne prévient pas le contact. Toutefois, une position répétée ou différente de ce qu'il connaît peut lui faire soupçonner un changement. Le mot de passe protège ces réglages ; il ne garantit pas que leur utilisation restera indétectable."
     )
     OutlinedButton(
         onClick = vm::persistDraft,

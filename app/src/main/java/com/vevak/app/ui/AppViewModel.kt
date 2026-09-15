@@ -68,6 +68,7 @@ data class AppUiState(
     val newContactAuthorizationDuration: AuthorizationDuration = AuthorizationDuration.ThirtyDays,
     val newContactConsentChecked: Boolean = false,
     val backupPassword: String = "",
+    val settingsAccessPassword: String = "",
     val backupBusy: Boolean = false,
     val message: String? = null
 )
@@ -440,7 +441,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun revokeAuthorization() = revokeContact(VeVakSettings.PRIMARY_CONTACT_ID)
 
     fun reset() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!authorizeConfigurationTransfer()) return@launch
             settingsRepository.reset()
             runtimeRepository.reset()
             auditRepository.clear()
@@ -472,6 +474,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateBackupPassword(value: String) = _state.update { it.copy(backupPassword = value.take(256), message = null) }
 
+    fun updateSettingsAccessPassword(value: String) = _state.update {
+        it.copy(settingsAccessPassword = value.take(128), message = null)
+    }
+
+    private fun authorizeConfigurationTransfer(): Boolean {
+        val password = _state.value.settingsAccessPassword
+        _state.update { it.copy(settingsAccessPassword = "") }
+        if (!privateSettingsAccessRepository.hasPassword()) return true
+        if (privateSettingsAccessRepository.verify(password)) return true
+        _state.update {
+            it.copy(backupBusy = false, message = "Saisissez le mot de passe des paramètres supplémentaires pour modifier ou exporter la configuration.")
+        }
+        return false
+    }
+
     fun exportEncryptedBackup(uri: Uri) {
         val password = _state.value.backupPassword
         if (password.length < 8) {
@@ -481,6 +498,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val settings = _state.value.settings
         _state.update { it.copy(backupBusy = true, message = null) }
         viewModelScope.launch(Dispatchers.IO) {
+            if (!authorizeConfigurationTransfer()) return@launch
             val result = runCatching { backupRepository.export(uri, settings, password) }
             _state.update {
                 it.copy(
@@ -504,6 +522,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         _state.update { it.copy(backupBusy = true, message = null) }
         viewModelScope.launch(Dispatchers.IO) {
+            if (!authorizeConfigurationTransfer()) return@launch
             val restored = runCatching { backupRepository.import(uri, password) }.getOrNull()
             val valid = restored != null &&
                 restored.trustedContacts().isNotEmpty() &&
