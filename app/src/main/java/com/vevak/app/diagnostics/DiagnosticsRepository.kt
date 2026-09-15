@@ -15,7 +15,6 @@ import com.vevak.app.background.BackgroundLocationAccess
 import com.vevak.app.location.OnlineApproximateLocationProvider
 import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.model.VeVakSettings
-import com.vevak.app.security.DuressPolicy
 
 class DiagnosticsRepository(private val context: Context) {
     private val locationRepository = VeVakLocationRepository(context)
@@ -36,7 +35,6 @@ class DiagnosticsRepository(private val context: Context) {
         val activeContacts = settings.activeTrustedContacts()
         val authorization = activeContacts.isNotEmpty()
         val backgroundLocation = BackgroundLocationAccess.isGranted(context)
-        val duressValid = DuressPolicy.configurationIsValid(settings)
         val powerManager = context.getSystemService(PowerManager::class.java)
         val batteryUnrestricted = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
             powerManager?.isIgnoringBatteryOptimizations(context.packageName) == true
@@ -93,7 +91,6 @@ class DiagnosticsRepository(private val context: Context) {
             check(configuredContacts.isNotEmpty(), "Contacts autorisés", "${configuredContacts.size} contact(s) configuré(s).", "Ajoutez au moins un numéro pouvant interroger VeVak."),
             check(configuredContacts.all { it.triggerPhrase.isNotBlank() }, "Phrases de déclenchement", "Toutes les phrases sont configurées.", "Chaque contact doit avoir une phrase non vide."),
             check(authorization, "Autorisations locales", "${activeContacts.size} autorisation(s) active(s) et limitée(s) dans le temps.", "Réactivez explicitement au moins un contact."),
-            check(duressValid, "Protection sous contrainte", "Configuration cohérente.", "La phrase de sécurité doit être distincte de toutes les phrases normales et une position de repli doit être enregistrée."),
             check(telephony, "Téléphonie SMS", "Appareil compatible.", "Cet appareil ne déclare pas la fonction SMS."),
             check(receive, "Réception des SMS", "Autorisation accordée.", "Autorisation RECEIVE_SMS manquante."),
             check(send, "Envoi des SMS", "Autorisation accordée.", "Autorisation SEND_SMS manquante."),

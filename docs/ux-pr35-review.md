@@ -4,8 +4,8 @@ Base de cette passe : `8564c4cbe3f4aa5e4640b904cc297a7cecae496d` ; base main : `
 
 ## Changements
 
-- « Se protéger d'un contact » remplace « Protection avancée » et les formulations inversant la personne protégée. La phrase associée reste inchangée ; le texte précise que l'activation ET l'enregistrement précèdent l'utilisation exclusive du lieu de repli.
-- La proposition après plusieurs SMS indique qu'elle ne suspend pas les réponses. Le code `SmsRequestHandler` compte les demandes reconnues avant le quota, puis poursuit l'envoi autorisé. Aucun nouvel envoi n'est déclenché par le simple compteur de deux SMS. Le code métier n'a pas changé.
+- La protection renforcée n'apparaît plus dans l'accueil ni dans les réglages ordinaires. Elle se trouve derrière l'entrée neutre « Paramètres supplémentaires », un mot de passe local et une activation explicite. La phrase associée au contact reste inchangée.
+- La proposition automatique après plusieurs SMS a été supprimée. La protection renforcée se configure uniquement à la demande dans « Paramètres supplémentaires », derrière un mot de passe local.
 - Six icônes Papirus locales GPL-3.0, dont Liste dérivée d'une feuille générique. Sources et conversion reproductible conservées.
 - Aperçus limités à 48 dp dans Sécurité et colonne de texte pondérée pour éviter que l'icône ne prenne la place des libellés.
 - La coche de permission prête utilise `onSecondaryContainer`, adapté au fond, plutôt que l'accent secondaire. Le titre « À vérifier » utilise `onSurface` : le texte reste explicite sans dépendre d'une couleur orange peu contrastée en mode clair.

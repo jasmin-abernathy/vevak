@@ -15,7 +15,6 @@ import androidx.lifecycle.viewModelScope
 import com.vevak.app.backup.SettingsBackupRepository
 import com.vevak.app.data.RequestAuditEvent
 import com.vevak.app.data.RequestAuditRepository
-import com.vevak.app.data.ProtectionPromptRepository
 import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.RuntimeStateRepository
 import com.vevak.app.data.VeVakSettingsRepository
@@ -32,6 +31,7 @@ import com.vevak.app.model.MapProvider
 import com.vevak.app.model.TrustedContact
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
+import com.vevak.app.security.PrivateSettingsAccessRepository
 import com.vevak.app.sms.PhoneNumberMatcher
 import com.vevak.app.sms.SmsReplyFormatter
 import com.vevak.app.sms.SmsReplySender
@@ -59,7 +59,6 @@ data class AppUiState(
     val manualShareTargetContactId: String? = null,
     val manualShareLoading: Boolean = false,
     val auditEvents: List<RequestAuditEvent> = emptyList(),
-    val protectionOfferContactId: String? = null,
     val guidedTestStartedAtMillis: Long? = null,
     val authorizationDuration: AuthorizationDuration = AuthorizationDuration.ThirtyDays,
     val consentChecked: Boolean = false,
@@ -77,7 +76,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsRepository = VeVakSettingsRepository(application)
     private val runtimeRepository = RuntimeStateRepository(application)
     private val auditRepository = RequestAuditRepository(application)
-    private val protectionPromptRepository = ProtectionPromptRepository(application)
+    private val privateSettingsAccessRepository = PrivateSettingsAccessRepository(application)
     private val emergencyRecipientStore = EmergencyRecipientStore(application)
     private val diagnosticsRepository = DiagnosticsRepository(application)
     private val locationRepository = VeVakLocationRepository(application)
@@ -161,11 +160,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         updateSettings {
             it.copy(
-                duressEnabled = true,
+                duressEnabled = false,
                 protectedContactId = contact.id
             )
         }
-        _state.update { it.copy(protectionOfferContactId = null) }
     }
 
     fun updateTrustedPlaceLabel(value: String) {
@@ -240,7 +238,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
             settings.usesLegacyProtectionPhrase() && !DuressPolicy.phrasesAreDistinctEnough(trigger, settings.duressPhrase) -> {
-                _state.update { it.copy(message = "La phrase normale de ce contact est trop proche de la phrase de protection de l'ancienne configuration.") }
+                _state.update { it.copy(message = "Cette phrase n'est pas disponible. Choisissez une formulation plus différente.") }
                 return
             }
         }
@@ -411,7 +409,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             if (!DuressPolicy.configurationIsValid(settings)) {
-                _state.update { it.copy(message = "La protection sous contrainte n'est pas correctement configurée.") }
+                _state.update { it.copy(message = "Un paramètre supplémentaire doit être vérifié avant de continuer.") }
                 return@launch
             }
             val now = System.currentTimeMillis()
@@ -446,32 +444,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             settingsRepository.reset()
             runtimeRepository.reset()
             auditRepository.clear()
-            protectionPromptRepository.clear()
+            privateSettingsAccessRepository.clear()
             emergencyRecipientStore.clear()
             _state.value = AppUiState(loaded = true)
-        }
-    }
-
-    fun continueWithoutProtection(contactId: String) {
-        viewModelScope.launch {
-            protectionPromptRepository.dismiss(contactId)
-            _state.update {
-                it.copy(
-                    protectionOfferContactId = null,
-                    message = "Les réponses normales continueront pour ce contact sans activer la protection."
-                )
-            }
-        }
-    }
-
-    fun refreshProtectionOfferForOpening() {
-        viewModelScope.launch {
-            val contactId = if (_state.value.settings.duressEnabled) {
-                null
-            } else {
-                protectionPromptRepository.firstEligibleContactId()
-            }
-            _state.update { it.copy(protectionOfferContactId = contactId) }
         }
     }
 

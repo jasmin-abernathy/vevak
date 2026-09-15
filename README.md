@@ -60,10 +60,9 @@ Depuis 0.3.11 :
 - `POST_NOTIFICATIONS` n'est plus déclaré ;
 - refuser les notifications ne bloque jamais une réponse SMS.
 
-Après deux SMS normaux valides du même contact, VeVak peut proposer la protection lors d'une prochaine ouverture volontaire de l'application, sans notification déclenchée par la demande elle-même.
+La protection renforcée contre l'usage abusif d'un contact est désactivée par défaut et n'est jamais proposée automatiquement après un SMS. Elle se configure uniquement à la demande dans « Paramètres supplémentaires », derrière un mot de passe local défini par le propriétaire du téléphone.
 
-Le compteur est séparé pour chaque contact : deux personnes ayant envoyé un message chacune ne
-déclenchent jamais cette proposition. L'historique local expurgé est désormais accessible dans un
+L'historique local expurgé est accessible dans un
 onglet dédié, reste limité à vingt résultats génériques datés et contient un test guidé du parcours
 SMS réel.
 

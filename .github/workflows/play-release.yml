@@ -2,12 +2,6 @@ name: Google Play release bundle
 
 on:
   workflow_dispatch:
-  # One deliberate signed hand-off from the physically validated PR branch.
-  push:
-    branches:
-      - "work/ux-polish-darkmode-onboarding-0.3.14"
-    paths:
-      - ".github/PLAY_RELEASE_TRIGGER.md"
 
 permissions:
   contents: read
@@ -18,7 +12,7 @@ concurrency:
 
 jobs:
   signed-play-bundle:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/work/ux-polish-darkmode-onboarding-0.3.14'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
 

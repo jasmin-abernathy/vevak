@@ -12,7 +12,7 @@ La phrase-clé est comparée sans tenir compte de la casse et après normalisati
 
 Les demandes automatiques ne dépendent plus des notifications Android. VeVak 0.3.11 ne déclare pas `POST_NOTIFICATIONS`, n'affiche pas de notification à chaque demande et n'utilise pas de notification permanente `VeVak actif`.
 
-Après deux SMS normaux valides du même contact, VeVak peut mémoriser uniquement un compteur local borné pour proposer la protection lors d'une prochaine ouverture volontaire de l'application. Chaque contact a son propre compteur : les messages de personnes différentes ne sont jamais additionnés. Ce compteur ne contient ni texte SMS, ni numéro, ni position.
+VeVak ne compte plus les SMS pour proposer une protection renforcée. Cette fonction est désactivée par défaut et se configure uniquement à la demande dans des paramètres supplémentaires protégés par un mot de passe local. VeVak conserve seulement un vérificateur cryptographique salé de ce mot de passe, jamais le mot de passe lui-même ; ce vérificateur reste dans le stockage privé de l'application et n'entre pas dans les sauvegardes.
 
 ## Dernières positions
 
