@@ -38,9 +38,11 @@ class PrivateSettingsAccessRepository(context: Context) {
         return PrivateSettingsPassword.verify(password, verifier)
     }
 
-    fun clear() {
-        preferences.edit().clear().apply()
-    }
+    /**
+     * Reset is already executed off the main thread. Persist removal before returning so a process
+     * death immediately after a local reset cannot leave an orphaned private-settings verifier.
+     */
+    fun clear(): Boolean = preferences.edit().clear().commit()
 
     private companion object {
         const val PREFERENCES_NAME = "vevak_private_settings_access"
