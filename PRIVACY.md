@@ -6,38 +6,33 @@ VeVak n'utilise aucun compte VeVak, aucune publicité, aucun pisteur et aucun se
 
 Chaque contact de confiance possède localement son numéro, sa phrase-clé et une autorisation limitée dans le temps. Un accès peut être révoqué immédiatement depuis le téléphone.
 
-La phrase-clé est comparée sans tenir compte de la casse et après normalisation de la typographie SMS. Depuis 0.3.12, la comparaison se fait par suite de mots : les espaces et la ponctuation autour d'une apostrophe, d'un tiret ou d'un point d'interrogation ne font plus échouer un SMS naturel. La phrase-clé peut apparaître au milieu d'un message plus long. Le numéro expéditeur, l'autorisation active et les limites anti-suivi restent obligatoires.
+La phrase-clé est comparée sans tenir compte de la casse et après normalisation de la typographie SMS. La comparaison se fait par suite de mots : les espaces et la ponctuation autour d'une apostrophe, d'un tiret ou d'un point d'interrogation ne font plus échouer un SMS naturel. La phrase-clé peut apparaître au milieu d'un message plus long. Le numéro expéditeur, l'autorisation active et les limites anti-suivi restent obligatoires.
 
 ## Notifications
 
-Les demandes automatiques ne dépendent plus des notifications Android. VeVak 0.3.11 ne déclare pas `POST_NOTIFICATIONS`, n'affiche pas de notification à chaque demande et n'utilise pas de notification permanente `VeVak actif`.
+Les demandes automatiques ne dépendent pas des notifications Android. VeVak n'affiche pas de notification à chaque demande et n'utilise pas de notification permanente `VeVak actif`.
+
+`POST_NOTIFICATIONS` est déclaré uniquement pour le **retour d'urgence facultatif**. Le silence reste le défaut ; l'utilisateur peut choisir à la place une vibration courte ou une notification temporaire sans son. Refuser cette permission ne bloque ni les réponses SMS automatiques ni l'urgence locale.
 
 VeVak ne compte plus les SMS pour proposer une protection renforcée. Cette fonction est désactivée par défaut et se configure uniquement à la demande dans des paramètres supplémentaires protégés par un mot de passe local. VeVak conserve seulement un vérificateur cryptographique salé de ce mot de passe, jamais le mot de passe lui-même ; ce vérificateur reste dans le stockage privé de l'application et n'entre pas dans les sauvegardes.
 
-## Dernières positions
+## Mémoire de position
 
-VeVak conserve deux mémoires séparées :
+VeVak conserve uniquement des mémoires bornées utiles à la résilience, jamais un historique de déplacement. Chaque nouveau point remplace le précédent.
 
-- la dernière coordonnée issue de toute source légitime, utilisée par les réponses automatiques ;
-- le dernier point réel/local, réservé au partage manuel.
+Le resolver canonique utilisé par les demandes normales, le partage manuel et l'urgence locale peut consulter :
 
-Une estimation réseau/IP activée volontairement peut alimenter la première mémoire mais ne remplace jamais le dernier point réel. Les coordonnées du lieu de repli de la protection sont exclues de ces deux mémoires.
-
-Chaque nouveau point remplace le précédent. VeVak ne conserve pas de liste de positions, de trajet ou de breadcrumbs. L'heure d'acquisition est gardée afin que le SMS puisse indiquer l'ancienneté du point.
-
-Les positions signalées comme simulées par Android sont refusées. Les positions mémorisées ne sont pas exportées dans les sauvegardes `.vvk`.
-
-## Résolution normale
-
-Pour une demande SMS normale et autorisée, VeVak essaie dans cet ordre :
-
-1. une position Android récente ou actuelle si Android peut en fournir une ;
+1. une position Android récente ou actuelle ;
 2. un lieu de confiance reconnu comme `Maison` ;
-3. une estimation réseau/IP, uniquement si l'utilisateur l'a activée ;
+3. une estimation réseau/IP si l'utilisateur l'a activée ;
 4. la dernière coordonnée mémorisée, quelle que soit son ancienneté ;
-5. `position indisponible` seulement si aucune source exploitable n'a jamais fourni d'information.
+5. `position indisponible` si aucune source exploitable n'est disponible.
 
-La résolution déclenchée par SMS ne nécessite pas `ACCESS_BACKGROUND_LOCATION`.
+Une mémoire interne séparée du dernier point réel/local peut être conservée pour certains contrôles et usages internes, mais le partage manuel n'est plus limité à ce seul point : il suit le même resolver canonique que les demandes normales et l'urgence.
+
+Les coordonnées du lieu de repli de la protection ciblée sont stockées séparément et ne sont jamais utilisées par le resolver normal.
+
+Chaque point conserve son heure d'acquisition afin que l'ancienneté puisse être indiquée. Les positions signalées comme simulées par Android sont refusées. Les positions mémorisées ne sont pas exportées dans les sauvegardes `.vvk`.
 
 ## Rafraîchissement périodique optionnel
 
@@ -65,17 +60,29 @@ Le Wi-Fi Maison n'est jamais consulté pour une demande relevant de la protectio
 
 L'utilisateur choisit le contact dont il craint un usage abusif de la phrase-clé. Ce contact continue à envoyer sa phrase habituelle. Pour ce contact seulement, la réponse utilise exclusivement le lieu de repli préenregistré.
 
-Dans ce chemin, VeVak ne consulte ni vraie position, ni Wi-Fi Maison, ni estimation réseau. Les autres contacts conservent le comportement normal.
+Dans ce chemin, VeVak ne consulte ni vraie position, ni Wi-Fi Maison, ni estimation réseau. Les autres contacts conservent le resolver canonique.
+
+Cette fonction n'est jamais proposée automatiquement à partir du nombre de SMS reçus. Elle reste désactivée par défaut et se configure uniquement à la demande dans les paramètres supplémentaires protégés.
 
 Les anciennes sauvegardes contenant une seconde phrase de protection restent lisibles pour migration, mais l'interface actuelle ne demande plus de créer une seconde phrase.
 
+## Paramètres supplémentaires et mot de passe local
+
+La première création du mot de passe local demande une confirmation du verrouillage Android du téléphone. VeVak ne conserve pas ce mot de passe : il enregistre uniquement un vérificateur PBKDF2-HMAC-SHA256 salé dans le stockage privé de l'application.
+
+Cet espace se verrouille lorsque l'utilisateur quitte l'écran. Son contenu n'est pas affiché dans l'accueil ou le diagnostic standard.
+
+Une fois le mot de passe local défini, il est aussi nécessaire avant l'export, la restauration ou la réinitialisation de la configuration depuis VeVak. Ce mot de passe est distinct du mot de passe utilisé pour chiffrer un fichier de sauvegarde `.vvk` et n'est lui-même jamais inclus dans cette sauvegarde.
+
 ## Partage manuel et urgence
 
-Le partage manuel exige une sélection locale du destinataire et une confirmation explicite. Il utilise uniquement le dernier point réel déjà connu et la SIM définie par Android comme SIM SMS par défaut.
+Le partage manuel exige une sélection locale du destinataire et une confirmation explicite. Il utilise le resolver canonique partagé : position Android, lieu reconnu, estimation réseau/IP uniquement si déjà activée volontairement, puis dernière coordonnée mémorisée. Il utilise la SIM définie par Android comme SIM SMS par défaut.
 
-Les destinataires de l'urgence sont choisis à l'avance parmi les contacts autorisés. L'urgence locale n'est pas soumise au quota anti-suivi des demandes distantes et utilise le même resolver que les demandes normales : position Android, lieu de confiance, approximation réseau/IP uniquement si déjà activée volontairement, puis mémoire de position. L'estimation réseau est signalée comme non exacte. Aucune adresse géocodée n'est ajoutée au SMS d'urgence.
+Les destinataires de l'urgence sont choisis à l'avance parmi les contacts autorisés. L'urgence locale n'est pas soumise au quota anti-suivi des demandes distantes et utilise le même resolver canonique. L'estimation réseau est signalée comme non exacte. Aucune adresse géocodée n'est ajoutée au SMS d'urgence.
 
-VeVak peut créer un raccourci d'écran d'accueil avec un nom et une icône génériques. Le premier appui arme l'envoi pendant quatre secondes ; un second appui pendant ce délai annule l'action. Le raccourci et son résultat ne génèrent pas de notification VeVak. Le raccourci ne masque ni ne renomme l'application VeVak elle-même.
+VeVak peut créer un raccourci d'écran d'accueil avec un nom et une icône génériques, ainsi qu'une tuile Réglages rapides facultative. Le premier appui arme l'envoi pendant quatre secondes ; un second appui pendant ce délai annule l'action. Si Android retarde la prise en charge, la demande peut rester en attente et être annulée localement jusqu'au claim par le receiver.
+
+Le retour utilisateur de cette action est configurable : silence par défaut, vibration courte ou notification temporaire sans son. La notification éventuelle ne contient ni position, ni destinataire, ni contenu SMS ; elle est masquée sur écran verrouillé et ne constitue jamais une preuve de livraison.
 
 ## Informations des réponses
 
@@ -87,13 +94,15 @@ L'urgence reste plus compacte et n'ajoute pas cette adresse.
 
 VeVak conserve au maximum 20 résultats génériques récents de demandes. Cet audit ne contient ni coordonnées, ni texte SMS, ni numéro, ni phrase-clé, ni identifiant Wi-Fi et ne révèle pas si le lieu de repli a été utilisé.
 
-Les diagnostics sont expurgés : ils peuvent afficher des comptages et états techniques, mais pas les coordonnées, numéros, phrases, SSID/BSSID ou identifiants cellulaires bruts.
+Les diagnostics sont expurgés : ils peuvent afficher des comptages et états techniques, mais pas les coordonnées, numéros, phrases, SSID/BSSID ou identifiants cellulaires bruts. Ils n'affichent pas non plus l'état de la protection ciblée.
 
 ## Sauvegarde chiffrée
 
-L'export `.vvk` est chiffré et authentifié avec AES-GCM à partir d'une clé dérivée du mot de passe utilisateur par PBKDF2-HMAC-SHA256. Le mot de passe n'est pas enregistré par VeVak.
+L'export `.vvk` est chiffré et authentifié avec AES-GCM à partir d'une clé dérivée du mot de passe utilisateur par PBKDF2-HMAC-SHA256. Le mot de passe de sauvegarde n'est pas enregistré par VeVak.
 
-La sauvegarde peut conserver les préférences de rafraîchissement périodique, fréquence et reprise après redémarrage, mais jamais les positions mémorisées ni l'historique des demandes. L'historique local, accessible depuis l'application et effaçable par l'utilisateur, contient au maximum vingt résultats génériques datés. Après restauration, toutes les autorisations de contacts restent révoquées jusqu'à une nouvelle validation locale.
+La sauvegarde peut conserver les préférences de rafraîchissement périodique, fréquence et reprise après redémarrage, mais jamais les positions mémorisées ni l'historique des demandes. Après restauration, toutes les autorisations de contacts restent révoquées jusqu'à une nouvelle validation locale.
+
+Le vérificateur du mot de passe des paramètres supplémentaires n'est jamais inclus dans la sauvegarde. Si ce mot de passe local est déjà configuré sur l'appareil, sa confirmation est nécessaire avant l'export ou l'import.
 
 ## Réseau SMS et variantes
 
@@ -102,12 +111,3 @@ Les SMS passent par le réseau et l'application de messagerie Android. VeVak uti
 La variante `foss` n'utilise pas Google Play Services. La variante `play` utilise le fournisseur de localisation Google, isolé dans sa flavor dédiée.
 
 Voir aussi [`ABUSE-PREVENTION.md`](ABUSE-PREVENTION.md) et [`docs/final-hardening-0.3.11.md`](docs/final-hardening-0.3.11.md).
-
-
-## Retour d’urgence facultatif (choix du 14 septembre 2026)
-
-Le silence reste le défaut. L’assistant et Sécurité proposent aussi une vibration courte à l’armement ou une notification temporaire, sans son. Ce choix remplace les anciennes affirmations de silence absolu pour l’urgence. Les SMS automatiques restent silencieux.
-
-L’autorisation Android de notification n’est demandée qu’au choix de cette option ; un refus ne bloque jamais l’urgence. La vibration utilise la permission Android normale VIBRATE. Aucun service permanent ajouté.
-
-La notification ne contient ni position, ni destinataire, ni contenu SMS. Elle est masquée sur écran verrouillé, mais révèle VeVak dans le volet. Elle disparaît après une minute sans annuler une demande en attente ; la tuile/le raccourci restent utilisables pour annuler avant prise en charge. Son action Annuler cible uniquement l’armement d’origine. Après prise en charge, elle indique la remise des demandes à Android ou l’échec local ; elle ne prouve jamais la livraison et ne déclenche aucun retry.
