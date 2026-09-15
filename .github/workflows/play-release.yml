@@ -84,14 +84,22 @@ jobs:
           test -s "$BUNDLE"
           jarsigner -verify "$BUNDLE"
           sha256sum "$BUNDLE" > "$BUNDLE.sha256"
+          {
+            echo "versionName=0.3.14"
+            echo "versionCode=17"
+            echo "applicationId=vevak.lepotager.org"
+            echo "sourceRevision=$GITHUB_SHA"
+            echo "workflowRun=$GITHUB_RUN_ID"
+          } > app/build/outputs/bundle/playRelease/build-info.txt
 
       - name: Upload Google Play hand-off
         uses: actions/upload-artifact@v4
         with:
-          name: VeVak-0.3.14-play-signed
+          name: VeVak-0.3.14-play-signed-${{ github.sha }}
           path: |
             app/build/outputs/bundle/playRelease/app-play-release.aab
             app/build/outputs/bundle/playRelease/app-play-release.aab.sha256
+            app/build/outputs/bundle/playRelease/build-info.txt
             app/build/outputs/mapping/playRelease/mapping.txt
           if-no-files-found: error
           retention-days: 7

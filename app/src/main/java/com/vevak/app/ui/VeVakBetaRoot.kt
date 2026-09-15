@@ -6,6 +6,7 @@ package com.vevak.app.ui
 
 import android.Manifest
 import android.app.Activity
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -14,6 +15,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.ContactsContract
 import android.provider.Settings
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -60,6 +62,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,7 +72,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -81,6 +87,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vevak.app.R
 import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.RequestAuditOutcome
+import com.vevak.app.emergency.EmergencyTileInstaller
 import com.vevak.app.emergency.EmergencyShortcutManager
 import com.vevak.app.emergency.EmergencyShortcutPreset
 import com.vevak.app.diagnostics.CheckState
@@ -89,11 +96,15 @@ import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.MapProvider
 import com.vevak.app.model.TrustedContact
 import com.vevak.app.model.VeVakSettings
+import com.vevak.app.security.PrivateSettingsAccessRepository
+import com.vevak.app.security.PrivateSettingsPassword
 import com.vevak.app.system.TrustedNetworkReader
 import com.vevak.app.ui.theme.VeVakTheme
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private enum class HomeTab(val label: String, val glyph: String) {
     Home("Accueil", "⌂"),
@@ -113,26 +124,6 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
         val compactNavigation = LocalConfiguration.current.screenWidthDp < 390 ||
             LocalDensity.current.fontScale > 1.3f
         val homeTab = runCatching { HomeTab.valueOf(homeTabName) }.getOrDefault(HomeTab.Home)
-        var openProtectionSetup by rememberSaveable { mutableStateOf(false) }
-        val rootLifecycleOwner = LocalLifecycleOwner.current
-        var wasStopped by remember { mutableStateOf(false) }
-
-        LaunchedEffect(Unit) { viewModel.refreshProtectionOfferForOpening() }
-        DisposableEffect(rootLifecycleOwner) {
-            val observer = LifecycleEventObserver { _, event ->
-                when (event) {
-                    Lifecycle.Event.ON_STOP -> wasStopped = true
-                    Lifecycle.Event.ON_START -> if (wasStopped) {
-                        wasStopped = false
-                        viewModel.refreshProtectionOfferForOpening()
-                    }
-                    else -> Unit
-                }
-            }
-            rootLifecycleOwner.lifecycle.addObserver(observer)
-            onDispose { rootLifecycleOwner.lifecycle.removeObserver(observer) }
-        }
-
         BackHandler(enabled = state.step !in listOf(OnboardingStep.Welcome, OnboardingStep.Home)) {
             viewModel.previous()
         }
@@ -212,9 +203,7 @@ fun VeVakBetaRoot(viewModel: AppViewModel = viewModel()) {
                         state = state,
                         vm = viewModel,
                         tab = homeTab,
-                        selectTab = { homeTabName = it.name },
-                        openProtectionSetup = openProtectionSetup,
-                        setOpenProtectionSetup = { openProtectionSetup = it }
+                        selectTab = { homeTabName = it.name }
                     )
                 }
             }
@@ -438,14 +427,14 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
     var presetName by rememberSaveable { mutableStateOf(shortcutManager.selectedPreset().name) }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
     val preset = runCatching { EmergencyShortcutPreset.valueOf(presetName) }
-        .getOrDefault(EmergencyShortcutPreset.Notes)
+        .getOrDefault(EmergencyShortcutPreset.Sms)
 
     StepLabel("Étape 5 sur 6")
     Title("Envoi d'urgence — facultatif")
-    Text("VeVak peut aussi envoyer rapidement votre dernière position réelle connue à des contacts choisis à l'avance. Ce n'est pas un appel aux services de secours.")
+    Text("VeVak peut aussi envoyer votre position à des contacts choisis à l'avance, avec les mêmes sources que les réponses SMS habituelles. Ce n'est pas un appel aux services de secours.")
     SimpleInfo(
         "Déclenchement protégé",
-        "Un raccourci discret peut être placé sur l'écran d'accueil. Premier appui : envoi armé pendant 4 secondes. Second appui : annulation. Sinon, le SMS part automatiquement."
+        "Un appui sur l'icône SMS prépare l'envoi après 4 secondes. Les appuis répétés sur le raccourci sont ignorés : aucun double appui n'est nécessaire et ils n'annulent pas l'envoi. Pour annuler, utilisez la tuile affichant « Annuler » ou la notification si vous l'avez activée. Si Android retarde l'envoi, l'annulation reste possible jusqu'à la prise en charge. La livraison du SMS n'est pas confirmée."
     )
 
     if (!configuring) {
@@ -462,6 +451,8 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
         OutlinedButton(onClick = vm::previous, modifier = Modifier.fillMaxWidth()) { Text("Retour") }
         return
     }
+
+    EmergencyFeedbackSettings()
 
     Text("Qui recevra le message ?", fontWeight = FontWeight.SemiBold)
     Text("Aucun contact n'est sélectionné automatiquement.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -481,7 +472,8 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
         }
     }
 
-    Text("Nom et icône du raccourci", fontWeight = FontWeight.SemiBold)
+    Text("Icône du raccourci", fontWeight = FontWeight.SemiBold)
+        Text("Icônes : Streamline — streamlinehq.com — CC BY 4.0 (creativecommons.org/licenses/by/4.0/). Adaptées au format Android.", style = MaterialTheme.typography.bodySmall)
     EmergencyShortcutPreset.entries.forEach { candidate ->
         Card(
             modifier = Modifier.fillMaxWidth().clickable { presetName = candidate.name },
@@ -495,7 +487,6 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                RadioButton(selected = candidate == preset, onClick = { presetName = candidate.name })
                 androidx.compose.foundation.Image(
                     painter = painterResource(candidate.iconRes),
                     contentDescription = "Aperçu ${candidate.label}",
@@ -512,9 +503,38 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
     if (!shortcutManager.isSupported()) {
         SimpleInfo(
             "Raccourci non pris en charge",
-            "Ce lanceur Android ne permet pas à VeVak d'ajouter automatiquement un raccourci. Vous pouvez continuer sans activer l'urgence."
+            "Ce lanceur Android ne permet pas d'ajouter automatiquement un raccourci d'accueil. Vous pouvez utiliser la tuile des réglages rapides et enregistrer votre destinataire ci-dessous."
         )
     }
+
+    if (shortcutManager.isSupported()) {
+        OutlinedButton(
+            onClick = {
+                message = if (shortcutManager.requestPin(preset)) {
+                    "Demande transmise au lanceur. Confirmez l'ajout sur Android, puis enregistrez votre destinataire ci-dessous."
+                } else {
+                    "Le lanceur n'a pas ouvert l'ajout. Vous pouvez utiliser la tuile ou réessayer plus tard dans Sécurité."
+                }
+            },
+            enabled = selected.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Ajouter le raccourci d'accueil") }
+    }
+
+    Text("Accès par les réglages rapides", fontWeight = FontWeight.SemiBold)
+    Text("La tuile Urgence VeVak apparaît dans le volet Android, à côté du Wi-Fi. Son nom y sera visible. Le téléphone doit être déverrouillé pour préparer l'envoi.")
+    OutlinedButton(
+        onClick = { EmergencyTileInstaller.request(context) { message = it } },
+        enabled = selected.isNotEmpty(),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            "Ajouter la tuile Urgence"
+        } else {
+            "Comment ajouter la tuile"
+        })
+    }
+    Text("L'ajout d'un accès est facultatif et ne confirme pas l'envoi d'un SMS. Enregistrez votre destinataire, puis terminez l'assistant pour pouvoir utiliser l'urgence. Vous pourrez ajouter un accès plus tard dans Sécurité.")
 
     message?.let { InlineMessage(it) }
     AdaptiveActions { actionModifier ->
@@ -522,16 +542,11 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
         Button(
             onClick = {
                 recipientStore.setSelectedContactIds(selected)
-                val pinRequested = shortcutManager.requestPin(preset)
-                if (!pinRequested && shortcutManager.isSupported()) {
-                    message = "Android n'a pas pu ouvrir la confirmation du raccourci. Réessayez ou configurez-le plus tard dans Sécurité."
-                } else {
-                    vm.next()
-                }
+                vm.next()
             },
-            enabled = selected.isNotEmpty() && shortcutManager.isSupported(),
+            enabled = selected.isNotEmpty(),
             modifier = actionModifier
-        ) { Text("Activer et continuer") }
+        ) { Text("Enregistrer et continuer") }
     }
     TextButton(
         onClick = {
@@ -585,16 +600,14 @@ private fun HomeShell(
     state: AppUiState,
     vm: AppViewModel,
     tab: HomeTab,
-    selectTab: (HomeTab) -> Unit,
-    openProtectionSetup: Boolean,
-    setOpenProtectionSetup: (Boolean) -> Unit
+    selectTab: (HomeTab) -> Unit
 ) {
     when (tab) {
-        HomeTab.Home -> HomeTabContent(state, vm, selectTab, setOpenProtectionSetup)
+        HomeTab.Home -> HomeTabContent(state, vm, selectTab)
         HomeTab.Contacts -> ContactsTabContent(state, vm)
         HomeTab.Places -> PlacesTabContent(state, vm)
         HomeTab.History -> HistoryTabContent(state, vm)
-        HomeTab.Settings -> SettingsTabContent(state, vm, openProtectionSetup, setOpenProtectionSetup)
+        HomeTab.Settings -> SettingsTabContent(state, vm)
     }
 }
 
@@ -602,8 +615,7 @@ private fun HomeShell(
 private fun HomeTabContent(
     state: AppUiState,
     vm: AppViewModel,
-    selectTab: (HomeTab) -> Unit,
-    setOpenProtectionSetup: (Boolean) -> Unit
+    selectTab: (HomeTab) -> Unit
 ) {
     val context = LocalContext.current
     val trustedNetworkReader = remember { TrustedNetworkReader(context.applicationContext) }
@@ -644,7 +656,7 @@ private fun HomeTabContent(
     if (contacts.isNotEmpty()) {
         ActionCard(
             title = "Partager volontairement ma position",
-            detail = "Envoie uniquement la dernière position réelle déjà connue. VeVak ne lance pas un suivi pour cette action.",
+            detail = "Utilise les mêmes sources que les réponses SMS : position Android, lieu reconnu, estimation réseau si activée, puis mémoire. Aucun suivi continu.",
             actionLabel = if (state.manualShareLoading) "Lecture en cours…" else "Choisir un destinataire"
         ) {
             if (!state.manualShareLoading) {
@@ -654,7 +666,7 @@ private fun HomeTabContent(
     }
 
     if (shareChooser) {
-        SimpleInfo("Choisir le destinataire", "VeVak enverra uniquement la dernière position réelle déjà connue, avec son ancienneté, après votre confirmation.")
+        SimpleInfo("Choisir le destinataire", "Après votre confirmation, VeVak cherchera une position ou un lieu reconnu avec les mêmes sources que les réponses SMS.")
         contacts.forEach { contact ->
             OutlinedButton(
                 onClick = { shareChooser = false; vm.requestManualPositionShare(contact.id) },
@@ -670,7 +682,7 @@ private fun HomeTabContent(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Envoyer votre dernière position connue à ${target.displayLabel()} ?", fontWeight = FontWeight.Bold)
-                    Text("VeVak n'essaiera pas de produire un nouveau point : il enverra uniquement la dernière position réelle déjà connue et indiquera depuis combien de temps elle date. La livraison du SMS n'est pas garantie.")
+                    Text("VeVak peut demander une position ponctuelle, reconnaître Maison ou utiliser une position mémorisée. Une estimation réseau n'est utilisée que si vous l'avez activée et reste signalée comme approximative. La livraison du SMS n'est pas garantie.")
                     AdaptiveActions { actionModifier ->
                         OutlinedButton(onClick = vm::cancelManualPositionShare, modifier = actionModifier) { Text("Annuler") }
                         Button(onClick = vm::confirmManualPositionShare, modifier = actionModifier) { Text("Envoyer") }
@@ -700,39 +712,13 @@ private fun HomeTabContent(
         ActionCard("Réseau Maison manquant", "Le réseau Maison fait désormais partie de la configuration de sécurité initiale. Fermez puis rouvrez VeVak pour compléter cette étape.", "Compris") { }
     }
 
-    val pendingContact = state.protectionOfferContactId?.let(state.settings::contactById)
-    if (pendingContact != null && !state.settings.duressEnabled) {
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Une option de protection peut être utile", fontWeight = FontWeight.Bold)
-                Text("Avez-vous peur que ${pendingContact.displayLabel()} puisse utiliser votre phrase-clé pour savoir où vous êtes sans que vous le souhaitiez ?")
-                AdaptiveActions { actionModifier ->
-                    OutlinedButton(
-                        onClick = {
-                            vm.continueWithoutProtection(pendingContact.id)
-                        },
-                        modifier = actionModifier
-                    ) { Text("Continuer sans protection") }
-                    Button(
-                        onClick = {
-                            vm.setProtectedContact(pendingContact.id)
-                            setOpenProtectionSetup(true)
-                            selectTab(HomeTab.Settings)
-                        },
-                        modifier = actionModifier
-                    ) { Text("Me protéger") }
-                }
-            }
-        }
-    }
-
     state.message?.let { InlineMessage(it) }
 }
 
 @Composable
 private fun HistoryTabContent(state: AppUiState, vm: AppViewModel) {
     Title("Historique local")
-    Text("VeVak conserve au maximum 20 résultats datés. Aucun numéro, texte de SMS, phrase-clé, position ou usage de la protection n'est enregistré.")
+    Text("VeVak conserve au maximum 20 résultats datés. Aucun numéro, texte de SMS, phrase-clé, position ni autre donnée sensible n'est enregistré.")
     val testContact = state.settings.activeTrustedContacts().firstOrNull()
     val testStart = state.guidedTestStartedAtMillis
     val testResult = testStart?.let { started ->
@@ -1007,7 +993,7 @@ private fun PlacesTabContent(state: AppUiState, vm: AppViewModel) {
 
     SimpleInfo(
         "Comment VeVak répond à une phrase-clé",
-        "VeVak cherche d'abord un point Android récent s'il est accessible, puis un lieu de confiance reconnu, puis une estimation réseau fraîche si vous l'avez activée. À défaut, il renvoie la dernière coordonnée mémorisée quelle que soit sa source et indique toujours son ancienneté. Le partage manuel et l'urgence conservent séparément le dernier point réel."
+        "VeVak cherche d'abord un point Android récent s'il est accessible, puis un lieu de confiance reconnu, puis une estimation réseau fraîche si vous l'avez activée. À défaut, il renvoie la dernière coordonnée mémorisée quelle que soit sa source et indique toujours son ancienneté. Le partage manuel, les réponses SMS et l'urgence utilisent ces mêmes sources et cette même mémoire."
     )
     state.message?.let { InlineMessage(it) }
 }
@@ -1015,9 +1001,7 @@ private fun PlacesTabContent(state: AppUiState, vm: AppViewModel) {
 @Composable
 private fun SettingsTabContent(
     state: AppUiState,
-    vm: AppViewModel,
-    openProtectionSetup: Boolean,
-    setOpenProtectionSetup: (Boolean) -> Unit
+    vm: AppViewModel
 ) {
     val context = LocalContext.current
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> if (uri != null) vm.exportEncryptedBackup(uri) }
@@ -1025,8 +1009,28 @@ private fun SettingsTabContent(
     var responseOpen by rememberSaveable { mutableStateOf(false) }
     var backupOpen by rememberSaveable { mutableStateOf(false) }
     var diagnosticOpen by rememberSaveable { mutableStateOf(false) }
+    var additionalSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    var accessMessage by remember { mutableStateOf<String?>(null) }
+    val deviceConfirmation = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) additionalSettingsOpen = true
+        else accessMessage = "Confirmation annulée. Aucun paramètre n'a été modifié."
+    }
+
+    if (additionalSettingsOpen) {
+        PrivateAdditionalSettings(
+            state = state,
+            vm = vm,
+            close = { additionalSettingsOpen = false }
+        )
+        return
+    }
 
     Title("Réglages")
+    Text("Vous gardez le contrôle des informations partagées. Des options personnelles facultatives sont disponibles dans les paramètres supplémentaires.")
+    Text("Version ${com.vevak.app.BuildConfig.VERSION_NAME} · ${com.vevak.app.BuildConfig.FLAVOR} · build ${com.vevak.app.BuildConfig.SOURCE_REVISION}", style = MaterialTheme.typography.bodySmall)
+    Text(com.vevak.app.BuildConfig.APPLICATION_ID, style = MaterialTheme.typography.bodySmall)
     OutlinedButton(
         onClick = { context.startActivity(Intent(context, SafetyCenterActivity::class.java)) },
         modifier = Modifier.fillMaxWidth()
@@ -1061,6 +1065,7 @@ private fun SettingsTabContent(
 
     SectionToggle("Sauvegarde chiffrée", backupOpen) { backupOpen = !backupOpen }
     if (backupOpen) {
+        Text("Si vous avez défini un mot de passe pour les paramètres supplémentaires, renseignez-le aussi dans le champ de confirmation ci-dessous.")
         Text("La sauvegarde contient votre configuration, jamais l'historique des demandes ni les positions mémorisées. Après restauration, tous les accès sont révoqués par sécurité.")
         OutlinedTextField(value = state.backupPassword, onValueChange = vm::updateBackupPassword, label = { Text("Mot de passe") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
         Button(onClick = { exportLauncher.launch("VeVak-config.vvk") }, modifier = Modifier.fillMaxWidth(), enabled = !state.backupBusy) { Text("Créer une sauvegarde") }
@@ -1102,56 +1107,23 @@ private fun SettingsTabContent(
         )
     }
 
-    val protectionExpanded = openProtectionSetup || state.settings.duressEnabled
-    SectionToggle("Protection avancée", protectionExpanded) { setOpenProtectionSetup(!protectionExpanded) }
-    if (protectionExpanded) {
-        Text("Cette option sert si vous craignez qu'une personne déjà autorisée utilise sa propre phrase-clé pour connaître votre vraie position contre votre volonté.")
-
-        if (state.settings.usesLegacyProtectionPhrase() && state.settings.protectedContactId.isBlank()) {
-            SimpleInfo(
-                "Ancienne configuration détectée",
-                "Votre ancienne seconde phrase reste compatible en interne. Pour utiliser le fonctionnement plus simple ci-dessous, sélectionnez le contact concerné : sa phrase habituelle restera inchangée."
-            )
-        }
-
-        Text("Quel contact voulez-vous protéger ?", fontWeight = FontWeight.SemiBold)
-        state.settings.trustedContacts().forEach { contact ->
-            ProtectionContactCard(
-                contact = contact,
-                selected = state.settings.protectedContactId == contact.id,
-                onClick = { vm.setProtectedContact(contact.id) }
-            )
-        }
-
-        val protectedContact = state.settings.protectedContact()
-        if (protectedContact != null) {
-            SimpleInfo(
-                "Phrase utilisée",
-                "${protectedContact.displayLabel()} continuera d'envoyer sa phrase-clé habituelle : « ${protectedContact.triggerPhrase} ». Elle peut apparaître au milieu d'un SMS normal, comme pour les autres contacts."
-            )
-            CheckRow(
-                "Activer la protection pour ${protectedContact.displayLabel()}",
-                state.settings.duressEnabled,
-                vm::setDuressEnabled
-            )
-            Button(onClick = vm::captureFallbackLocation, modifier = Modifier.fillMaxWidth(), enabled = !state.fallbackLocationLoading) {
-                Text(if (state.fallbackLocationLoading) "Enregistrement…" else "Enregistrer le lieu de repli")
+    OutlinedButton(
+        onClick = {
+            val access = PrivateSettingsAccessRepository(context.applicationContext)
+            if (access.hasPassword()) {
+                additionalSettingsOpen = true
+            } else {
+                val keyguard = context.getSystemService(KeyguardManager::class.java)
+                val confirmation = keyguard?.createConfirmDeviceCredentialIntent(
+                    "Paramètres supplémentaires", "Confirmez le verrouillage du téléphone pour créer votre mot de passe local."
+                )
+                if (confirmation != null) deviceConfirmation.launch(confirmation)
+                else accessMessage = "Configurez d'abord un code, un schéma ou un mot de passe de verrouillage Android."
             }
-            if (state.settings.hasFallbackCoordinates()) {
-                Text("Lieu de repli enregistré ✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            }
-            SimpleInfo(
-                "Ce qui se passera",
-                "Si ${protectedContact.displayLabel()} envoie un SMS contenant sa phrase-clé habituelle, VeVak n'ira pas lire votre position réelle : la réponse utilisera uniquement le lieu de repli enregistré. Les autres contacts gardent leur fonctionnement normal."
-            )
-            SimpleInfo("Discrétion", "L'accueil, le diagnostic standard et l'historique visible n'indiquent pas que cette protection existe ou qu'elle a été utilisée.")
-            OutlinedButton(onClick = vm::persistDraft, modifier = Modifier.fillMaxWidth(), enabled = vm.duressConfigurationValid()) {
-                Text("Enregistrer la protection")
-            }
-        } else {
-            InlineMessage("Sélectionnez d'abord le contact concerné. Sa phrase-clé existante sera utilisée automatiquement.")
-        }
-    }
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) { Text("Paramètres supplémentaires") }
+    accessMessage?.let { InlineMessage(it) }
 
     HorizontalDivider()
     Text("À propos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1161,8 +1133,334 @@ private fun SettingsTabContent(
     }
     SimpleInfo("Projet libre et gratuit", "Si VeVak vous est utile, vous pouvez soutenir volontairement son développement. Un don ne débloque aucune fonction et n'est jamais nécessaire pour utiliser le socle de sécurité.")
     OutlinedButton(onClick = { openSupportPage(context) }, modifier = Modifier.fillMaxWidth()) { Text("Soutenir VeVak 🌱") }
+    OutlinedTextField(
+        value = state.settingsAccessPassword,
+        onValueChange = vm::updateSettingsAccessPassword,
+        label = { Text("Mot de passe des paramètres supplémentaires (si défini)") },
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
+    )
+    Text("Confirmation utilisée une seule fois pour une sauvegarde, une restauration ou une réinitialisation.")
     TextButton(onClick = vm::reset, modifier = Modifier.fillMaxWidth()) { Text("Réinitialiser VeVak") }
     state.message?.let { InlineMessage(it) }
+}
+
+@Composable
+private fun PrivateAdditionalSettings(
+    state: AppUiState,
+    vm: AppViewModel,
+    close: () -> Unit
+) {
+    val context = LocalContext.current
+    val accessRepository = remember {
+        PrivateSettingsAccessRepository(context.applicationContext)
+    }
+    val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var passwordConfigured by remember { mutableStateOf(accessRepository.hasPassword()) }
+    var unlocked by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var passwordChangeOpen by rememberSaveable { mutableStateOf(false) }
+    var newPassword by remember { mutableStateOf("") }
+    var newConfirmation by remember { mutableStateOf("") }
+
+    fun lockAndClose() {
+        password = ""
+        confirmation = ""
+        newPassword = ""
+        newConfirmation = ""
+        unlocked = false
+        close()
+    }
+
+    BackHandler(onBack = ::lockAndClose)
+    DisposableEffect(context) {
+        val activity = context as? Activity
+        val alreadySecure = activity?.window?.attributes?.flags?.and(WindowManager.LayoutParams.FLAG_SECURE) != 0
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose {
+            if (!alreadySecure) activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) lockAndClose()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    if (!unlocked) {
+        Title("Paramètres supplémentaires")
+        Text(
+            if (passwordConfigured) {
+                "Saisissez votre mot de passe local pour ouvrir ces paramètres."
+            } else {
+                "Créez un mot de passe local pour protéger l'accès à ces paramètres."
+            }
+        )
+        SimpleInfo(
+            "Accès local",
+            "Le mot de passe reste uniquement sur ce téléphone et n'est inclus dans aucune sauvegarde. Cet espace se verrouille dès que VeVak quitte l'écran."
+        )
+        OutlinedTextField(
+            value = password,
+            onValueChange = {
+                password = it.take(PrivateSettingsPassword.MAX_LENGTH)
+                error = null
+            },
+            label = { Text(if (passwordConfigured) "Mot de passe" else "Nouveau mot de passe") },
+            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            singleLine = true,
+            isError = error != null
+        )
+        if (!passwordConfigured) {
+            OutlinedTextField(
+                value = confirmation,
+                onValueChange = {
+                    confirmation = it.take(PrivateSettingsPassword.MAX_LENGTH)
+                    error = null
+                },
+                label = { Text("Confirmer le mot de passe") },
+                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                singleLine = true,
+                isError = error != null
+            )
+            Text(
+                "Au moins ${PrivateSettingsPassword.MIN_LENGTH} caractères.",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        CheckRow("Afficher le mot de passe", showPassword) { showPassword = it }
+        error?.let { InlineMessage(it) }
+        Button(
+            onClick = {
+                busy = true
+                error = null
+                scope.launch {
+                    if (passwordConfigured) {
+                        val accepted = withContext(Dispatchers.Default) {
+                            accessRepository.verify(password)
+                        }
+                        if (accepted) {
+                            password = ""
+                            unlocked = true
+                        } else {
+                            error = "Mot de passe incorrect."
+                        }
+                    } else {
+                        error = when {
+                            !PrivateSettingsPassword.isAcceptable(password) ->
+                                "Utilisez entre ${PrivateSettingsPassword.MIN_LENGTH} et ${PrivateSettingsPassword.MAX_LENGTH} caractères."
+                            password != confirmation -> "Les deux mots de passe ne correspondent pas."
+                            else -> {
+                                val saved = withContext(Dispatchers.Default) {
+                                    accessRepository.setPassword(password)
+                                }
+                                if (saved) {
+                                    passwordConfigured = true
+                                    password = ""
+                                    confirmation = ""
+                                    unlocked = true
+                                    null
+                                } else {
+                                    "Impossible d'enregistrer ce mot de passe."
+                                }
+                            }
+                        }
+                    }
+                    busy = false
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !busy && password.isNotEmpty() &&
+                (passwordConfigured || confirmation.isNotEmpty())
+        ) {
+            Text(
+                when {
+                    busy -> "Vérification…"
+                    passwordConfigured -> "Ouvrir"
+                    else -> "Créer le mot de passe"
+                }
+            )
+        }
+        TextButton(onClick = ::lockAndClose, modifier = Modifier.fillMaxWidth()) {
+            Text("Retour")
+        }
+        return
+    }
+
+    Title("Paramètres supplémentaires")
+    SimpleInfo(
+        "Espace déverrouillé",
+        "Il se verrouille automatiquement dès que vous quittez cet écran."
+    )
+    ProtectionSettingsContent(state, vm)
+
+    SectionToggle("Changer le mot de passe", passwordChangeOpen) {
+        passwordChangeOpen = !passwordChangeOpen
+    }
+    if (passwordChangeOpen) {
+        OutlinedTextField(
+            value = newPassword,
+            onValueChange = { newPassword = it.take(PrivateSettingsPassword.MAX_LENGTH) },
+            label = { Text("Nouveau mot de passe") },
+            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            singleLine = true
+        )
+        OutlinedTextField(
+            value = newConfirmation,
+            onValueChange = { newConfirmation = it.take(PrivateSettingsPassword.MAX_LENGTH) },
+            label = { Text("Confirmer le nouveau mot de passe") },
+            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            singleLine = true
+        )
+        CheckRow("Afficher le nouveau mot de passe", showPassword) { showPassword = it }
+        OutlinedButton(
+            onClick = {
+                error = null
+                when {
+                    !PrivateSettingsPassword.isAcceptable(newPassword) -> {
+                        error = "Utilisez entre ${PrivateSettingsPassword.MIN_LENGTH} et ${PrivateSettingsPassword.MAX_LENGTH} caractères."
+                    }
+                    newPassword != newConfirmation -> {
+                        error = "Les deux mots de passe ne correspondent pas."
+                    }
+                    else -> {
+                        busy = true
+                        scope.launch {
+                            val saved = withContext(Dispatchers.Default) {
+                                accessRepository.setPassword(newPassword)
+                            }
+                            if (saved) {
+                                newPassword = ""
+                                newConfirmation = ""
+                                passwordChangeOpen = false
+                                error = "Mot de passe modifié."
+                            } else {
+                                error = "Impossible de modifier le mot de passe."
+                            }
+                            busy = false
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !busy && newPassword.isNotEmpty() && newConfirmation.isNotEmpty()
+        ) { Text(if (busy) "Enregistrement…" else "Modifier le mot de passe") }
+    }
+    error?.let { InlineMessage(it) }
+    OutlinedButton(onClick = ::lockAndClose, modifier = Modifier.fillMaxWidth()) {
+        Text("Verrouiller et revenir")
+    }
+}
+
+@Composable
+private fun ProtectionSettingsContent(appState: AppUiState, vm: AppViewModel) {
+    DisposableEffect(vm) {
+        vm.beginPrivateDraft()
+        onDispose { vm.discardPrivateDraft() }
+    }
+    val draft = appState.privateDraft ?: return
+    val state = appState.copy(settings = draft)
+    HorizontalDivider()
+    Text(
+        "Protection renforcée",
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold
+    )
+    Text(
+        "Cette fonction reste désactivée tant que vous ne choisissez pas un contact, un lieu de repli et son activation explicite."
+    )
+    Text(
+        "Si vous craignez qu'une personne déjà autorisée utilise sa phrase-clé pour obtenir votre vraie position contre votre volonté, VeVak peut répondre à cette personne avec le lieu de repli."
+    )
+
+    if (state.settings.usesLegacyProtectionPhrase() && state.settings.protectedContactId.isBlank()) {
+        SimpleInfo(
+            "Ancienne configuration détectée",
+            "Votre ancienne seconde phrase reste compatible. Sélectionner un contact ci-dessous désactivera provisoirement cette ancienne configuration jusqu'à votre nouvel enregistrement explicite."
+        )
+    }
+
+    val contacts = state.settings.trustedContacts()
+    if (contacts.isEmpty()) {
+        InlineMessage("Ajoutez d'abord un contact autorisé dans les réglages principaux.")
+        return
+    }
+
+    Text("Contact concerné", fontWeight = FontWeight.SemiBold)
+    contacts.forEach { contact ->
+        ProtectionContactCard(
+            contact = contact,
+            selected = state.settings.protectedContactId == contact.id,
+            onClick = { vm.setProtectedContact(contact.id) }
+        )
+    }
+
+    val protectedContact = state.settings.protectedContact()
+    if (protectedContact == null) {
+        InlineMessage("Sélectionnez un contact pour poursuivre. La sélection seule n'active rien.")
+        return
+    }
+
+    SimpleInfo(
+        "Phrase utilisée",
+        "${protectedContact.displayLabel()} conservera sa phrase-clé habituelle : « ${protectedContact.triggerPhrase} »."
+    )
+    Button(
+        onClick = vm::captureFallbackLocation,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !state.fallbackLocationLoading
+    ) {
+        Text(if (state.fallbackLocationLoading) "Enregistrement…" else "Enregistrer le lieu de repli")
+    }
+    Text(
+        if (state.settings.hasFallbackCoordinates()) {
+            "Lieu de repli enregistré ✓"
+        } else {
+            "Aucun lieu de repli enregistré."
+        },
+        fontWeight = FontWeight.SemiBold
+    )
+    CheckRow(
+        "Activer la protection renforcée pour ${protectedContact.displayLabel()}",
+        state.settings.duressEnabled,
+        vm::setDuressEnabled
+    )
+    SimpleInfo(
+        "Comportement",
+        "Après enregistrement, la phrase habituelle de ce contact recevra uniquement le lieu de repli. Les autres contacts continueront d'utiliser les sources normales."
+    )
+    SimpleInfo(
+        "Discrétion",
+        "Cette option ne prévient pas le contact. Toutefois, une position répétée ou différente de ce qu'il connaît peut lui faire soupçonner un changement. Le mot de passe protège ces réglages ; il ne garantit pas que leur utilisation restera indétectable."
+    )
+    OutlinedButton(
+        onClick = vm::savePrivateDraft,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = vm.duressConfigurationValid()
+    ) {
+        Text(if (state.settings.duressEnabled) "Enregistrer l'activation" else "Enregistrer la désactivation")
+    }
+    if (state.settings.duressEnabled && !vm.duressConfigurationValid()) {
+        InlineMessage("Enregistrez un lieu de repli avant d'activer cette protection.")
+    }
+    state.privateMessage?.let { InlineMessage(it) }
 }
 
 @Composable
@@ -1266,7 +1564,7 @@ private fun SectionToggle(title: String, expanded: Boolean, onClick: () -> Unit)
 private fun ReadinessCheckCard(check: ReadinessCheck) {
     val color = when (check.state) {
         CheckState.Ok -> MaterialTheme.colorScheme.primary
-        CheckState.Warning -> MaterialTheme.colorScheme.tertiary
+        CheckState.Warning -> MaterialTheme.colorScheme.onSurface
         CheckState.Error -> MaterialTheme.colorScheme.error
     }
     Card(modifier = Modifier.fillMaxWidth()) {

@@ -40,10 +40,10 @@ class ContactsAndBackupTest {
     }
 
     @Test
-    fun backgroundRefresh_defaultsOffAndNormalizesToSupportedIntervals() {
+    fun backgroundRefresh_isRecommendedForFreshSetupAndNormalizesToSupportedIntervals() {
         val defaults = VeVakSettings()
-        assertFalse(defaults.backgroundRefreshEnabled)
-        assertFalse(defaults.startOnBoot)
+        assertTrue(defaults.backgroundRefreshEnabled)
+        assertTrue(defaults.startOnBoot)
         assertEquals(30, defaults.normalizedBackgroundRefreshIntervalMinutes())
         assertEquals(15, defaults.copy(backgroundRefreshIntervalMinutes = 1).normalizedBackgroundRefreshIntervalMinutes())
         assertEquals(30, defaults.copy(backgroundRefreshIntervalMinutes = 29).normalizedBackgroundRefreshIntervalMinutes())
