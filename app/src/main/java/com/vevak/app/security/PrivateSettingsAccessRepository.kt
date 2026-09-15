@@ -23,16 +23,14 @@ class PrivateSettingsAccessRepository(context: Context) {
         Context.MODE_PRIVATE
     )
 
-    fun hasPassword(): Boolean = preferences.getString(KEY_VERIFIER, null)
-        ?.let(PrivateSettingsPassword::isEncodedVerifier)
-        ?: false
+    // A malformed existing verifier must not reopen password creation.
+    fun hasPassword(): Boolean = preferences.contains(KEY_VERIFIER)
 
     fun setPassword(password: String): Boolean {
         if (!PrivateSettingsPassword.isAcceptable(password)) return false
-        preferences.edit()
+        return preferences.edit()
             .putString(KEY_VERIFIER, PrivateSettingsPassword.createVerifier(password))
-            .apply()
-        return true
+            .commit()
     }
 
     fun verify(password: String): Boolean {
