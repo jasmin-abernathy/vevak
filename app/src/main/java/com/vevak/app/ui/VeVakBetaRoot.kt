@@ -1371,7 +1371,13 @@ private fun PrivateAdditionalSettings(
 }
 
 @Composable
-private fun ProtectionSettingsContent(state: AppUiState, vm: AppViewModel) {
+private fun ProtectionSettingsContent(appState: AppUiState, vm: AppViewModel) {
+    DisposableEffect(vm) {
+        vm.beginPrivateDraft()
+        onDispose { vm.discardPrivateDraft() }
+    }
+    val draft = appState.privateDraft ?: return
+    val state = appState.copy(settings = draft)
     HorizontalDivider()
     Text(
         "Protection renforcée",
@@ -1446,7 +1452,7 @@ private fun ProtectionSettingsContent(state: AppUiState, vm: AppViewModel) {
         "Cette option ne prévient pas le contact. Toutefois, une position répétée ou différente de ce qu'il connaît peut lui faire soupçonner un changement. Le mot de passe protège ces réglages ; il ne garantit pas que leur utilisation restera indétectable."
     )
     OutlinedButton(
-        onClick = vm::persistDraft,
+        onClick = vm::savePrivateDraft,
         modifier = Modifier.fillMaxWidth(),
         enabled = vm.duressConfigurationValid()
     ) {
@@ -1455,6 +1461,7 @@ private fun ProtectionSettingsContent(state: AppUiState, vm: AppViewModel) {
     if (state.settings.duressEnabled && !vm.duressConfigurationValid()) {
         InlineMessage("Enregistrez un lieu de repli avant d'activer cette protection.")
     }
+    state.privateMessage?.let { InlineMessage(it) }
 }
 
 @Composable

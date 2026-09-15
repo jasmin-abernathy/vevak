@@ -39,6 +39,7 @@ import com.vevak.app.system.BatteryReader
 import com.vevak.app.system.TrustedNetworkReader
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -69,6 +70,8 @@ data class AppUiState(
     val newContactConsentChecked: Boolean = false,
     val backupPassword: String = "",
     val settingsAccessPassword: String = "",
+    val privateDraft: VeVakSettings? = null,
+    val privateMessage: String? = null,
     val backupBusy: Boolean = false,
     val message: String? = null
 )
@@ -89,6 +92,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val backupRepository = SettingsBackupRepository(application)
     private val _state = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = _state.asStateFlow()
+    private var privateLocationJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -150,8 +154,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun setDuressEnabled(enabled: Boolean) = updateSettings { it.copy(duressEnabled = enabled) }
-    fun updateDuressPhrase(value: String) = updateSettings { it.copy(duressPhrase = value) }
+    fun beginPrivateDraft() {
+        _state.update { it.copy(privateDraft = it.settings, privateMessage = null) }
+    }
+
+    fun discardPrivateDraft() {
+        privateLocationJob?.cancel()
+        privateLocationJob = null
+        _state.update { it.copy(privateDraft = null, privateMessage = null, fallbackLocationLoading = false) }
+    }
+
+    private fun updatePrivateDraft(block: (VeVakSettings) -> VeVakSettings) {
+        _state.update { it.copy(privateDraft = it.privateDraft?.let(block)) }
+    }
+
+    fun setDuressEnabled(enabled: Boolean) = updatePrivateDraft { it.copy(duressEnabled = enabled) }
+    fun updateDuressPhrase(value: String) = updatePrivateDraft { it.copy(duressPhrase = value) }
+
+    fun savePrivateDraft() {
+        val draft = _state.value.privateDraft ?: return
+        if (!DuressPolicy.configurationIsValid(draft)) return
+        viewModelScope.launch {
+            val latest = settingsRepository.current()
+            val updated = latest.copy(
+                duressEnabled = draft.duressEnabled,
+                protectedContactId = draft.protectedContactId,
+                duressPhrase = draft.duressPhrase,
+                fallbackLatitude = draft.fallbackLatitude,
+                fallbackLongitude = draft.fallbackLongitude,
+                fallbackAccuracyMeters = draft.fallbackAccuracyMeters
+            )
+            if (!DuressPolicy.configurationIsValid(updated)) return@launch
+            settingsRepository.save(updated)
+            _state.update { it.copy(privateMessage = if (it.privateDraft != null) "Choix enregistrés." else null) }
+        }
+    }
 
     fun setProtectedContact(contactId: String) {
         val contact = _state.value.settings.contactById(contactId)
@@ -159,7 +196,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { it.copy(message = "Ce contact n'est plus disponible dans VeVak.") }
             return
         }
-        updateSettings {
+        updatePrivateDraft {
             it.copy(
                 duressEnabled = false,
                 protectedContactId = contact.id
@@ -593,14 +630,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun captureFallbackLocation() {
+        if (_state.value.privateDraft == null || _state.value.fallbackLocationLoading) return
         val app = getApplication<Application>()
         if (!hasForegroundLocationPermission(app)) {
-            _state.update { it.copy(message = "Autorisez d'abord la localisation pour enregistrer le lieu de repli.") }
+            _state.update { it.copy(privateMessage = "Autorisez d'abord la localisation pour enregistrer le lieu de repli.") }
             return
         }
-        _state.update { it.copy(fallbackLocationLoading = true, message = null) }
-        viewModelScope.launch {
-            val result = runCatching {
+        _state.update { it.copy(fallbackLocationLoading = true, privateMessage = null) }
+        privateLocationJob = viewModelScope.launch {
+            val result = locationAttempt {
                 locationRepository.fetchBestLocation(
                     LocationRequestPolicy(
                         maxAcceptedCacheAgeMillis = 30_000L,
@@ -610,10 +648,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }.getOrNull()
             if (result == null || result.isApproximateNetworkEstimate()) {
-                _state.update { it.copy(fallbackLocationLoading = false, message = "Impossible d'enregistrer une position de repli précise maintenant.") }
+                _state.update { it.copy(fallbackLocationLoading = false, privateMessage = "Impossible d'enregistrer une position de repli précise maintenant.") }
                 return@launch
             }
-            updateSettings {
+            updatePrivateDraft {
                 it.copy(
                     fallbackLatitude = result.latitude,
                     fallbackLongitude = result.longitude,
@@ -623,13 +661,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _state.update {
                 it.copy(
                     fallbackLocationLoading = false,
-                    message = "Position de repli enregistrée localement. Ses coordonnées ne seront pas affichées sur l'accueil."
+                    privateMessage = "Lieu ajouté au brouillon. Confirmez vos choix pour l'enregistrer."
                 )
             }
         }
     }
 
-    fun duressConfigurationValid(): Boolean = DuressPolicy.configurationIsValid(_state.value.settings)
+    fun duressConfigurationValid(): Boolean = _state.value.privateDraft?.let(DuressPolicy::configurationIsValid) ?: false
 
     private fun hasDuplicateContactPhones(settings: VeVakSettings): Boolean {
         val contacts = settings.trustedContacts()
