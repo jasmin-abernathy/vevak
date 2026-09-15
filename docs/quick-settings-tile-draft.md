@@ -1,3 +1,7 @@
+# Historical design note
+
+Current behavior supersedes tap/cancel descriptions below: see `emergency-durability-0.3.14.md` and `discreet-shortcut-icons.md`.
+
 # Tuile Urgence VeVak — intégrée, validation physique requise
 
 Cette note suit le chantier de la PR #35. La tuile n'est plus un patch local : elle est intégrée à la branche `work/ux-polish-darkmode-onboarding-0.3.14`. Toujours vérifier le head et ses checks avant toute fusion.

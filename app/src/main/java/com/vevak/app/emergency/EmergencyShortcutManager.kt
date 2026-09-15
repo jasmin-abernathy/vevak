@@ -23,12 +23,7 @@ enum class EmergencyShortcutPreset(
     @DrawableRes val iconRes: Int,
     val backgroundColor: Int
 ) {
-    Notes("Notes", "Carnet à spirales", R.drawable.ic_shortcut_notes, 0xFFF5F0E8.toInt()),
-    Liste("Liste", "Checklist simple", R.drawable.ic_shortcut_list, 0xFFE8F4EA.toInt()),
-    Horaires("Horaires", "Horloge bleue", R.drawable.ic_shortcut_clock, 0xFFE7F0F7.toInt()),
-    Dossier("Dossier", "Dossier générique", R.drawable.ic_shortcut_folder, 0xFFF7E7C6.toInt()),
-    Outils("Outils", "Boîte à outils", R.drawable.ic_shortcut_tools, 0xFFE8ECEF.toInt()),
-    Memos("Mémos", "Note jaune", R.drawable.ic_shortcut_memo, 0xFFF7EFB7.toInt())
+    Sms("SMS urgence", "Bulle de message", R.drawable.ic_shortcut_sms, 0xFFE7F0F7.toInt())
 }
 
 class EmergencyShortcutManager(context: Context) {
@@ -62,7 +57,7 @@ class EmergencyShortcutManager(context: Context) {
 
     fun selectedPreset(): EmergencyShortcutPreset = runCatching {
         EmergencyShortcutPreset.valueOf(prefs.getString(KEY_PRESET, null).orEmpty())
-    }.getOrDefault(EmergencyShortcutPreset.Notes)
+    }.getOrDefault(EmergencyShortcutPreset.Sms)
 
     /**
      * Render the licensed Streamline vector into an adaptive bitmap instead of asking launchers to
@@ -100,7 +95,7 @@ class EmergencyShortcutManager(context: Context) {
         // Bump this only when the launcher icon representation itself changes. Pinned shortcuts are
         // launcher-owned; a new stable ID prevents an old cached Papirus/vector representation from
         // being silently reused while keeping already-pinned shortcuts functional.
-        const val SHORTCUT_ICON_SCHEMA = 2
+        const val SHORTCUT_ICON_SCHEMA = 3
 
         fun shortcutIdFor(preset: EmergencyShortcutPreset): String =
             "vevak_discreet_emergency_v${SHORTCUT_ICON_SCHEMA}_${preset.name.lowercase()}"

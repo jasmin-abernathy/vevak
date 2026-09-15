@@ -215,27 +215,23 @@ private fun SafetyCenter(
         EmergencyFeedbackSettings()
 
         HorizontalDivider()
-        Text("Raccourci discret d'envoi d'urgence", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("VeVak peut ajouter sur l'écran d'accueil une icône qui ressemble à un petit utilitaire banal. Les noms et logos proposés sont génériques et ne copient aucune application existante.")
+        Text("Raccourci SMS d'urgence", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Ajoutez une icône SMS urgence sur l'écran d'accueil. Si vous aviez une ancienne icône Notes, Horaires ou autre, retirez-la puis ajoutez ce raccourci SMS. Les anciennes icônes utilisent aussi le nouveau fonctionnement à un appui.")
         Card {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text("Protection contre l'appui accidentel", fontWeight = FontWeight.Bold)
-                Text("Un appui prépare l'envoi aux destinataires choisis ci-dessus. Un deuxième appui dans les quatre secondes l'annule. Après ce délai, VeVak demande l'envoi. Si Android le retarde, l'urgence reste en attente, même longtemps : un nouvel appui sur ce raccourci l'annule tant qu'elle n'est pas prise en charge. La tuile Urgence VeVak permet de voir cette attente. Le raccourci ne confirme pas la livraison du SMS.")
-                Text("Ce n'est pas un double appui rapide pour envoyer.")
+                Text("Un appui sur l'icône SMS prépare l'envoi après 4 secondes. Les appuis répétés sur le raccourci sont ignorés : aucun double appui n'est nécessaire et ils n'annulent pas l'envoi. Pour annuler, utilisez la tuile affichant « Annuler » ou la notification si vous l'avez activée. Si Android retarde l'envoi, l'annulation reste possible jusqu'à la prise en charge. La livraison du SMS n'est pas confirmée.")
+
             }
         }
 
-        Text("Nom et icône du raccourci", fontWeight = FontWeight.SemiBold)
+        Text("Icône du raccourci", fontWeight = FontWeight.SemiBold)
         Text("Icônes : Streamline — streamlinehq.com — CC BY 4.0 (creativecommons.org/licenses/by/4.0/). Adaptées au format Android.", style = MaterialTheme.typography.bodySmall)
         EmergencyShortcutPreset.entries.forEach { preset ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                RadioButton(
-                    selected = preset == selectedShortcutPreset,
-                    onClick = { selectedShortcutPreset = preset }
-                )
                 androidx.compose.foundation.Image(
                     painter = painterResource(preset.iconRes),
                     contentDescription = "Aperçu ${preset.label}",
@@ -283,7 +279,7 @@ private fun SafetyCenter(
         HorizontalDivider()
         Text("Urgence dans les réglages rapides", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Facultatif : ajoutez une tuile Urgence VeVak au volet Android, à côté du Wi-Fi et de la lampe torche. Son nom sera visible dans ce volet.")
-        Text("Un appui prépare l'envoi aux destinataires choisis. Un deuxième appui dans les quatre secondes l'annule. Après ce délai, VeVak demande l'envoi. Si Android le retarde, la tuile affiche « Urgence en attente » : touchez-la pour annuler tant que l'urgence n'est pas prise en charge. Sans annulation, la demande reste valable, même longtemps. Ce n'est pas un double appui rapide pour envoyer. Le téléphone doit être déverrouillé pour préparer un envoi. La tuile ne confirme pas la livraison du SMS.")
+        Text("Un appui prépare l'envoi après 4 secondes. Pour annuler, touchez ensuite la tuile lorsqu'elle affiche « Annuler » ou « Urgence en attente ». Le téléphone doit être déverrouillé pour préparer un envoi. La livraison du SMS n'est pas confirmée.")
         OutlinedButton(
             enabled = emergencyConfigured && activeContacts.isNotEmpty() &&
                 (allRecipients || selectedIds.any { id -> activeContacts.any { it.id == id } }),

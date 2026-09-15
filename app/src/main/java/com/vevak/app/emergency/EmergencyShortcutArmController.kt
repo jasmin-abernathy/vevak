@@ -12,6 +12,9 @@ import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
 import java.util.UUID
+import java.io.IOException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,21 +36,20 @@ class EmergencyShortcutArmController(context: Context) {
     private val alarmManager = appContext.getSystemService(AlarmManager::class.java)
 
     /** Read-only display state; never extends the existing deadline. */
-    fun remainingMillis(): Long = synchronized(lock) {
-        stateLocked(SystemClock.elapsedRealtime()).remainingMillis
-    }
+    suspend fun remainingMillis(): Long = state().remainingMillis
 
-    internal fun state(): EmergencyArmState = synchronized(lock) {
+    internal suspend fun state(): EmergencyArmState = withContext(Dispatchers.IO) { synchronized(lock) {
         stateLocked(SystemClock.elapsedRealtime())
-    }
+    } }
 
     /** An outdated Cancel tile must never arm a new alert after the deadline. */
-    fun cancelIfArmed(candidateArmId: String? = null): Boolean = synchronized(lock) {
+    suspend fun cancelIfArmed(candidateArmId: String? = null): Boolean = withContext(Dispatchers.IO + NonCancellable) { synchronized(lock) {
+        checkPersistenceLocked()
         if (candidateArmId != null && prefs().getString(KEY_ARM_ID, null) != candidateArmId) return@synchronized false
         if (!stateLocked(SystemClock.elapsedRealtime()).isCancellable) return@synchronized false
         clearArmLocked()
         true
-    }
+    } }
 
     private fun stateLocked(now: Long): EmergencyArmState {
         val prefs = prefs()
@@ -61,12 +63,12 @@ class EmergencyShortcutArmController(context: Context) {
         )
     }
 
-    fun toggle(): Result = synchronized(lock) {
+    suspend fun armIfIdle(): Result = withContext(Dispatchers.IO + NonCancellable) { synchronized(lock) {
+        checkPersistenceLocked()
         val now = SystemClock.elapsedRealtime()
 
         if (stateLocked(now).isCancellable) {
-            clearArmLocked()
-            return@synchronized Result.Cancelled
+            return@synchronized Result.AlreadyArmed
         }
 
         clearArmLocked()
@@ -79,14 +81,16 @@ class EmergencyShortcutArmController(context: Context) {
             if (bootCount == BOOT_COUNT_UNKNOWN) editor.remove(KEY_BOOT_COUNT)
             else editor.putInt(KEY_BOOT_COUNT, bootCount)
         }
-        editor.apply()
-
+        // Register the fallback before acknowledging durable arming. A stale alarm cannot claim
+        // an id which was never stored. No crash gap after persistence leaves an arm unscheduled.
         val alarm = alarmIntent(armId)
-        alarmManager?.setAndAllowWhileIdle(
+        val manager = alarmManager ?: throw IOException("Alarme système indisponible")
+        manager.setAndAllowWhileIdle(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
             deadline,
             alarm
         )
+        persistLocked(editor)
 
         EmergencyFeedback(appContext).armed(armId)
         pendingJob = scope.launch {
@@ -107,20 +111,23 @@ class EmergencyShortcutArmController(context: Context) {
             }
         }
         Result.Armed
-    }
+    } }
 
-    /** Called by the private receiver; returns true exactly once for the current arm. */
-    fun consumeIfArmed(candidateArmId: String?): Boolean = synchronized(lock) {
+    /** Called by the private receiver; durably claims the current arm at most once. */
+    suspend fun consumeIfArmed(candidateArmId: String?): Boolean = withContext(Dispatchers.IO + NonCancellable) { synchronized(lock) {
+        checkPersistenceLocked()
         if (candidateArmId.isNullOrBlank()) return@synchronized false
         val prefs = prefs()
         val matches = prefs.getString(KEY_ARM_ID, null) == candidateArmId &&
             stateLocked(SystemClock.elapsedRealtime()).phase == EmergencyArmPhase.PENDING_SYSTEM
         if (matches) clearArmLocked()
         matches
-    }
+    } }
 
     private fun clearArmLocked() {
         val existingId = prefs().getString(KEY_ARM_ID, null)
+        // Claim/cancel must reach disk before cleanup or any SMS attempt.
+        persistLocked(prefs().edit().clear())
         if (!existingId.isNullOrBlank()) {
             EmergencyFeedback(appContext).clear(existingId)
             // Look up without creating a new token just to discard it (for example after reboot).
@@ -129,7 +136,6 @@ class EmergencyShortcutArmController(context: Context) {
                 alarm.cancel()
             }
         }
-        prefs().edit().clear().apply()
         pendingJob?.cancel()
         pendingJob = null
     }
@@ -171,7 +177,13 @@ class EmergencyShortcutArmController(context: Context) {
 
     private fun prefs() = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    enum class Result { Armed, Cancelled }
+    private fun checkPersistenceLocked() = persistenceGuard.checkHealthy()
+
+    private fun persistLocked(editor: android.content.SharedPreferences.Editor) {
+        persistenceGuard.persist { editor.commit() }
+    }
+
+    enum class Result { Armed, AlreadyArmed }
 
     companion object {
         const val GRACE_PERIOD_MILLIS = 4_000L
@@ -181,6 +193,7 @@ class EmergencyShortcutArmController(context: Context) {
         private const val KEY_BOOT_COUNT = "boot_count"
         private const val BOOT_COUNT_UNKNOWN = -1
         private const val ALARM_REQUEST_CODE = 41_004
+        private val persistenceGuard = EmergencyPersistenceGuard()
         private val lock = Any()
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         private var pendingJob: Job? = null

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reproduce Android vectors from the six licensed, vendored Streamline SVGs."""
+"""Reproduce Android vectors from the licensed, vendored Streamline SVGs."""
 from pathlib import Path
 import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
@@ -10,7 +10,7 @@ def attrs(**values):
 def color(value):
     value = {'none': '#00000000', 'gray': '#808080'}.get(value, value)
     return '#' + ''.join(c * 2 for c in value[1:]) if value.startswith('#') and len(value) == 4 else value
-for name in ('notes', 'list', 'clock', 'folder', 'tools', 'memo'):
+for name in ('notes', 'list', 'clock', 'folder', 'tools', 'memo', 'sms'):
     source = ET.parse(ROOT / f'third_party/streamline-ultimate-color/{name}.svg').getroot()
     vector = ET.Element('vector', attrs(width='48dp', height='48dp', viewportWidth='32', viewportHeight='32'))
     group = ET.SubElement(vector, 'group', attrs(translateX='4', translateY='4'))

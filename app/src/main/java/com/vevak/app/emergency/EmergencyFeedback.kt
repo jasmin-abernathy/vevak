@@ -10,6 +10,7 @@ import android.os.*
 import androidx.core.content.ContextCompat
 import com.vevak.app.R
 import com.vevak.app.ui.SafetyCenterActivity
+import kotlinx.coroutines.launch
 
 enum class EmergencyFeedbackMode(val label: String) {
     Silent("Aucun retour — discret"), Vibrate("Vibration courte à l'armement"), Notification("Notification temporaire avec annulation");
@@ -88,7 +89,16 @@ class EmergencyFeedbackCancelReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != EmergencyFeedback.ACTION_CANCEL) return
         val armId = intent.getStringExtra("arm_id")?.takeIf { it.isNotBlank() } ?: return
-        EmergencyShortcutArmController(context).cancelIfArmed(armId)
-        EmergencyFeedback(context).clear(armId)
+        val pending = goAsync()
+        val appContext = context.applicationContext
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                EmergencyShortcutArmController(appContext).cancelIfArmed(armId)
+            } catch (_: Exception) {
+                EmergencyFeedback(appContext).result(armId, "Annulation non confirmée. L'envoi peut encore être pris en charge.")
+            } finally {
+                pending.finish()
+            }
+        }
     }
 }

@@ -34,12 +34,12 @@ class EmergencyShareReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_SEND_EMERGENCY_LOCATION) return
         val armId = intent.getStringExtra(EXTRA_ARM_ID) ?: return
-        if (!EmergencyShortcutArmController(context).consumeIfArmed(armId)) return
         val pendingResult = goAsync()
         val appContext = context.applicationContext
 
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
+                if (!EmergencyShortcutArmController(appContext).consumeIfArmed(armId)) return@launch
                 EmergencyFeedback(appContext).result(armId, "Prise en charge. Préparation du message ; annulation terminée.")
                 val result = sendEmergency(appContext)
                 EmergencyFeedback(appContext).result(armId, result)

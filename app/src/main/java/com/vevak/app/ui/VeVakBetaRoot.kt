@@ -427,14 +427,14 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
     var presetName by rememberSaveable { mutableStateOf(shortcutManager.selectedPreset().name) }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
     val preset = runCatching { EmergencyShortcutPreset.valueOf(presetName) }
-        .getOrDefault(EmergencyShortcutPreset.Notes)
+        .getOrDefault(EmergencyShortcutPreset.Sms)
 
     StepLabel("Étape 5 sur 6")
     Title("Envoi d'urgence — facultatif")
     Text("VeVak peut aussi envoyer votre position à des contacts choisis à l'avance, avec les mêmes sources que les réponses SMS habituelles. Ce n'est pas un appel aux services de secours.")
     SimpleInfo(
         "Déclenchement protégé",
-        "Un raccourci discret peut être placé sur l'écran d'accueil. Un appui prépare l'envoi ; un deuxième appui dans les 4 secondes l'annule. Ce n'est pas un double appui rapide pour envoyer. Après ce délai, VeVak demande l'envoi. Si Android le retarde, un nouvel appui annule l'urgence tant qu'elle n'est pas prise en charge. La livraison du SMS n'est pas confirmée."
+        "Un appui sur l'icône SMS prépare l'envoi après 4 secondes. Les appuis répétés sur le raccourci sont ignorés : aucun double appui n'est nécessaire et ils n'annulent pas l'envoi. Pour annuler, utilisez la tuile affichant « Annuler » ou la notification si vous l'avez activée. Si Android retarde l'envoi, l'annulation reste possible jusqu'à la prise en charge. La livraison du SMS n'est pas confirmée."
     )
 
     if (!configuring) {
@@ -472,7 +472,7 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
         }
     }
 
-    Text("Nom et icône du raccourci", fontWeight = FontWeight.SemiBold)
+    Text("Icône du raccourci", fontWeight = FontWeight.SemiBold)
         Text("Icônes : Streamline — streamlinehq.com — CC BY 4.0 (creativecommons.org/licenses/by/4.0/). Adaptées au format Android.", style = MaterialTheme.typography.bodySmall)
     EmergencyShortcutPreset.entries.forEach { candidate ->
         Card(
@@ -487,7 +487,6 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                RadioButton(selected = candidate == preset, onClick = { presetName = candidate.name })
                 androidx.compose.foundation.Image(
                     painter = painterResource(candidate.iconRes),
                     contentDescription = "Aperçu ${candidate.label}",
@@ -994,7 +993,7 @@ private fun PlacesTabContent(state: AppUiState, vm: AppViewModel) {
 
     SimpleInfo(
         "Comment VeVak répond à une phrase-clé",
-        "VeVak cherche d'abord un point Android récent s'il est accessible, puis un lieu de confiance reconnu, puis une estimation réseau fraîche si vous l'avez activée. À défaut, il renvoie la dernière coordonnée mémorisée quelle que soit sa source et indique toujours son ancienneté. Le partage manuel et l'urgence conservent séparément le dernier point réel."
+        "VeVak cherche d'abord un point Android récent s'il est accessible, puis un lieu de confiance reconnu, puis une estimation réseau fraîche si vous l'avez activée. À défaut, il renvoie la dernière coordonnée mémorisée quelle que soit sa source et indique toujours son ancienneté. Le partage manuel, les réponses SMS et l'urgence utilisent ces mêmes sources et cette même mémoire."
     )
     state.message?.let { InlineMessage(it) }
 }

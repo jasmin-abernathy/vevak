@@ -80,7 +80,7 @@ Le partage manuel exige une sélection locale du destinataire et une confirmatio
 
 Les destinataires de l'urgence sont choisis à l'avance parmi les contacts autorisés. L'urgence locale n'est pas soumise au quota anti-suivi des demandes distantes et utilise le même resolver canonique. L'estimation réseau est signalée comme non exacte. Aucune adresse géocodée n'est ajoutée au SMS d'urgence.
 
-VeVak peut créer un raccourci d'écran d'accueil avec un nom et une icône génériques, ainsi qu'une tuile Réglages rapides facultative. Le premier appui arme l'envoi pendant quatre secondes ; un second appui pendant ce délai annule l'action. Si Android retarde la prise en charge, la demande peut rester en attente et être annulée localement jusqu'au claim par le receiver.
+VeVak peut créer un raccourci SMS urgence et une tuile Réglages rapides facultative. Un appui prépare l’envoi après quatre secondes ; les appuis répétés sur le raccourci sont ignorés. L’annulation est explicite via la tuile ou la notification facultative, jusqu’au claim durable par le receiver. La persistance locale arm/cancel/claim est sérialisée et écrite hors UI. Aucun historique de destinataires, positions ou messages n’est ajouté pour cette coordination.
 
 Le retour utilisateur de cette action est configurable : silence par défaut, vibration courte ou notification temporaire sans son. La notification éventuelle ne contient ni position, ni destinataire, ni contenu SMS ; elle est masquée sur écran verrouillé et ne constitue jamais une preuve de livraison.
 

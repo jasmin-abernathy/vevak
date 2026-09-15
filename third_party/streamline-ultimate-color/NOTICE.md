@@ -11,3 +11,5 @@ Retrieved 2026-09-14. Original SVG paths retained here. Android conversion adds 
 - `folder.svg`: `streamline-ultimate-color:folder-add`
 - `tools.svg`: `streamline-ultimate-color:tool-box`
 - `memo.svg`: `streamline-ultimate-color:notes-paper-text`
+
+SMS shortcut: `messages-bubble-square-typing-1`, Streamline Ultimate Color via https://github.com/iconify/icon-sets/blob/master/json/streamline-ultimate-color.json. CC BY 4.0; converted to Android VectorDrawable with safe padding. Quick Settings uses a monochrome VeVak SMS silhouette.

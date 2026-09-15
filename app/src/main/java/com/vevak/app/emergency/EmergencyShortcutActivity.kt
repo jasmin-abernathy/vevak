@@ -7,14 +7,11 @@ package com.vevak.app.emergency
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.lifecycleScope
+import android.widget.Toast
+import kotlinx.coroutines.launch
 
-/**
- * Tiny translucent target for the pinned home-screen shortcut.
- *
- * Each invocation validates the per-install shortcut token, toggles the four-second arm/cancel
- * coordinator, then closes immediately. Closing is important: the launcher becomes touchable again
- * straight away, so a second tap on the same icon can actually cancel an accidental first tap.
- */
+/** One activation arms. Repeated launcher activations never cancel or extend the deadline. */
 class EmergencyShortcutActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,7 +28,16 @@ class EmergencyShortcutActivity : ComponentActivity() {
         if (intent.action == ACTION_TOGGLE_EMERGENCY &&
             EmergencyShortcutManager(this).isValidToken(intent.getStringExtra(EXTRA_SHORTCUT_TOKEN))
         ) {
-            EmergencyShortcutArmController(this).toggle()
+            lifecycleScope.launch {
+                try {
+                    EmergencyShortcutArmController(this@EmergencyShortcutActivity).armIfIdle()
+                } catch (_: Exception) {
+                    Toast.makeText(this@EmergencyShortcutActivity, "Préparation non confirmée. Vérifiez VeVak.", Toast.LENGTH_LONG).show()
+                } finally {
+                    finishAndRemoveTask()
+                }
+            }
+            return
         }
         finishAndRemoveTask()
     }

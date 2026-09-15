@@ -70,15 +70,15 @@ Cette fonction est désactivée par défaut, n'est jamais proposée automatiquem
 
 Les anciennes sauvegardes contenant la seconde phrase de protection des premières bêtas restent compatibles pour migration.
 
-### Urgence locale et raccourci discret
+### Urgence locale et raccourci SMS
 
 L'urgence est désactivée par défaut. Pendant l'onboarding ou dans l'écran Sécurité, l'utilisateur choisit explicitement les destinataires ; aucun contact n'est précoché.
 
 L'urgence utilise le resolver canonique partagé. Elle n'est pas soumise au quota anti-suivi des demandes distantes et ne peut pas être déclenchée par un SMS distant.
 
-VeVak peut demander à Android d'épingler un raccourci d'écran d'accueil avec un nom et une icône génériques/originaux (`Notes`, `Liste`, `Horaires`, `Dossier`, `Outils`, `Mémos`). Cela ne masque ni ne renomme l'application VeVak elle-même. Une tuile Réglages rapides facultative peut également être ajoutée.
+VeVak peut demander à Android d'épingler un raccourci **SMS urgence**, avec une bulle de message Streamline. Une tuile Réglages rapides facultative peut également être ajoutée. Retirez les anciennes icônes génériques du launcher et ajoutez le raccourci SMS pour actualiser leur apparence.
 
-Premier appui : envoi armé pendant **4 secondes**. Second appui : annulation, pas confirmation d'envoi. Ce n'est pas un double appui rapide pour envoyer. Après le délai, VeVak demande l'envoi aux destinataires prédéfinis. Si Android le retarde, l'urgence reste en attente sans expiration arbitraire et peut être annulée jusqu'à sa prise en charge par le receiver. Une alarme système ponctuelle inexacte sert de repli.
+Un appui sur le raccourci **SMS urgence** arme l’envoi pendant **4 secondes**. Les appuis répétés sont ignorés. Annulez explicitement depuis la tuile « Annuler » / « Urgence en attente » ou la notification facultative, jusqu’à la prise en charge. Une alarme système inexacte sert de repli. Armement, annulation et claim sont écrits durablement hors UI. Aucun retry automatique après claim : un crash peut empêcher certains envois et la remise à Android ne prouve pas la livraison.
 
 Selon le choix local, cette action reste silencieuse, vibre brièvement ou affiche une notification temporaire sans son. Aucun de ces retours ne constitue une preuve de livraison du SMS.
 

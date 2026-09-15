@@ -1,11 +1,5 @@
-# Emergency shortcut icons
+# Emergency shortcut icon — current contract
 
-The six runtime VectorDrawables now use **Streamline Ultimate Color**, explicitly selected by Jasmin on 2026-09-14. This supersedes both Papirus and the original flat VeVak prototypes, and the proposed OpenMoji preview.
+The only offered preset is **SMS urgence**, using Streamline Ultimate Color `messages-bubble-square-typing-1` (CC BY 4.0). Original SVG and attribution are in `third_party/streamline-ultimate-color`. The launcher uses a padded adaptive bitmap; Quick Settings uses a monochrome SMS silhouette.
 
-Sources and attribution: [Streamline](https://www.streamlinehq.com/), CC BY 4.0. See `third_party/streamline-ultimate-color/NOTICE.md` and the original SVGs. Attribution also appears next to the icon selector in onboarding and Safety.
-
-Run `python3 scripts/build-shortcut-vectors.py` to reproduce the vectors offline. Paths, fills and strokes are retained; a transparent 4-unit margin surrounds the 24-unit artwork in a 32-unit viewport. No external runtime dependency or network request is added.
-
-These are alternate appearances for one emergency shortcut, not separate apps. The launcher may add its own app badge. The main VeVak icon remains unchanged. On-device mask, scale and badge rendering still need testing; existing pinned shortcuts may require recreation or a launcher refresh.
-
-One tap arms; another cancels. A quick double tap does not confirm sending. This explanation appears in both onboarding and Safety.
+One activation arms. Repeated shortcut activations are ignored while pending: they neither cancel nor extend the deadline. Cancellation is explicit via the tile labelled Cancel/Pending or the optional notification. Older pinned shortcut tokens remain valid with the new behavior; users replace old launcher icons by removing them and pinning the SMS shortcut. No preset migration silently enables emergency recipients.

@@ -68,21 +68,18 @@ class EmergencyQuickSettingsTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        if (actionJob?.isActive == true) {
-            // A second tap may arrive before the settings read finishes. Cancel that pending arm.
-            actionJob?.cancel()
-            actionJob = null
-            controller.cancelIfArmed()
-            Toast.makeText(this, "Préparation annulée", Toast.LENGTH_SHORT).show()
-            renderIfListening()
-            return
-        }
-        // Cancellation relies on the controller's current deadline rather than the last rendered
-        // tile state, which may be stale immediately after the Quick Settings panel is reopened.
-        if (cancellationShown || controller.state().isCancellable) {
-            val cancelled = controller.cancelIfArmed()
-            Toast.makeText(this, if (cancelled) "Envoi annulé" else "Aucune urgence en attente à annuler", Toast.LENGTH_SHORT).show()
-            renderIfListening()
+        // Repeated taps while preparation is running never cancel it.
+        if (actionJob?.isActive == true) return
+        if (cancellationShown) {
+            actionJob = scope.launch {
+                try {
+                    val cancelled = controller.cancelIfArmed()
+                    Toast.makeText(this@EmergencyQuickSettingsTileService, if (cancelled) "Envoi annulé" else "Aucune urgence en attente à annuler", Toast.LENGTH_SHORT).show()
+                } catch (_: Exception) {
+                    Toast.makeText(this@EmergencyQuickSettingsTileService, "Annulation non confirmée. L'envoi peut encore être pris en charge.", Toast.LENGTH_LONG).show()
+                }
+                renderIfListening()
+            }
             return
         }
         if (isLocked) {
@@ -110,7 +107,11 @@ class EmergencyQuickSettingsTileService : TileService() {
                 Toast.makeText(this@EmergencyQuickSettingsTileService, reason, Toast.LENGTH_LONG).show()
             } else if (!isLocked && !controller.state().isCancellable) {
                 // Share the same recipient selection, deadline and single-consumption receiver.
-                controller.toggle()
+                try {
+                    controller.armIfIdle()
+                } catch (_: Exception) {
+                    Toast.makeText(this@EmergencyQuickSettingsTileService, "Préparation non confirmée. Vérifiez VeVak.", Toast.LENGTH_LONG).show()
+                }
             }
             renderIfListening()
         }
@@ -130,10 +131,11 @@ class EmergencyQuickSettingsTileService : TileService() {
         return null
     }
 
-    private fun renderIfListening() {
+    private suspend fun renderIfListening() {
         if (!listening) return
         val tile = qsTile ?: return
         val state = controller.state()
+        if (!listening) return
         val remaining = state.remainingMillis
         val armed = state.phase == EmergencyArmPhase.CANCEL_WINDOW
         val pending = state.phase == EmergencyArmPhase.PENDING_SYSTEM
