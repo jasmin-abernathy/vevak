@@ -15,6 +15,8 @@ import android.os.Build
 import android.os.SystemClock
 import android.telephony.CellIdentityGsm
 import android.telephony.CellIdentityLte
+import android.telephony.CellIdentityNr
+import android.telephony.CellIdentityTdscdma
 import android.telephony.CellIdentityWcdma
 import android.telephony.CellInfo
 import android.telephony.CellInfoCdma
@@ -176,15 +178,15 @@ class LocationCapabilityProbe(private val context: Context) {
 
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun modernLookupIdentityComplete(cell: CellInfo): Boolean? = when (cell) {
-        is CellInfoNr -> cell.cellIdentity.let { identity ->
+        is CellInfoNr -> (cell.cellIdentity as? CellIdentityNr)?.let { identity ->
             validPlmn(identity.mccString, identity.mncString) &&
                 identity.tac != CellInfo.UNAVAILABLE && identity.tac >= 0 &&
                 identity.nci != CellInfo.UNAVAILABLE_LONG && identity.nci > 0L
-        }
-        is CellInfoTdscdma -> cell.cellIdentity.let { identity ->
+        } ?: false
+        is CellInfoTdscdma -> (cell.cellIdentity as? CellIdentityTdscdma)?.let { identity ->
             validPlmn(identity.mccString, identity.mncString) &&
                 validArea(identity.lac) && validCell(identity.cid)
-        }
+        } ?: false
         else -> null
     }
 
