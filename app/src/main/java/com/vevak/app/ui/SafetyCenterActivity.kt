@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -52,6 +53,7 @@ import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.VeVakSettingsRepository
 import com.vevak.app.emergency.EmergencyShortcutManager
 import com.vevak.app.emergency.EmergencyShortcutPreset
+import com.vevak.app.emergency.EmergencyTileInstaller
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.system.TrustedNetworkReader
 import com.vevak.app.ui.theme.VeVakTheme
@@ -143,7 +145,7 @@ private fun SafetyCenter(
 
         Card {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text("Protection anti-suivi abusif", fontWeight = FontWeight.Bold)
+                Text("Limites des réponses automatiques", fontWeight = FontWeight.Bold)
                 Text("Les réponses automatiques sont limitées à une toutes les 15 minutes et à 4 maximum sur 24 heures.")
                 Text("La limite est globale à tous les contacts : ajouter plusieurs personnes ne multiplie pas la capacité de suivi.")
                 Text("Une alerte d'urgence déclenchée volontairement depuis le téléphone n'est pas soumise à cette limite.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -210,32 +212,32 @@ private fun SafetyCenter(
             }
         }
 
+        EmergencyFeedbackSettings()
+
         HorizontalDivider()
-        Text("Raccourci discret d'envoi d'urgence", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("VeVak peut ajouter sur l'écran d'accueil une icône qui ressemble à un petit utilitaire banal. Les noms et logos proposés sont génériques et ne copient aucune application existante.")
+        Text("Raccourci SMS d'urgence", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Ajoutez une icône SMS urgence sur l'écran d'accueil. Si vous aviez une ancienne icône Notes, Horaires ou autre, retirez-la puis ajoutez ce raccourci SMS. Les anciennes icônes utilisent aussi le nouveau fonctionnement à un appui.")
         Card {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text("Protection contre l'appui accidentel", fontWeight = FontWeight.Bold)
-                Text("Premier appui : l'envoi est armé pendant 4 secondes. Un deuxième appui sur le même raccourci pendant ce délai annule l'envoi. Sans deuxième appui, le SMS d'urgence part automatiquement aux destinataires choisis ci-dessus.")
+                Text("Un appui sur l'icône SMS prépare l'envoi après 4 secondes. Les appuis répétés sur le raccourci sont ignorés : aucun double appui n'est nécessaire et ils n'annulent pas l'envoi. Pour annuler, utilisez la tuile affichant « Annuler » ou la notification si vous l'avez activée. Si Android retarde l'envoi, l'annulation reste possible jusqu'à la prise en charge. La livraison du SMS n'est pas confirmée.")
+
             }
         }
 
-        Text("Nom et icône du raccourci", fontWeight = FontWeight.SemiBold)
+        Text("Icône du raccourci", fontWeight = FontWeight.SemiBold)
+        Text("Icônes : Streamline — streamlinehq.com — CC BY 4.0 (creativecommons.org/licenses/by/4.0/). Adaptées au format Android.", style = MaterialTheme.typography.bodySmall)
         EmergencyShortcutPreset.entries.forEach { preset ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                RadioButton(
-                    selected = preset == selectedShortcutPreset,
-                    onClick = { selectedShortcutPreset = preset }
-                )
                 androidx.compose.foundation.Image(
                     painter = painterResource(preset.iconRes),
                     contentDescription = "Aperçu ${preset.label}",
-                    modifier = Modifier.padding(2.dp)
+                    modifier = Modifier.size(48.dp).padding(2.dp)
                 )
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(preset.label, fontWeight = FontWeight.SemiBold)
                     Text(preset.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -273,6 +275,17 @@ private fun SafetyCenter(
         if (activeContacts.isEmpty()) {
             Text("Autorisez au moins un contact avant de créer le raccourci d'urgence.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+
+        HorizontalDivider()
+        Text("Urgence dans les réglages rapides", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Facultatif : ajoutez une tuile Urgence VeVak au volet Android, à côté du Wi-Fi et de la lampe torche. Son nom sera visible dans ce volet.")
+        Text("Un appui prépare l'envoi après 4 secondes. Pour annuler, touchez ensuite la tuile lorsqu'elle affiche « Annuler » ou « Urgence en attente ». Le téléphone doit être déverrouillé pour préparer un envoi. La livraison du SMS n'est pas confirmée.")
+        OutlinedButton(
+            enabled = emergencyConfigured && activeContacts.isNotEmpty() &&
+                (allRecipients || selectedIds.any { id -> activeContacts.any { it.id == id } }),
+            onClick = { EmergencyTileInstaller.request(context) { message = it } },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) "Ajouter la tuile Urgence" else "Comment ajouter la tuile") }
 
         HorizontalDivider()
         Text("Mémoire de position", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -339,6 +352,7 @@ private fun SafetyCenter(
                 }
 
                 Text("Fréquence cible", fontWeight = FontWeight.SemiBold)
+                Text("Pendant une veille prolongée, Android reporte les mises à jour pour économiser la batterie. La position mémorisée peut donc être plus ancienne que la fréquence choisie.")
                 VeVakSettings.BACKGROUND_REFRESH_INTERVAL_CHOICES_MINUTES.forEach { minutes ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(

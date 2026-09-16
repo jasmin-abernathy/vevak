@@ -15,7 +15,6 @@ import com.vevak.app.background.BackgroundLocationAccess
 import com.vevak.app.location.OnlineApproximateLocationProvider
 import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.model.VeVakSettings
-import com.vevak.app.security.DuressPolicy
 
 class DiagnosticsRepository(private val context: Context) {
     private val locationRepository = VeVakLocationRepository(context)
@@ -36,7 +35,6 @@ class DiagnosticsRepository(private val context: Context) {
         val activeContacts = settings.activeTrustedContacts()
         val authorization = activeContacts.isNotEmpty()
         val backgroundLocation = BackgroundLocationAccess.isGranted(context)
-        val duressValid = DuressPolicy.configurationIsValid(settings)
         val powerManager = context.getSystemService(PowerManager::class.java)
         val batteryUnrestricted = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
             powerManager?.isIgnoringBatteryOptimizations(context.packageName) == true
@@ -89,11 +87,27 @@ class DiagnosticsRepository(private val context: Context) {
             )
         }
 
+        val cellularFallbackCheck = ReadinessCheck(
+            "Étude repli cellulaire local",
+            when {
+                !capabilities.telephonyRadioAccessSupported ->
+                    "Ce téléphone ne déclare pas l'accès radio nécessaire pour tester les cellules visibles. Aucun repli cellulaire n'est actif dans VeVak."
+                !capabilities.fineLocationPermission ->
+                    "Test non disponible sans la permission de localisation précise Android. Aucun identifiant cellulaire n'est enregistré par VeVak."
+                capabilities.visibleCellRecordCount == 0 ->
+                    "Android ne fournit actuellement aucune cellule exploitable au diagnostic. Testez de nouveau localisation ON puis OFF : aucun repli cellulaire n'est actif dans VeVak."
+                capabilities.offlineCellLookupReadyCount == 0 ->
+                    "Android expose ${capabilities.visibleCellRecordCount} cellule(s), mais aucune avec tous les champs nécessaires à une correspondance locale. Technologies : ${capabilities.cellRadioTechnologies.joinToString().ifBlank { "inconnues" }}."
+                else ->
+                    "POC local plausible : ${capabilities.visibleCellRecordCount} cellule(s) visible(s), ${capabilities.registeredCellRecordCount} enregistrée(s), ${capabilities.offlineCellLookupReadyCount} identité(s) complète(s), technologies ${capabilities.cellRadioTechnologies.joinToString()}, cache le plus récent ${CellularFallbackFeasibilityPolicy.freshnessLabel(capabilities.freshestCellAgeMillis)}. Aucun identifiant brut n'est conservé ni envoyé."
+            },
+            CheckState.Warning
+        )
+
         val checks = listOf(
             check(configuredContacts.isNotEmpty(), "Contacts autorisés", "${configuredContacts.size} contact(s) configuré(s).", "Ajoutez au moins un numéro pouvant interroger VeVak."),
             check(configuredContacts.all { it.triggerPhrase.isNotBlank() }, "Phrases de déclenchement", "Toutes les phrases sont configurées.", "Chaque contact doit avoir une phrase non vide."),
             check(authorization, "Autorisations locales", "${activeContacts.size} autorisation(s) active(s) et limitée(s) dans le temps.", "Réactivez explicitement au moins un contact."),
-            check(duressValid, "Protection sous contrainte", "Configuration cohérente.", "La phrase de sécurité doit être distincte de toutes les phrases normales et une position de repli doit être enregistrée."),
             check(telephony, "Téléphonie SMS", "Appareil compatible.", "Cet appareil ne déclare pas la fonction SMS."),
             check(receive, "Réception des SMS", "Autorisation accordée.", "Autorisation RECEIVE_SMS manquante."),
             check(send, "Envoi des SMS", "Autorisation accordée.", "Autorisation SEND_SMS manquante."),
@@ -122,6 +136,7 @@ class DiagnosticsRepository(private val context: Context) {
                 }
             ),
             homeFingerprintCheck,
+            cellularFallbackCheck,
             locationServiceCheck,
             backendCheck
         )
@@ -130,6 +145,8 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("VeVak diagnostic — redacted")
             appendLine("version=${BuildConfig.VERSION_NAME}")
             appendLine("flavor=${BuildConfig.FLAVOR}")
+            appendLine("sourceRevision=${BuildConfig.SOURCE_REVISION}")
+            appendLine("applicationId=${BuildConfig.APPLICATION_ID}")
             appendLine("androidApi=${Build.VERSION.SDK_INT}")
             appendLine("locationBackend=${backend.name}")
             appendLine("usesGooglePlayServices=${BuildConfig.USES_GOOGLE_PLAY_SERVICES}")
@@ -142,6 +159,11 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("locationLab.enabledProviders=${capabilities.enabledProviderCount}")
             appendLine("locationLab.cachedProviderFixes=${capabilities.cachedProviderFixCount}")
             appendLine("locationLab.visibleCellRecords=${capabilities.visibleCellRecordCount}")
+            appendLine("locationLab.registeredCellRecords=${capabilities.registeredCellRecordCount}")
+            appendLine("locationLab.offlineCellLookupReadyRecords=${capabilities.offlineCellLookupReadyCount}")
+            appendLine("locationLab.cellRadioTechnologies=${capabilities.cellRadioTechnologies.joinToString("+").ifBlank { "none" }}")
+            appendLine("locationLab.freshestCellAgeBucket=${CellularFallbackFeasibilityPolicy.freshnessLabel(capabilities.freshestCellAgeMillis)}")
+            appendLine("locationLab.telephonyRadioAccessSupported=${capabilities.telephonyRadioAccessSupported}")
             appendLine("locationLab.wifiIdentityReadable=${capabilities.wifiIdentityReadable}")
             appendLine("locationLab.localNetworkFingerprintAvailable=${capabilities.localNetworkFingerprintAvailable}")
             appendLine("locationLab.activeTransport=${capabilities.activeTransport}")
@@ -153,7 +175,7 @@ class DiagnosticsRepository(private val context: Context) {
             checks.forEachIndexed { index, value ->
                 appendLine("check.$index=${value.state}:${value.title}")
             }
-            append("Phone numbers, SMS bodies, trigger phrases, SSIDs/BSSIDs, Cell IDs, fallback mode and coordinates are excluded.")
+            append("Phone numbers, SMS bodies, trigger phrases, SSIDs/BSSIDs, raw cellular network identifiers, fallback mode and coordinates are excluded.")
         }
         return DiagnosticsSnapshot(checks, backend.name, report, capabilities)
     }

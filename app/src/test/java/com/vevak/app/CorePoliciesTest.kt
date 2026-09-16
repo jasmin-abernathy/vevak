@@ -18,9 +18,12 @@ import com.vevak.app.security.RequestRateState
 import com.vevak.app.sms.SmsCommandParser
 import com.vevak.app.sms.SmsReplyFormatter
 import com.vevak.app.system.TrustedNetworkReader
+import java.net.Inet6Address
+import java.net.InetAddress
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -178,6 +181,20 @@ class CorePoliciesTest {
         )
         assertEquals(first, second)
         assertTrue(first?.length == 64)
+    }
+
+    @Test
+    fun trustedLocalNetworkFingerprint_acceptsLocallyAssignedUlaPrefix() {
+        val address = InetAddress.getByName("fd12:3456:789a:1::42") as Inet6Address
+        val prefix = TrustedNetworkReader.stableNetworkIpv6Prefix(address, 64)
+        assertNotNull(prefix)
+        assertTrue(prefix!!.startsWith("fd123456789a0001"))
+    }
+
+    @Test
+    fun trustedLocalNetworkFingerprint_rejectsReservedFcUlaSpace() {
+        val address = InetAddress.getByName("fc12:3456:789a:1::42") as Inet6Address
+        assertNull(TrustedNetworkReader.stableNetworkIpv6Prefix(address, 64))
     }
 
     @Test

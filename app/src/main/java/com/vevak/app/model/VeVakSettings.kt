@@ -40,13 +40,15 @@ data class VeVakSettings(
     // Off by default: enabling this permits an IP-only request to the public beaconDB service
     // when local Android sources cannot provide a usable point.
     val allowNetworkApproximation: Boolean = false,
-    // Optional one-slot background refresh. VeVak never stores a route/history: a successful
-    // refresh only replaces the locally remembered last position. Android may defer alarm ticks.
-    val backgroundRefreshEnabled: Boolean = false,
+    // Recommended by default for new installs, but still user-controlled in onboarding. It never
+    // stores a route/history: a successful refresh only replaces the locally remembered last point.
+    // Android may defer alarm ticks, and the extra background-location access still requires an
+    // explicit Android permission decision from the user.
+    val backgroundRefreshEnabled: Boolean = true,
     val backgroundRefreshIntervalMinutes: Int = 30,
-    // When enabled, VeVak re-schedules the opt-in refresh loop after BOOT_COMPLETED. This does not
-    // open the UI or create a permanent foreground service/notification.
-    val startOnBoot: Boolean = false,
+    // Re-scheduling after BOOT_COMPLETED is the useful default once one-slot background refresh is
+    // enabled. It opens no UI and creates no permanent foreground service/notification.
+    val startOnBoot: Boolean = true,
     // These timestamps belong to the primary contact. Additional contacts carry their own.
     val authorizationGrantedAtEpochMs: Long = 0L,
     val authorizationExpiresAtEpochMs: Long = 0L,

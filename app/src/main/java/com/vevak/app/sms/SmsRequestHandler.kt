@@ -10,7 +10,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.vevak.app.BuildConfig
-import com.vevak.app.data.ProtectionPromptRepository
 import com.vevak.app.data.RequestAuditOutcome
 import com.vevak.app.data.RequestAuditRepository
 import com.vevak.app.data.RuntimeStateRepository
@@ -29,7 +28,6 @@ class SmsRequestHandler(private val context: Context) {
     private val settingsRepository = VeVakSettingsRepository(context)
     private val runtimeRepository = RuntimeStateRepository(context)
     private val auditRepository = RequestAuditRepository(context)
-    private val protectionPromptRepository = ProtectionPromptRepository(context)
     private val phoneMatcher = PhoneNumberMatcher(context)
     private val positionResolver = VeVakPositionResolver(context)
     private val replySender = SmsReplySender(context)
@@ -48,12 +46,6 @@ class SmsRequestHandler(private val context: Context) {
         if (!contact.hasActiveAuthorization(now)) {
             auditRepository.append(now, RequestAuditOutcome.BlockedAuthorization)
             return
-        }
-
-        if (mode == IncomingRequestMode.Normal) {
-            // This is deliberately per contact and happens before the global rate limit: a second
-            // valid SMS remains a meaningful safety signal even when no second reply is allowed.
-            protectionPromptRepository.recordRecognizedNormalRequest(contact.id)
         }
 
         if (!hasPermission(Manifest.permission.SEND_SMS)) {

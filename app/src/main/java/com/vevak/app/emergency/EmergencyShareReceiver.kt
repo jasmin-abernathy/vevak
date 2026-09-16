@@ -13,10 +13,12 @@ import android.telephony.SubscriptionManager
 import androidx.core.content.ContextCompat
 import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.VeVakSettingsRepository
-import com.vevak.app.location.VeVakLocationRepository
+import com.vevak.app.location.VeVakPositionResolution
+import com.vevak.app.location.VeVakPositionResolver
 import com.vevak.app.sms.SmsReplyFormatter
 import com.vevak.app.sms.SmsReplySender
 import com.vevak.app.system.BatteryReader
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,54 +33,75 @@ import kotlinx.coroutines.launch
 class EmergencyShareReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_SEND_EMERGENCY_LOCATION) return
-        if (!EmergencyShortcutArmController(context).consumeIfArmed(intent.getStringExtra(EXTRA_ARM_ID))) return
+        val armId = intent.getStringExtra(EXTRA_ARM_ID) ?: return
         val pendingResult = goAsync()
         val appContext = context.applicationContext
 
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                sendEmergency(appContext)
+                if (!EmergencyShortcutArmController(appContext).consumeIfArmed(armId)) return@launch
+                EmergencyFeedback(appContext).result(armId, "Prise en charge. Préparation du message ; annulation terminée.")
+                val result = sendEmergency(appContext)
+                EmergencyFeedback(appContext).result(armId, result)
+            } catch (cancelled: CancellationException) {
+                EmergencyFeedback(appContext).result(armId, "Traitement interrompu. Résultat d’envoi inconnu.")
+                throw cancelled
+            } catch (_: Exception) {
+                EmergencyFeedback(appContext).result(armId, "Impossible de terminer la demande. Livraison non confirmée.")
             } finally {
                 pendingResult.finish()
             }
         }
     }
 
-    private suspend fun sendEmergency(context: Context) {
+    private suspend fun sendEmergency(context: Context): String {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            return
+            return "Envoi non demandé : autorisation SMS absente. Vérifiez les permissions Android."
         }
 
         val subscriptionId = SubscriptionManager.getDefaultSmsSubscriptionId().takeIf { it >= 0 }
         if (subscriptionId == null) {
-            return
+            return "Envoi non demandé : aucune SIM SMS par défaut. Vérifiez les réglages Android."
         }
 
         val settings = VeVakSettingsRepository(context).current()
         if (!settings.completedOnboarding) {
-            return
+            return "Envoi non demandé : terminez l'assistant VeVak."
         }
 
         val recipients = EmergencyRecipientStore(context).recipients(settings)
         if (recipients.isEmpty()) {
-            return
+            return "Envoi non demandé : aucun destinataire autorisé. Vérifiez Sécurité."
         }
 
-        val lastKnown = runCatching { VeVakLocationRepository(context).fetchLastKnownLocation() }.getOrNull()
-        val batteryLabel = BatteryReader(context).label()
-        val body = if (lastKnown != null) {
-            SmsReplyFormatter.formatEmergencyShareWithBatteryLabel(settings, lastKnown, batteryLabel)
-        } else {
-            SmsReplyFormatter.formatEmergencyUnavailableWithBatteryLabel(settings, batteryLabel)
+        // Emergency uses the same canonical resolver as an authorised phrase-key request. This keeps
+        // trusted-place, current Android position, optional network approximation and remembered
+        // fallback semantics consistent instead of maintaining a second location policy.
+        val resolution = try {
+            VeVakPositionResolver(context).resolve(settings)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            VeVakPositionResolution.Unavailable
         }
+
+        val batteryLabel = BatteryReader(context).label()
+        val body = SmsReplyFormatter.formatEmergencyResolutionWithBatteryLabel(
+            settings = settings,
+            resolution = resolution,
+            batteryLabel = batteryLabel
+        )
 
         val sender = SmsReplySender(context)
-        recipients.forEach { contact ->
-            runCatching { sender.send(contact.phone, body, subscriptionId) }
+        val accepted = recipients.count { contact ->
+            runCatching { sender.send(contact.phone, body, subscriptionId) }.isSuccess
         }
 
-        // The shortcut contract is intentionally silent. SmsManager acceptance is not presented as
-        // delivery confirmation and no notification is created after an emergency action.
+        return if (accepted == recipients.size) {
+            "Demandes remises à Android. Livraison des SMS non confirmée."
+        } else {
+            "${accepted}/${recipients.size} demandes remises à Android. Certaines tentatives ont échoué ; livraison non confirmée."
+        }
     }
 
     companion object {

@@ -26,6 +26,18 @@ if "https://api.beacondb.net/v1/geolocate" not in online_provider:
 if 'put("considerIp", true)' not in online_provider or 'put("lacf", false)' not in online_provider:
     errors.append("FOSS online fallback must stay IP-only and must not submit cell/Wi-Fi identifiers")
 
+# OpenCellID is currently research for an offline-only local index. Attribution links are allowed,
+# but direct cell lookup or measurement-upload endpoints must not silently enter runtime code.
+for source_root in (ROOT / "app/src/main", ROOT / "app/src/foss"):
+    if not source_root.exists():
+        continue
+    for path in source_root.rglob("*.kt"):
+        text = path.read_text(encoding="utf-8")
+        if "opencellid.org/cell/" in text or "opencellid.org/measure/" in text:
+            errors.append(
+                f"Direct OpenCellID cell-identity network endpoint is forbidden in FOSS/core: {path.relative_to(ROOT)}"
+            )
+
 # Proprietary Google APIs are allowed only in the Play source set/dependency scope.
 for source_root in (ROOT / "app/src/main", ROOT / "app/src/foss"):
     if not source_root.exists():
