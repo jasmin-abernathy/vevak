@@ -9,7 +9,7 @@ struct PositionSnapshot: Equatable {
 
 struct MessageDraft: Identifiable, Equatable {
     let id = UUID()
-    let recipients: [String]
+    let recipient: String
     let body: String
 }
 
@@ -30,5 +30,24 @@ enum ShareMessageBuilder {
 
     private static func roundedAccuracy(_ value: Double) -> Int {
         max(0, Int(value.rounded()))
+    }
+}
+
+enum MessageDraftBuilder {
+    static func manual(contact: TrustedContact, snapshot: PositionSnapshot) -> MessageDraft {
+        MessageDraft(
+            recipient: contact.phoneNumber,
+            body: ShareMessageBuilder.manual(snapshot: snapshot)
+        )
+    }
+
+    static func emergency(
+        recipients: [TrustedContact],
+        snapshot: PositionSnapshot
+    ) -> [MessageDraft] {
+        let body = ShareMessageBuilder.emergency(snapshot: snapshot)
+        return recipients.map {
+            MessageDraft(recipient: $0.phoneNumber, body: body)
+        }
     }
 }

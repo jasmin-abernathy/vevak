@@ -38,4 +38,26 @@ final class VeVakCoreTests: XCTestCase {
         XCTAssertTrue(message.contains("n’est pas une preuve de livraison"))
         XCTAssertTrue(message.contains("ne contacte pas les secours"))
     }
+
+    func testEmergencyBuildsOneIndependentDraftPerRecipient() {
+        let snapshot = PositionSnapshot(
+            latitude: 49.0,
+            longitude: 6.0,
+            horizontalAccuracyMeters: 20,
+            timestamp: Date(timeIntervalSince1970: 0)
+        )
+        let recipients = [
+            TrustedContact(name: "Alice", phoneNumber: "+331"),
+            TrustedContact(name: "Bob", phoneNumber: "+332")
+        ]
+
+        let drafts = MessageDraftBuilder.emergency(
+            recipients: recipients,
+            snapshot: snapshot
+        )
+
+        XCTAssertEqual(drafts.count, 2)
+        XCTAssertEqual(drafts.map(\.recipient), ["+331", "+332"])
+        XCTAssertEqual(Set(drafts.map(\.body)).count, 1)
+    }
 }

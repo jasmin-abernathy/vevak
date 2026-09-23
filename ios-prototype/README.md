@@ -11,7 +11,7 @@ Ce dossier est un **prototype isolé** du port iPhone. Il vit temporairement sur
 - lien OpenStreetMap cohérent avec la variante libre Android ;
 - préparation d’un SMS de partage via `MFMessageComposeViewController` ;
 - destinataires d’urgence explicitement sélectionnés ;
-- préparation d’un SMS d’urgence vers ces destinataires ;
+- préparation de **SMS d’urgence séparés** : aucun SMS de groupe ne révèle les numéros des autres contacts ;
 - aucune télémétrie, aucun compte, aucun serveur requis pour ce socle ;
 - tests unitaires sur les invariants simples et build/test simulateur en CI ;
 - paquet ARM64 non signé généré en CI pour re-signature sur les iPhone publics Sauce Labs.
@@ -41,7 +41,13 @@ Le workflow de cette branche construit aussi `VeVak-SauceLabs.ipa` pour `Any iOS
 
 Ce paquet sert au test, pas à la distribution App Store/TestFlight. Le composeur SMS, Core Location, l’orientation et l’accessibilité doivent encore être vérifiés sur l’iPhone distant.
 
-## Étape suivante : demande distante native Apple
+## Demande distante : VeVak → VeVak
+
+Pour retrouver une expérience de demande distante propre sur iPhone, le chemin privilégié est que le contact de confiance installe aussi VeVak. L’appairage et l’établissement de clés doivent être automatisés après **acceptation locale**, sur un modèle inspiré des prekeys Signal, sans échange manuel de secret.
+
+Le design détaillé et les invariants de sécurité sont dans `VEVAK-TO-VEVAK.md`.
+
+## Location Push
 
 Apple propose une `Location Push Service Extension` pour les applications où une personne partage sa position avec des personnes qu’elle a explicitement approuvées. Ce chemin nécessite APNs, l’autorisation de localisation `Always`, l’entitlement Apple associé et un serveur qui émet les location pushes. Il n’est **pas** nécessaire au partage manuel ci-dessus et n’est pas activé dans ce prototype.
 

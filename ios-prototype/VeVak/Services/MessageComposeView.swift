@@ -3,7 +3,7 @@ import SwiftUI
 
 struct MessageComposeView: UIViewControllerRepresentable {
     let draft: MessageDraft
-    let onFinish: () -> Void
+    let onFinish: (MessageComposeResult) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onFinish: onFinish)
@@ -12,7 +12,7 @@ struct MessageComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> MFMessageComposeViewController {
         let controller = MFMessageComposeViewController()
         controller.messageComposeDelegate = context.coordinator
-        controller.recipients = draft.recipients
+        controller.recipients = [draft.recipient]
         controller.body = draft.body
         return controller
     }
@@ -20,9 +20,9 @@ struct MessageComposeView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: MFMessageComposeViewController, context: Context) {}
 
     final class Coordinator: NSObject, MFMessageComposeViewControllerDelegate {
-        private let onFinish: () -> Void
+        private let onFinish: (MessageComposeResult) -> Void
 
-        init(onFinish: @escaping () -> Void) {
+        init(onFinish: @escaping (MessageComposeResult) -> Void) {
             self.onFinish = onFinish
         }
 
@@ -30,7 +30,7 @@ struct MessageComposeView: UIViewControllerRepresentable {
             _ controller: MFMessageComposeViewController,
             didFinishWith result: MessageComposeResult
         ) {
-            onFinish()
+            onFinish(result)
         }
     }
 }

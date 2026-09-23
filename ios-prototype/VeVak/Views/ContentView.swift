@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var pendingAction: PendingAction?
     @State private var showingConfirmation = false
     @State private var messageDraft: MessageDraft?
+    @State private var queuedMessageDrafts: [MessageDraft] = []
+    @State private var continueMessageQueueAfterDismiss = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -39,9 +41,14 @@ struct ContentView: View {
                 AddContactView()
                     .environmentObject(contactStore)
             }
-            .sheet(item: $messageDraft) { draft in
-                MessageComposeView(draft: draft) {
-                    messageDraft = nil
+            .sheet(item: $messageDraft, onDismiss: {
+                if continueMessageQueueAfterDismiss {
+                    continueMessageQueueAfterDismiss = false
+                    presentNextQueuedMessage()
+                }
+            }) { draft in
+                MessageComposeView(draft: draft) { result in
+                    handleMessageResult(result)
                 }
                 .ignoresSafeArea()
             }
@@ -145,12 +152,12 @@ struct ContentView: View {
                 pendingAction = .emergency
                 showingConfirmation = true
             } label: {
-                Label("Préparer un SMS d’urgence", systemImage: "message.fill")
+                Label("Préparer les SMS d’urgence", systemImage: "message.fill")
                     .foregroundStyle(VeVakTheme.warm)
             }
             .disabled(contactStore.emergencyRecipients.isEmpty || locationService.isRequesting)
 
-            Text("Sur iPhone, VeVak ne peut pas envoyer ce SMS en silence : Apple affiche son composeur et vous devez toucher Envoyer. VeVak ne contacte jamais automatiquement le 112.")
+            Text("VeVak prépare un SMS séparé pour chaque destinataire afin de ne jamais révéler les numéros entre contacts. Apple affiche chaque composeur et vous devez toucher Envoyer. VeVak ne contacte jamais automatiquement le 112.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -181,7 +188,8 @@ struct ContentView: View {
         case .manual(let contact):
             return "VeVak va demander votre position une seule fois puis préparer un SMS pour \(contact.name). Rien ne sera envoyé automatiquement."
         case .emergency:
-            return "VeVak va demander votre position une seule fois puis préparer un SMS pour les destinataires d’urgence sélectionnés. Rien ne sera envoyé automatiquement."
+            let count = contactStore.emergencyRecipients.count
+            return "VeVak va demander votre position une seule fois puis préparer \(count) SMS séparé\(count > 1 ? "s" : "") pour les destinataires d’urgence. Rien ne sera envoyé automatiquement."
         case nil:
             return ""
         }
@@ -198,24 +206,54 @@ struct ContentView: View {
             case .success(let snapshot):
                 switch action {
                 case .manual(let contact):
-                    messageDraft = MessageDraft(
-                        recipients: [contact.phoneNumber],
-                        body: ShareMessageBuilder.manual(snapshot: snapshot)
-                    )
+                    enqueueMessages([
+                        MessageDraftBuilder.manual(contact: contact, snapshot: snapshot)
+                    ])
                 case .emergency:
-                    let recipients = contactStore.emergencyRecipients.map(\.phoneNumber)
+                    let recipients = contactStore.emergencyRecipients
                     guard !recipients.isEmpty else {
                         errorMessage = "Aucun destinataire d’urgence n’est sélectionné."
                         return
                     }
-                    messageDraft = MessageDraft(
-                        recipients: recipients,
-                        body: ShareMessageBuilder.emergency(snapshot: snapshot)
+                    enqueueMessages(
+                        MessageDraftBuilder.emergency(
+                            recipients: recipients,
+                            snapshot: snapshot
+                        )
                     )
                 }
             case .failure(let error):
                 errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             }
         }
+    }
+
+    private func enqueueMessages(_ drafts: [MessageDraft]) {
+        guard !drafts.isEmpty else { return }
+        queuedMessageDrafts.append(contentsOf: drafts)
+        presentNextQueuedMessage()
+    }
+
+    private func presentNextQueuedMessage() {
+        guard messageDraft == nil, !queuedMessageDrafts.isEmpty else { return }
+        messageDraft = queuedMessageDrafts.removeFirst()
+    }
+
+    private func handleMessageResult(_ result: MessageComposeResult) {
+        switch result {
+        case .sent:
+            continueMessageQueueAfterDismiss = !queuedMessageDrafts.isEmpty
+        case .cancelled:
+            queuedMessageDrafts.removeAll()
+            continueMessageQueueAfterDismiss = false
+        case .failed:
+            queuedMessageDrafts.removeAll()
+            continueMessageQueueAfterDismiss = false
+            errorMessage = "Le composeur Apple indique un échec. Aucun autre SMS d’urgence ne sera préparé automatiquement."
+        @unknown default:
+            queuedMessageDrafts.removeAll()
+            continueMessageQueueAfterDismiss = false
+        }
+        messageDraft = nil
     }
 }
