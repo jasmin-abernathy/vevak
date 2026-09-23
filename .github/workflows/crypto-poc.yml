@@ -1,0 +1,76 @@
+name: VeVak crypto POC
+
+on:
+  push:
+    branches:
+      - work/crypto-vodozemac-poc
+    paths:
+      - "crypto-poc/**"
+      - ".github/workflows/crypto-poc.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vevak-crypto-poc-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-and-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pinned Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.89.0 --profile minimal
+          rustup default 1.89.0
+          rustup target add aarch64-linux-android --toolchain 1.89.0
+
+      - name: Run VeVak crypto behavior tests
+        run: |
+          set -euo pipefail
+          cargo test --manifest-path crypto-poc/vodozemac/Cargo.toml --all-targets
+
+      - name: Check Android ARM64 compilation
+        run: |
+          set -euo pipefail
+          cargo check \
+            --manifest-path crypto-poc/vodozemac/Cargo.toml \
+            --target aarch64-linux-android
+
+      - name: Report dependency footprint
+        run: |
+          set -euo pipefail
+          cargo metadata \
+            --manifest-path crypto-poc/vodozemac/Cargo.toml \
+            --format-version 1 \
+            | python3 -c 'import json,sys; data=json.load(sys.stdin); print("resolved_packages=", len(data["packages"]))'
+          cargo tree --manifest-path crypto-poc/vodozemac/Cargo.toml --edges normal
+
+  ios-arm64:
+    runs-on: macos-15
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pinned Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.89.0 --profile minimal
+          rustup default 1.89.0
+          rustup target add aarch64-apple-ios --toolchain 1.89.0
+
+      - name: Check iPhone ARM64 compilation
+        run: |
+          set -euo pipefail
+          cargo check \
+            --manifest-path crypto-poc/vodozemac/Cargo.toml \
+            --target aarch64-apple-ios
