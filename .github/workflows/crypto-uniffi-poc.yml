@@ -136,6 +136,7 @@ jobs:
           RUST_TARGET="$PWD/crypto-poc/vodozemac/target/debug"
           MODULEMAP="$(find "$GENERATED" -maxdepth 1 -name '*.modulemap' -print -quit)"
           xcrun swiftc \
+            -parse-as-library \
             crypto-poc/vodozemac/foreign-smoke/swift/main.swift \
             -I "$GENERATED" \
             -Xcc -fmodule-map-file="$MODULEMAP" \
