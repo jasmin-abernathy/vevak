@@ -1,3 +1,5 @@
+pub mod relay;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use vodozemac::olm::{Account, OlmMessage, SessionConfig};

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - work/crypto-uniffi-poc
+      - work/crypto-relay-poc
     paths:
       - "crypto-poc/**"
       - ".github/workflows/crypto-uniffi-poc.yml"
