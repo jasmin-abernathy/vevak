@@ -1,0 +1,115 @@
+name: VeVak crypto UniFFI POC
+
+on:
+  push:
+    branches:
+      - work/crypto-uniffi-poc
+    paths:
+      - "crypto-poc/**"
+      - ".github/workflows/crypto-uniffi-poc.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vevak-crypto-uniffi-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-kotlin-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install pinned Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.89.0 --profile minimal
+          rustup default 1.89.0
+          rustup target add aarch64-linux-android --toolchain 1.89.0
+
+      - name: Run Rust behavior and bridge tests
+        run: |
+          set -euo pipefail
+          cargo test --manifest-path crypto-poc/vodozemac/Cargo.toml
+
+      - name: Build host cdylib and generate Kotlin bindings
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path crypto-poc/vodozemac/Cargo.toml
+          rm -rf crypto-poc/vodozemac/generated/kotlin
+          cargo run             --manifest-path crypto-poc/vodozemac/Cargo.toml             --features bindgen             --bin uniffi-bindgen             -- generate             --library crypto-poc/vodozemac/target/debug/libvevak_crypto_poc.so             --language kotlin             --out-dir crypto-poc/vodozemac/generated/kotlin
+          find crypto-poc/vodozemac/generated/kotlin -maxdepth 3 -type f -print
+
+      - name: Compile generated Kotlin bindings and smoke caller
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew             -p crypto-poc/vodozemac/foreign-smoke/kotlin             compileKotlin             --no-daemon
+
+      - name: Check Rust bridge for Android ARM64
+        run: |
+          set -euo pipefail
+          cargo check             --manifest-path crypto-poc/vodozemac/Cargo.toml             --target aarch64-linux-android
+
+  rust-swift-ios:
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pinned Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.89.0 --profile minimal
+          rustup default 1.89.0
+          rustup target add aarch64-apple-ios --toolchain 1.89.0
+
+      - name: Build host cdylib and generate Swift bindings
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path crypto-poc/vodozemac/Cargo.toml
+          rm -rf crypto-poc/vodozemac/generated/swift
+          cargo run             --manifest-path crypto-poc/vodozemac/Cargo.toml             --features bindgen             --bin uniffi-bindgen             -- generate             --library crypto-poc/vodozemac/target/debug/libvevak_crypto_poc.dylib             --language swift             --out-dir crypto-poc/vodozemac/generated/swift
+          find crypto-poc/vodozemac/generated/swift -maxdepth 2 -type f -print
+
+      - name: Compile Swift binding module on macOS
+        run: |
+          set -euo pipefail
+          GENERATED="$PWD/crypto-poc/vodozemac/generated/swift"
+          RUST_TARGET="$PWD/crypto-poc/vodozemac/target/debug"
+          SWIFT_FILE="$(find "$GENERATED" -maxdepth 1 -name '*.swift' -print -quit)"
+          MODULEMAP="$(find "$GENERATED" -maxdepth 1 -name '*.modulemap' -print -quit)"
+          test -n "$SWIFT_FILE"
+          test -n "$MODULEMAP"
+          xcrun swiftc             -module-name VeVakCrypto             -emit-library             -o "$GENERATED/libVeVakCrypto.dylib"             -emit-module             -emit-module-path "$GENERATED/VeVakCrypto.swiftmodule"             -parse-as-library             -L "$RUST_TARGET"             -lvevak_crypto_poc             -Xcc -fmodule-map-file="$MODULEMAP"             "$SWIFT_FILE"
+
+      - name: Run Swift caller through generated UniFFI bridge
+        run: |
+          set -euo pipefail
+          GENERATED="$PWD/crypto-poc/vodozemac/generated/swift"
+          RUST_TARGET="$PWD/crypto-poc/vodozemac/target/debug"
+          xcrun swiftc             crypto-poc/vodozemac/foreign-smoke/swift/main.swift             -I "$GENERATED"             -L "$GENERATED"             -lVeVakCrypto             -L "$RUST_TARGET"             -lvevak_crypto_poc             -o crypto-poc/vodozemac/generated/swift-smoke
+          DYLD_LIBRARY_PATH="$GENERATED:$RUST_TARGET"             crypto-poc/vodozemac/generated/swift-smoke
+
+      - name: Check Rust bridge and generated Swift for iPhone ARM64
+        run: |
+          set -euo pipefail
+          cargo check             --manifest-path crypto-poc/vodozemac/Cargo.toml             --target aarch64-apple-ios
+          GENERATED="$PWD/crypto-poc/vodozemac/generated/swift"
+          SWIFT_FILE="$(find "$GENERATED" -maxdepth 1 -name '*.swift' -print -quit)"
+          MODULEMAP="$(find "$GENERATED" -maxdepth 1 -name '*.modulemap' -print -quit)"
+          SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          xcrun swiftc             -typecheck             -target arm64-apple-ios14.0             -sdk "$SDK"             -Xcc -fmodule-map-file="$MODULEMAP"             "$SWIFT_FILE"

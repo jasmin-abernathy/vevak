@@ -1,0 +1,9 @@
+[bindings.kotlin]
+package_name = "org.vevak.crypto"
+generate_immutable_records = true
+
+[bindings.swift]
+module_name = "VeVakCrypto"
+ffi_module_name = "VeVakCryptoFFI"
+ffi_module_filename = "VeVakCryptoFFI"
+generate_immutable_records = true
