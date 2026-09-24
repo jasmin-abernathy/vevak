@@ -6,6 +6,7 @@ on:
       - work/e2ee-message-model-v0
     paths:
       - "crypto-poc/message-model-v0/**"
+      - "crypto-poc/vodozemac/**"
       - ".github/workflows/e2ee-message-model-v0.yml"
   workflow_dispatch:
 
@@ -30,6 +31,8 @@ jobs:
           rustup target add aarch64-linux-android --toolchain 1.89.0
       - name: Run strict model tests
         run: cargo test --manifest-path crypto-poc/message-model-v0/Cargo.toml --all-targets
+      - name: Run Olm relay and session tests
+        run: cargo test --manifest-path crypto-poc/vodozemac/Cargo.toml --all-targets
       - name: Check Android ARM64
         run: cargo check --manifest-path crypto-poc/message-model-v0/Cargo.toml --target aarch64-linux-android
 
