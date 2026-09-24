@@ -152,7 +152,11 @@ pub fn serialize_message_v0(
     message: &MessageEnvelopeV0,
 ) -> Result<Vec<u8>, MessageValidationError> {
     validate_intrinsic_shape(message)?;
-    serde_json::to_vec(message).map_err(|_| MessageValidationError::MalformedJson)
+    let bytes = serde_json::to_vec(message).map_err(|_| MessageValidationError::MalformedJson)?;
+    if bytes.len() > MAX_MESSAGE_BYTES_V0 {
+        return Err(MessageValidationError::MessageTooLarge);
+    }
+    Ok(bytes)
 }
 
 pub fn parse_message_v0(bytes: &[u8]) -> Result<MessageEnvelopeV0, MessageValidationError> {
