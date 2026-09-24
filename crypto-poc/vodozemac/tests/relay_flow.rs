@@ -10,8 +10,8 @@ use vevak_crypto_poc::{
 
 fn signed_prekey_bundle(account: &mut Account, device_id: &str) -> PublicPrekeyBundle {
     account.generate_one_time_keys(1);
-    let (key_id, key) = account
-        .one_time_keys()
+    let one_time_keys = account.one_time_keys();
+    let (key_id, key) = one_time_keys
         .iter()
         .next()
         .expect("one-time key should exist");
