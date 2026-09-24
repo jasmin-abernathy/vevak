@@ -126,6 +126,18 @@ fn relay_carries_only_public_keys_metadata_and_ciphertext() {
         .expect("Bob should establish the inbound session");
 
     let mut bob_session = inbound.session;
+    let session_id_before = bob_session.session_id();
+    let bob_pickle = serde_json::to_vec(&bob_session.pickle())
+        .expect("session pickle should serialize");
+    let restored_pickle: vodozemac::olm::SessionPickle = serde_json::from_slice(&bob_pickle)
+        .expect("session pickle should parse");
+    let restored_session: vodozemac::olm::Session = restored_pickle.into();
+    assert_eq!(
+        restored_session.session_id(),
+        session_id_before,
+        "application binding must survive session restoration"
+    );
+
     let decrypted_request: RequestEnvelope = serde_json::from_slice(&inbound.plaintext)
         .expect("Bob should decrypt the request payload");
     assert_eq!(decrypted_request, request);
