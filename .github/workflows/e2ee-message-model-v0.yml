@@ -1,0 +1,48 @@
+name: VeVak E2EE message model v0
+
+on:
+  push:
+    branches:
+      - work/e2ee-message-model-v0
+    paths:
+      - "crypto-poc/message-model-v0/**"
+      - ".github/workflows/e2ee-message-model-v0.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vevak-e2ee-message-model-v0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-and-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.89.0 --profile minimal
+          rustup default 1.89.0
+          rustup target add aarch64-linux-android --toolchain 1.89.0
+      - name: Run strict model tests
+        run: cargo test --manifest-path crypto-poc/message-model-v0/Cargo.toml --all-targets
+      - name: Check Android ARM64
+        run: cargo check --manifest-path crypto-poc/message-model-v0/Cargo.toml --target aarch64-linux-android
+
+  ios-arm64:
+    runs-on: macos-15
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.89.0 --profile minimal
+          rustup default 1.89.0
+          rustup target add aarch64-apple-ios --toolchain 1.89.0
+      - name: Check iPhone ARM64
+        run: cargo check --manifest-path crypto-poc/message-model-v0/Cargo.toml --target aarch64-apple-ios
