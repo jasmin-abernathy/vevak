@@ -86,7 +86,7 @@ jobs:
           sha256sum "$BUNDLE" > "$BUNDLE.sha256"
 
       - name: Upload Google Play hand-off
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: VeVak-0.3.14-play-signed
           path: |
