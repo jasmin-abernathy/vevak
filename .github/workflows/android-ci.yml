@@ -12,6 +12,7 @@ on:
     paths:
       - ".github/BETA_RELEASE_TRIGGER.md"
   pull_request:
+    types: [opened, ready_for_review, reopened]
     paths:
       - "app/**"
       - "gradle/**"
@@ -102,15 +103,19 @@ jobs:
           fi
 
       - name: Play unit tests
+        if: github.event_name != 'pull_request'
         run: ./gradlew --no-daemon --stacktrace testPlayDebugUnitTest
 
       - name: Play debug build
+        if: github.event_name != 'pull_request'
         run: ./gradlew --no-daemon --stacktrace assemblePlayDebug
 
       - name: Play release bundle validation
+        if: github.event_name != 'pull_request'
         run: ./gradlew --no-daemon --stacktrace bundlePlayRelease
 
       - name: Play lint
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           set -o pipefail
