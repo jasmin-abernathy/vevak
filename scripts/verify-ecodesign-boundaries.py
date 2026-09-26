@@ -51,20 +51,36 @@ for path in (refresh_scheduler_path, refresh_receiver_path):
     if "BackgroundLocationAccess" not in text:
         errors.append(f"Background refresh is missing its permission gate: {path.relative_to(ROOT)}")
 
-# 0.3.11 deliberately removes notification permission and all normal notification surfaces. A
-# future refactor must not silently make request replies or the discreet emergency shortcut depend on
-# POST_NOTIFICATIONS again.
-if "android.permission.POST_NOTIFICATIONS" in manifest:
-    errors.append("POST_NOTIFICATIONS must not be declared: VeVak 0.3.11 core is notification-free.")
+# Since 0.3.14 the optional freshness tick deliberately yields during deep idle. It must not consume
+# the app-wide allow-while-idle budget also used by the voluntary emergency fallback.
+refresh_scheduler_text = refresh_scheduler_path.read_text(encoding="utf-8")
+if "setAndAllowWhileIdle(" in refresh_scheduler_text:
+    errors.append(
+        "Optional position refresh must not use setAndAllowWhileIdle; reserve that idle budget "
+        "for the voluntary emergency fallback."
+    )
 
+# Exact-alarm privileges and battery-optimization exemptions are deliberately out of VeVak's
+# architecture. Do not introduce a scary/high-privilege installation surface to force timing.
+for forbidden_permission in (
+    "android.permission.SCHEDULE_EXACT_ALARM",
+    "android.permission.USE_EXACT_ALARM",
+    "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+):
+    if forbidden_permission in manifest:
+        errors.append(f"Forbidden scheduling/battery permission declared: {forbidden_permission}")
+
+# User-approved exception (2026-09-14): optional emergency feedback only.
+# The default and the core incoming-SMS path remain notification-free.
+feedback_permission_paths = {
+    ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyFeedback.kt",
+    ROOT / "app/src/main/java/com/vevak/app/ui/EmergencyFeedbackSettings.kt",
+}
 main_kotlin_paths = list((ROOT / "app/src/main").rglob("*.kt"))
 for path in main_kotlin_paths:
     text = path.read_text(encoding="utf-8")
-    if "POST_NOTIFICATIONS" in text:
-        errors.append(
-            "Notification-permission reference reintroduced in main source: "
-            f"{path.relative_to(ROOT)}"
-        )
+    if "POST_NOTIFICATIONS" in text and path not in feedback_permission_paths:
+        errors.append(f"Notification permission outside optional emergency feedback: {path.relative_to(ROOT)}")
 
 notifier_path = ROOT / "app/src/main/java/com/vevak/app/system/RequestVisibilityNotifier.kt"
 if notifier_path.exists():
@@ -103,7 +119,7 @@ if emergency_path.exists():
             )
 
 # The discreet shortcut may arm/cancel the existing local emergency action, but it must not become a
-# second location resolver or bypass the carefully separated emergency last-real-only contract.
+# second location resolver: emergency shares the canonical resolver used by normal requests.
 shortcut_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyShortcutActivity.kt"
 if shortcut_path.exists():
     shortcut_text = shortcut_path.read_text(encoding="utf-8")
@@ -118,9 +134,50 @@ if arm_path.exists():
     arm_text = arm_path.read_text(encoding="utf-8")
     if "EmergencyShareReceiver" not in arm_text:
         errors.append("Emergency arm controller must dispatch the canonical EmergencyShareReceiver.")
+    if "setAndAllowWhileIdle(" not in arm_text:
+        errors.append(
+            "Emergency process-death fallback must retain its inexact setAndAllowWhileIdle alarm."
+        )
     for forbidden in ("VeVakPositionResolver", "VeVakLocationRepository", "OnlineApproximateLocationProvider"):
         if forbidden in arm_text:
             errors.append(f"Emergency arm controller location boundary violated: {forbidden}")
+
+# Jasmin explicitly approved keeping a delayed voluntary emergency pending and locally cancellable
+# until the private receiver claims it. Freeze the key runtime/UI contract so a later cleanup cannot
+# silently revert to grace-window-only cancellation or an idle-looking tile while work is pending.
+arm_state_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyArmState.kt"
+tile_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyQuickSettingsTileService.kt"
+pending_contract_path = ROOT / "docs/emergency-pending-contract.md"
+if not arm_state_path.exists():
+    errors.append("Approved emergency pending-state policy is missing.")
+else:
+    arm_state_text = arm_state_path.read_text(encoding="utf-8")
+    for required in ("PENDING_SYSTEM", "isCancellable", "No expiry"):
+        if required not in arm_state_text:
+            errors.append(f"Emergency pending-state contract missing from policy: {required}")
+if arm_path.exists():
+    arm_text = arm_path.read_text(encoding="utf-8")
+    if "EmergencyArmPhase.PENDING_SYSTEM" not in arm_text or "consumeIfArmed" not in arm_text:
+        errors.append("Emergency receiver claim must remain gated on the PENDING_SYSTEM arm phase.")
+if not tile_path.exists():
+    errors.append("Quick Settings emergency tile is missing from the approved pending-state flow.")
+else:
+    tile_text = tile_path.read_text(encoding="utf-8")
+    for required in ("Urgence en attente", "Touchez pour annuler", "cancellationShown"):
+        if required not in tile_text:
+            errors.append(f"Emergency tile no longer preserves cancellable pending UX: {required}")
+if not pending_contract_path.exists():
+    errors.append("Approved pending-emergency product contract documentation is missing.")
+
+# Keep allow-while-idle exceptional: only the voluntary emergency fallback may use it. The optional
+# position-memory refresh explicitly accepts Doze deferral instead of competing for this app-wide quota.
+for path in main_kotlin_paths:
+    text = path.read_text(encoding="utf-8")
+    if path != arm_path and "setAndAllowWhileIdle(" in text:
+        errors.append(
+            "allow-while-idle boundary violated outside EmergencyShortcutArmController: "
+            f"{path.relative_to(ROOT)}"
+        )
 
 # Best-effort periodic memory is allowed, but VeVak still rejects repeating/exact polling frameworks
 # and WorkManager loops. The implementation must schedule one future tick at a time instead.
