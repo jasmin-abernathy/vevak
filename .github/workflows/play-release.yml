@@ -103,7 +103,7 @@ jobs:
           } > app/build/outputs/bundle/playRelease/build-info.txt
 
       - name: Upload Google Play hand-off
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: VeVak-${{ env.VEVAK_VERSION }}-play-signed-${{ github.sha }}
           path: |
