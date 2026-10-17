@@ -12,7 +12,7 @@ on:
     paths:
       - ".github/BETA_RELEASE_TRIGGER.md"
   pull_request:
-    types: [opened, ready_for_review, reopened]
+    types: [opened, ready_for_review, reopened, synchronize]
     paths:
       - "app/**"
       - "gradle/**"
@@ -85,6 +85,7 @@ jobs:
           python3 scripts/verify-foss-boundary.py
           python3 scripts/verify-ecodesign-boundaries.py
           python3 scripts/check-sensitive-logs.py
+          python3 scripts/verify-play-release-source.py
 
       - name: FOSS unit tests
         run: ./gradlew --no-daemon --stacktrace testFossDebugUnitTest
@@ -103,19 +104,15 @@ jobs:
           fi
 
       - name: Play unit tests
-        if: github.event_name != 'pull_request'
         run: ./gradlew --no-daemon --stacktrace testPlayDebugUnitTest
 
       - name: Play debug build
-        if: github.event_name != 'pull_request'
         run: ./gradlew --no-daemon --stacktrace assemblePlayDebug
 
       - name: Play release bundle validation
-        if: github.event_name != 'pull_request'
         run: ./gradlew --no-daemon --stacktrace bundlePlayRelease
 
       - name: Play lint
-        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           set -o pipefail

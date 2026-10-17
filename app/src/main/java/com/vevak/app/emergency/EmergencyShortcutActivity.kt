@@ -11,7 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import android.widget.Toast
 import kotlinx.coroutines.launch
 
-/** One activation arms. Repeated launcher activations never cancel or extend the deadline. */
+/** One activation requests immediate emergency dispatch; repeat taps cannot duplicate it. */
 class EmergencyShortcutActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,7 +32,7 @@ class EmergencyShortcutActivity : ComponentActivity() {
                 try {
                     EmergencyShortcutArmController(this@EmergencyShortcutActivity).armIfIdle()
                 } catch (_: Exception) {
-                    Toast.makeText(this@EmergencyShortcutActivity, "Préparation non confirmée. Vérifiez VeVak.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@EmergencyShortcutActivity, "Envoi non confirmé. Vérifiez VeVak.", Toast.LENGTH_LONG).show()
                 } finally {
                     finishAndRemoveTask()
                 }

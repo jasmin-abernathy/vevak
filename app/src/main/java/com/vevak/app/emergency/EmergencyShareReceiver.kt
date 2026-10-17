@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 /**
  * Explicit receiver used by the local emergency shortcut.
  *
- * There is deliberately no confirmation screen after the shortcut's cancellable arming delay.
+ * There is no confirmation screen or grace timer: one validated tap requests dispatch now.
  * Automatic-request anti-tracking limits do not apply to this voluntary alert.
  */
 class EmergencyShareReceiver : BroadcastReceiver() {
@@ -40,7 +40,7 @@ class EmergencyShareReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 if (!EmergencyShortcutArmController(appContext).consumeIfArmed(armId)) return@launch
-                EmergencyFeedback(appContext).result(armId, "Prise en charge. Préparation du message ; annulation terminée.")
+                EmergencyFeedback(appContext).result(armId, "Urgence prise en charge. Préparation du SMS ; annulation terminée.")
                 val result = sendEmergency(appContext)
                 EmergencyFeedback(appContext).result(armId, result)
             } catch (cancelled: CancellationException) {

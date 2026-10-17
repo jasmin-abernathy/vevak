@@ -4,12 +4,9 @@
  */
 package com.vevak.app.emergency
 
-internal enum class EmergencyArmPhase { IDLE, CANCEL_WINDOW, PENDING_SYSTEM }
+internal enum class EmergencyArmPhase { IDLE, PENDING_SYSTEM }
 
-internal data class EmergencyArmState(
-    val phase: EmergencyArmPhase,
-    val remainingMillis: Long = 0L
-) {
+internal data class EmergencyArmState(val phase: EmergencyArmPhase) {
     val isCancellable: Boolean get() = phase != EmergencyArmPhase.IDLE
 }
 
@@ -20,19 +17,16 @@ internal object EmergencyArmStatePolicy {
         deadline: Long,
         now: Long,
         armedBootCount: Int,
-        currentBootCount: Int,
-        graceMillis: Long
+        currentBootCount: Int
     ): EmergencyArmState {
         if (!hasArm || deadline <= 0L ||
             (armedBootCount >= 0 && currentBootCount >= 0 && armedBootCount != currentBootCount)
         ) return EmergencyArmState(EmergencyArmPhase.IDLE)
 
-        // Reject implausible future uptime from legacy state without a boot marker.
-        if (deadline > now) {
-            val remaining = deadline - now
-            return if (remaining in 1L..graceMillis) {
-                EmergencyArmState(EmergencyArmPhase.CANCEL_WINDOW, remaining)
-            } else EmergencyArmState(EmergencyArmPhase.IDLE)
+        // A valid arm, including one left by the old delayed version during upgrade, is
+        // dispatchable at once. Still reject an implausibly distant future legacy timestamp.
+        if (deadline > now && deadline - now > 30_000L) {
+            return EmergencyArmState(EmergencyArmPhase.IDLE)
         }
         return EmergencyArmState(EmergencyArmPhase.PENDING_SYSTEM)
     }

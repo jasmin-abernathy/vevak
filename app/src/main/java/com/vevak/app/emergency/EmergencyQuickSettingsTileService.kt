@@ -47,7 +47,7 @@ class EmergencyQuickSettingsTileService : TileService() {
             settings = runCatching { repository.current() }.getOrNull()
             while (isActive) {
                 renderIfListening()
-                delay(if (controller.remainingMillis() > 0L) 250L else 1_000L)
+                delay(1_000L)
             }
         }
     }
@@ -68,7 +68,7 @@ class EmergencyQuickSettingsTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        // Repeated taps while preparation is running never cancel it.
+        // While an activation is in progress, repeated taps cannot start another request.
         if (actionJob?.isActive == true) return
         if (cancellationShown) {
             actionJob = scope.launch {
@@ -110,7 +110,7 @@ class EmergencyQuickSettingsTileService : TileService() {
                 try {
                     controller.armIfIdle()
                 } catch (_: Exception) {
-                    Toast.makeText(this@EmergencyQuickSettingsTileService, "Préparation non confirmée. Vérifiez VeVak.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@EmergencyQuickSettingsTileService, "Envoi non confirmé. Vérifiez VeVak.", Toast.LENGTH_LONG).show()
                 }
             }
             renderIfListening()
@@ -136,8 +136,6 @@ class EmergencyQuickSettingsTileService : TileService() {
         val tile = qsTile ?: return
         val state = controller.state()
         if (!listening) return
-        val remaining = state.remainingMillis
-        val armed = state.phase == EmergencyArmPhase.CANCEL_WINDOW
         val pending = state.phase == EmergencyArmPhase.PENDING_SYSTEM
         cancellationShown = state.isCancellable
         val unavailable = if (state.isCancellable) null else unavailableReason()
@@ -146,16 +144,12 @@ class EmergencyQuickSettingsTileService : TileService() {
             unavailable != null -> Tile.STATE_UNAVAILABLE
             else -> Tile.STATE_INACTIVE
         }
-        tile.label = when {
-            armed -> "Annuler · ${(remaining + 999L) / 1_000L} s"
-            pending -> "Urgence en attente"
-            else -> getString(R.string.emergency_tile_label)
-        }
+        tile.label = if (pending) "Urgence en attente" else getString(R.string.emergency_tile_label)
         val detail = when {
-            armed || pending -> "Touchez pour annuler"
+            pending -> "Annuler uniquement si Android n'a pas commencé l'envoi"
             unavailable != null -> unavailable
-            isLocked -> "Déverrouiller pour préparer"
-            else -> "Préparer l'envoi"
+            isLocked -> "Déverrouiller pour envoyer"
+            else -> "Envoyer l'urgence immédiatement"
         }
         tile.contentDescription = "${tile.label}. $detail"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) tile.subtitle = detail

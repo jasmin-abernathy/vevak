@@ -15,34 +15,24 @@ import java.util.UUID
 import java.io.IOException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
- * Four-second arm/cancel coordinator for the pinned shortcut and Quick Settings tile.
+ * Immediate local emergency dispatch for the pinned shortcut and Quick Settings tile.
  *
- * A process-local job provides the expected four-second response while a one-shot, inexact
- * allow-while-idle alarm provides a process-death fallback. Android may delay that fallback under
- * system idle quotas; no exact-alarm permission or permanent service is used. The receiver consumes
- * the stored random arm id atomically, so competing deliveries in the same app process cannot both
- * send.
+ * The app directly requests a local broadcast immediately after persisting a unique arm id.
+ * A one-shot allow-while-idle alarm at the same instant is a process-death fallback, not a
+ * countdown. Android may defer its fallback or actual SMS processing. Claim remains at-most-once.
  */
 class EmergencyShortcutArmController(context: Context) {
     private val appContext = context.applicationContext
     private val alarmManager = appContext.getSystemService(AlarmManager::class.java)
 
-    /** Read-only display state; never extends the existing deadline. */
-    suspend fun remainingMillis(): Long = state().remainingMillis
-
     internal suspend fun state(): EmergencyArmState = withContext(Dispatchers.IO) { synchronized(lock) {
         stateLocked(SystemClock.elapsedRealtime())
     } }
 
-    /** An outdated Cancel tile must never arm a new alert after the deadline. */
+    /** A pending alert may only be cancelled before the receiver claims it. */
     suspend fun cancelIfArmed(candidateArmId: String? = null): Boolean = withContext(Dispatchers.IO + NonCancellable) { synchronized(lock) {
         checkPersistenceLocked()
         if (candidateArmId != null && prefs().getString(KEY_ARM_ID, null) != candidateArmId) return@synchronized false
@@ -58,8 +48,7 @@ class EmergencyShortcutArmController(context: Context) {
             deadline = prefs.getLong(KEY_DEADLINE, 0L),
             now = now,
             armedBootCount = prefs.getInt(KEY_BOOT_COUNT, BOOT_COUNT_UNKNOWN),
-            currentBootCount = currentBootCount(),
-            graceMillis = GRACE_PERIOD_MILLIS
+            currentBootCount = currentBootCount()
         )
     }
 
@@ -73,7 +62,7 @@ class EmergencyShortcutArmController(context: Context) {
 
         clearArmLocked()
         val armId = UUID.randomUUID().toString()
-        val deadline = now + GRACE_PERIOD_MILLIS
+        val deadline = now.coerceAtLeast(1L)
         val editor = prefs().edit()
             .putString(KEY_ARM_ID, armId)
             .putLong(KEY_DEADLINE, deadline)
@@ -93,23 +82,14 @@ class EmergencyShortcutArmController(context: Context) {
         persistLocked(editor)
 
         EmergencyFeedback(appContext).armed(armId)
-        pendingJob = scope.launch {
-            delay((deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0L))
-            val shouldDispatch = synchronized(lock) {
-                // Keep the system fallback registered until the receiver consumes the arm. If the
-                // process dies after this check but before sendBroadcast, AlarmManager still has a
-                // chance to deliver the same arm id later.
-                prefs().getString(KEY_ARM_ID, null) == armId
+        // No sleep or grace period: send the explicit broadcast now. The one-shot system alarm
+        // stays registered as fallback if this process dies before the receiver claims the arm.
+        appContext.sendBroadcast(
+            Intent(appContext, EmergencyShareReceiver::class.java).apply {
+                action = EmergencyShareReceiver.ACTION_SEND_EMERGENCY_LOCATION
+                putExtra(EmergencyShareReceiver.EXTRA_ARM_ID, armId)
             }
-            if (shouldDispatch) {
-                appContext.sendBroadcast(
-                    Intent(appContext, EmergencyShareReceiver::class.java).apply {
-                        action = EmergencyShareReceiver.ACTION_SEND_EMERGENCY_LOCATION
-                        putExtra(EmergencyShareReceiver.EXTRA_ARM_ID, armId)
-                    }
-                )
-            }
-        }
+        )
         Result.Armed
     } }
 
@@ -136,8 +116,6 @@ class EmergencyShortcutArmController(context: Context) {
                 alarm.cancel()
             }
         }
-        pendingJob?.cancel()
-        pendingJob = null
     }
 
     /**
@@ -186,7 +164,6 @@ class EmergencyShortcutArmController(context: Context) {
     enum class Result { Armed, AlreadyArmed }
 
     companion object {
-        const val GRACE_PERIOD_MILLIS = 4_000L
         private const val PREFS = "vevak_emergency_arm"
         private const val KEY_ARM_ID = "arm_id"
         private const val KEY_DEADLINE = "deadline_elapsed_realtime"
@@ -195,7 +172,5 @@ class EmergencyShortcutArmController(context: Context) {
         private const val ALARM_REQUEST_CODE = 41_004
         private val persistenceGuard = EmergencyPersistenceGuard()
         private val lock = Any()
-        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        private var pendingJob: Job? = null
     }
 }

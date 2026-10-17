@@ -29,7 +29,7 @@ internal fun EmergencyFeedbackSettings() {
         } else message = "Notifications non autorisées. Votre choix précédent est conservé ; l'urgence reste utilisable."
     }
     Text("Retour après un appui d'urgence", style = MaterialTheme.typography.titleMedium)
-    Text("Facultatif. Le mode discret reste silencieux. Une vibration confirme seulement l'armement. Les notifications rendent l'utilisation de VeVak visible dans le volet Android.")
+    Text("Facultatif. Le mode discret reste silencieux. Une vibration confirme seulement que l'envoi a été demandé à Android. Les notifications rendent l'utilisation de VeVak visible dans le volet Android.")
     EmergencyFeedbackMode.entries.forEach { mode ->
         Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(selected = selected == mode, onClick = {
@@ -46,7 +46,7 @@ internal fun EmergencyFeedbackSettings() {
         }
     }
     if (selected == EmergencyFeedbackMode.Notification) {
-        Text("Notification sans son, masquée sur l'écran verrouillé et retirée après une minute. Sa disparition n'annule pas l'urgence. Ensuite, utilisez la tuile ou le raccourci pour annuler une attente. Le retour d'envoi ne prouve pas la livraison du SMS.")
+        Text("Notification sans son, masquée sur l'écran verrouillé et retirée après une minute. Sa disparition n'annule pas l'urgence. Si Android laisse la demande en attente, la tuile peut encore proposer son annulation ; le raccourci ne fonctionne pas comme un bouton d'annulation. Le retour d'envoi ne prouve pas la livraison du SMS.")
         TextButton(onClick = {
             context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
         }) { Text("Réglages des notifications Android") }

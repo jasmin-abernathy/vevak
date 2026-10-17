@@ -31,8 +31,8 @@ android {
         applicationId = "com.vevak.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
-        versionName = "0.3.14"
+        versionCode = 18
+        versionName = "0.3.15"
         buildConfigField("String", "SOURCE_REVISION", "\"${sourceRevision.get()}\"")
 
         vectorDrawables.useSupportLibrary = true

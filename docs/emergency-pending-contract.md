@@ -1,3 +1,20 @@
+# Immediate emergency override — 2026-10-17
+
+This note supersedes the **four-second** sections below, which record the previous product decision
+and are kept only as historical context. Product owner later explicitly requested no delay.
+
+- A validated shortcut activation or unlocked Quick Settings tile now requests the explicit
+  emergency receiver broadcast immediately after persisting a unique arm id. No grace timer.
+- An allow-while-idle one-shot fallback is scheduled at the same instant, for process-death
+  resilience only. Android may independently defer broadcast processing, location retrieval, or SMS.
+- Repeated shortcut activations while a request is pending do not duplicate messages. Optional
+  tile/notification cancellation can only win before the receiver claims the pending request.
+- Receiver claim remains persistent and at-most-once per arm id; no speculative retry or SMS
+  delivery guarantee. Permissions, authorised recipients and default SIM remain mandatory.
+- Display and screen-reader copy now say immediate request, not a four-second cancellation window.
+- After Play upload versionCode 17 (0.3.14), the corrected candidate is 0.3.15 / versionCode 18.
+  The AAB must be built from the merged reviewed PR #35 source, never from an older main commit.
+
 # Pending emergency contract — approved 2026-09-13
 
 Jasmin explicitly approved retaining a delayed voluntary emergency, showing it as pending and allowing another local activation to cancel until receiver claim. This supersedes the previously open expiry question in the earlier review notes.

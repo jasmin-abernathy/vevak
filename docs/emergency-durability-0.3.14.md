@@ -6,7 +6,8 @@
 - Register the one-shot inexact alarm before persisting a new arm. An uncommitted stale alarm cannot claim its id. No exact alarm, foreground service or continuous tracking.
 - Persist removal before cancelling alarm tokens, or before any SMS attempt. A disk failure or exception blocks further mutations/claims in that process because SharedPreferences memory may already differ from disk. Do not report successful cancellation after failure.
 - Both receivers acquire goAsync before durable work and finish in finally.
-- A pending launcher activation is ignored. Cancellation uses explicit tile/notification controls.
+- One launcher/tile activation requests an explicit emergency broadcast immediately after durable intent persistence, with no intentional delay or countdown. An inexact allow-while-idle alarm at the same instant remains a process-death fallback. Android may still defer its own processing.
+- Repeated shortcut activation cannot duplicate a pending send. Cancellation is only opportunistic before receiver claim, through the tile or optional notification.
 
 ## Crash/multiple recipients decision
 
@@ -18,7 +19,7 @@ Keep fail-closed behavior: an existing malformed verifier must never become an u
 
 ## Device checks still required
 
-- One launcher tap, repeated taps during the grace window and system delay: no cancellation or deadline reset.
+- One launcher tap requests an immediate dispatch, without a four-second wait. Repeated taps before claim never duplicate or extend it.
 - Explicit tile/notification cancellation; stale alarm after cancellation; competing job/alarm deliveries.
 - Process death before/after claim, disk failure, multiple recipients, Doze, reboot (old-boot arms are rejected).
 - Private-password creation/change/relock; abandoned private draft; backup/import/reset authorization.

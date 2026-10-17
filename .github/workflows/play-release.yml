@@ -74,6 +74,7 @@ jobs:
           python3 scripts/verify-foss-boundary.py
           python3 scripts/verify-ecodesign-boundaries.py
           python3 scripts/check-sensitive-logs.py
+          python3 scripts/verify-play-release-source.py
           ./gradlew --no-daemon --stacktrace testPlayDebugUnitTest lintPlayDebug bundlePlayRelease
 
       - name: Verify and checksum bundle
@@ -84,9 +85,14 @@ jobs:
           test -s "$BUNDLE"
           jarsigner -verify "$BUNDLE"
           sha256sum "$BUNDLE" > "$BUNDLE.sha256"
+          VERSION="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' app/build.gradle.kts | head -n 1)"
+          CODE="$(sed -n 's/^[[:space:]]*versionCode = \([0-9]*\)/\1/p' app/build.gradle.kts | head -n 1)"
+          test -n "$VERSION" && test -n "$CODE"
+          test "$CODE" -gt 17 # Code 17 was already handed to Google Play.
+          echo "VEVAK_VERSION=$VERSION" >> "$GITHUB_ENV"
           {
-            echo "versionName=0.3.14"
-            echo "versionCode=17"
+            echo "versionName=$VERSION"
+            echo "versionCode=$CODE"
             echo "applicationId=vevak.lepotager.org"
             echo "sourceRevision=$GITHUB_SHA"
             echo "workflowRun=$GITHUB_RUN_ID"
@@ -95,7 +101,7 @@ jobs:
       - name: Upload Google Play hand-off
         uses: actions/upload-artifact@v4
         with:
-          name: VeVak-0.3.14-play-signed-${{ github.sha }}
+          name: VeVak-${{ env.VEVAK_VERSION }}-play-signed-${{ github.sha }}
           path: |
             app/build/outputs/bundle/playRelease/app-play-release.aab
             app/build/outputs/bundle/playRelease/app-play-release.aab.sha256

@@ -13,7 +13,7 @@ import com.vevak.app.ui.SafetyCenterActivity
 import kotlinx.coroutines.launch
 
 enum class EmergencyFeedbackMode(val label: String) {
-    Silent("Aucun retour — discret"), Vibrate("Vibration courte à l'armement"), Notification("Notification temporaire avec annulation");
+    Silent("Aucun retour — discret"), Vibrate("Vibration courte au déclenchement"), Notification("Notification temporaire sur l'envoi");
     companion object {
         fun decode(value: String?) = entries.firstOrNull { it.name == value } ?: Silent
     }
@@ -44,7 +44,7 @@ class EmergencyFeedback(context: Context) {
                 val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
                 vibrator?.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
             }
-            EmergencyFeedbackMode.Notification -> show(armId, "Urgence préparée", "Envoi demandé après 4 secondes. Android peut le retarder. Annulable jusqu'à sa prise en charge.", true)
+            EmergencyFeedbackMode.Notification -> show(armId, "Urgence déclenchée", "Envoi demandé immédiatement. Android peut retarder la prise en charge. Annulation possible uniquement avant le début du traitement.", true)
         }
     } }
     fun clear(armId: String) { runCatching { manager?.cancel(TAG_PREFIX + armId, 1) } }

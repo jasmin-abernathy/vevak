@@ -424,17 +424,15 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
     var selected by remember {
         mutableStateOf(recipientStore.selectedContactIds().intersect(setOf(contact.id)))
     }
-    var presetName by rememberSaveable { mutableStateOf(shortcutManager.selectedPreset().name) }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
-    val preset = runCatching { EmergencyShortcutPreset.valueOf(presetName) }
-        .getOrDefault(EmergencyShortcutPreset.Sms)
+    val preset = EmergencyShortcutPreset.Sms
 
     StepLabel("Étape 5 sur 6")
     Title("Envoi d'urgence — facultatif")
     Text("VeVak peut aussi envoyer votre position à des contacts choisis à l'avance, avec les mêmes sources que les réponses SMS habituelles. Ce n'est pas un appel aux services de secours.")
     SimpleInfo(
-        "Déclenchement protégé",
-        "Un appui sur l'icône SMS prépare l'envoi après 4 secondes. Les appuis répétés sur le raccourci sont ignorés : aucun double appui n'est nécessaire et ils n'annulent pas l'envoi. Pour annuler, utilisez la tuile affichant « Annuler » ou la notification si vous l'avez activée. Si Android retarde l'envoi, l'annulation reste possible jusqu'à la prise en charge. La livraison du SMS n'est pas confirmée."
+        "Envoi immédiat",
+        "Un appui sur l'icône SMS demande immédiatement l'envoi d'urgence à Android, sans compte à rebours. Un nouvel appui sur le raccourci ne crée pas un deuxième envoi tant que le premier est en attente. Si Android tarde à prendre la demande en charge, la tuile ou une notification facultative peut permettre de l'annuler avant le début du traitement. La livraison du SMS n'est pas confirmée."
     )
 
     if (!configuring) {
@@ -472,35 +470,22 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
         }
     }
 
-    Text("Icône du raccourci", fontWeight = FontWeight.SemiBold)
-        Text("Icônes : Streamline — streamlinehq.com — CC BY 4.0 (creativecommons.org/licenses/by/4.0/). Adaptées au format Android.", style = MaterialTheme.typography.bodySmall)
-    EmergencyShortcutPreset.entries.forEach { candidate ->
-        Card(
-            modifier = Modifier.fillMaxWidth().clickable { presetName = candidate.name },
-            colors = CardDefaults.cardColors(
-                containerColor = if (candidate == preset) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surface
-            )
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                androidx.compose.foundation.Image(
-                    painter = painterResource(candidate.iconRes),
-                    contentDescription = "Aperçu ${candidate.label}",
-                    modifier = Modifier.size(40.dp)
-                )
-                Column {
-                    Text(candidate.label, fontWeight = FontWeight.SemiBold)
-                    Text(candidate.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
+    Text("Raccourci proposé : SMS urgence", fontWeight = FontWeight.SemiBold)
+    Text("Icône Streamline, CC BY 4.0. Aucun choix d'icône à faire.", style = MaterialTheme.typography.bodySmall)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        androidx.compose.foundation.Image(
+            painter = painterResource(preset.iconRes),
+            contentDescription = "Icône SMS urgence",
+            modifier = Modifier.size(40.dp)
+        )
+        Text(preset.label, fontWeight = FontWeight.SemiBold)
     }
 
-    if (!shortcutManager.isSupported()) {
+    if (!shortcutManager.isSupported() {
         SimpleInfo(
             "Raccourci non pris en charge",
             "Ce lanceur Android ne permet pas d'ajouter automatiquement un raccourci d'accueil. Vous pouvez utiliser la tuile des réglages rapides et enregistrer votre destinataire ci-dessous."
@@ -522,7 +507,7 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
     }
 
     Text("Accès par les réglages rapides", fontWeight = FontWeight.SemiBold)
-    Text("La tuile Urgence VeVak apparaît dans le volet Android, à côté du Wi-Fi. Son nom y sera visible. Le téléphone doit être déverrouillé pour préparer l'envoi.")
+    Text("La tuile Urgence VeVak apparaît dans le volet Android, à côté du Wi-Fi. Son nom y sera visible. Le téléphone doit être déverrouillé pour déclencher l'envoi.")
     OutlinedButton(
         onClick = { EmergencyTileInstaller.request(context) { message = it } },
         enabled = selected.isNotEmpty(),
