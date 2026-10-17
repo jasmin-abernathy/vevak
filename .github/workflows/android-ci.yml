@@ -12,7 +12,7 @@ on:
     paths:
       - ".github/BETA_RELEASE_TRIGGER.md"
   pull_request:
-    types: [opened, ready_for_review, reopened, synchronize]
+    types: [opened, ready_for_review, reopened]
     paths:
       - "app/**"
       - "gradle/**"
@@ -127,18 +127,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: vevak-foss-debug-${{ github.sha }}
-          path: app/build/outputs/apk/foss/debug/app-foss-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
-
-      # Temporary, explicit device-validation artifact for the long-running UX/safety PR.
-      # Remove this step before merging the PR.
-      - name: Publish PR 35 device-test APK
-        if: github.event_name == 'pull_request' && github.head_ref == 'work/ux-polish-darkmode-onboarding-0.3.14'
-        uses: actions/upload-artifact@v4
-        with:
-          name: vevak-pr35-${{ github.event.pull_request.head.sha }}
           path: app/build/outputs/apk/foss/debug/app-foss-debug.apk
           if-no-files-found: error
           retention-days: 7

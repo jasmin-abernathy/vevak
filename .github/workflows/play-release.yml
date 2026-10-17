@@ -2,6 +2,10 @@ name: Google Play release bundle
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/PLAY_RELEASE_TRIGGER.md"
 
 permissions:
   contents: read
