@@ -142,9 +142,9 @@ if arm_path.exists():
         if forbidden in arm_text:
             errors.append(f"Emergency arm controller location boundary violated: {forbidden}")
 
-# Jasmin explicitly approved keeping a delayed voluntary emergency pending and locally cancellable
-# until the private receiver claims it. Freeze the key runtime/UI contract so a later cleanup cannot
-# silently revert to grace-window-only cancellation or an idle-looking tile while work is pending.
+# Keep a pending emergency cancellable only until the receiver claims it. Dispatch is
+# immediate, without any app-imposed delay: the pending tile reflects Android's variable
+# scheduling rather than promising a timed cancellation grace period.
 arm_state_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyArmState.kt"
 tile_path = ROOT / "app/src/main/java/com/vevak/app/emergency/EmergencyQuickSettingsTileService.kt"
 pending_contract_path = ROOT / "docs/emergency-pending-contract.md"
@@ -163,7 +163,7 @@ if not tile_path.exists():
     errors.append("Quick Settings emergency tile is missing from the approved pending-state flow.")
 else:
     tile_text = tile_path.read_text(encoding="utf-8")
-    for required in ("Urgence en attente", "Touchez pour annuler", "cancellationShown"):
+    for required in ("Urgence en attente", "Annuler uniquement si Android n\x27a pas commencé l\x27envoi", "cancellationShown"):
         if required not in tile_text:
             errors.append(f"Emergency tile no longer preserves cancellable pending UX: {required}")
 if not pending_contract_path.exists():
