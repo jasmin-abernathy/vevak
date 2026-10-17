@@ -485,7 +485,7 @@ private fun EmergencySetupScreen(state: AppUiState, vm: AppViewModel) {
         Text(preset.label, fontWeight = FontWeight.SemiBold)
     }
 
-    if (!shortcutManager.isSupported() {
+    if (!shortcutManager.isSupported()) {
         SimpleInfo(
             "Raccourci non pris en charge",
             "Ce lanceur Android ne permet pas d'ajouter automatiquement un raccourci d'accueil. Vous pouvez utiliser la tuile des réglages rapides et enregistrer votre destinataire ci-dessous."
