@@ -115,4 +115,53 @@ class RequestModeResolverRegressionTest {
             )
         )
     }
+
+    @Test
+    fun anotherContactRemainsNormalWhenProtectionTargetsSomeoneElse() {
+        val protected = TrustedContact(
+            id = "protected",
+            phone = "+33600000000",
+            triggerPhrase = "où es-tu maintenant"
+        )
+        val other = TrustedContact(
+            id = "other",
+            phone = "+33700000000",
+            triggerPhrase = "position stp"
+        )
+        val settings = VeVakSettings(
+            triggerPhrase = "phrase principale",
+            additionalTrustedContacts = listOf(protected, other),
+            duressEnabled = true,
+            protectedContactId = protected.id,
+            fallbackLatitude = 48.0,
+            fallbackLongitude = 2.0
+        )
+
+        assertEquals(
+            IncomingRequestMode.Normal,
+            RequestModeResolver.resolve("position stp", other, settings)
+        )
+    }
+
+    @Test
+    fun targetedProtectionDoesNotApplyWhenDisabled() {
+        val protected = TrustedContact(
+            id = "protected",
+            phone = "+33600000000",
+            triggerPhrase = "où es-tu maintenant"
+        )
+        val settings = VeVakSettings(
+            triggerPhrase = "phrase principale",
+            additionalTrustedContacts = listOf(protected),
+            duressEnabled = false,
+            protectedContactId = protected.id,
+            fallbackLatitude = 48.0,
+            fallbackLongitude = 2.0
+        )
+
+        assertEquals(
+            IncomingRequestMode.Normal,
+            RequestModeResolver.resolve("où es-tu maintenant", protected, settings)
+        )
+    }
 }

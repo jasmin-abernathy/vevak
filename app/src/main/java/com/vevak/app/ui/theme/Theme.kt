@@ -6,11 +6,14 @@ package com.vevak.app.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
@@ -52,17 +55,17 @@ private val Dark = darkColorScheme(
     tertiary = Color(0xFFFFB7A0),
     onTertiary = Color(0xFF5B291B),
     primaryContainer = Color(0xFF233C68),
-    onPrimaryContainer = Color(0xFFE2EBFF),
+    onPrimaryContainer = Color.White,
     secondaryContainer = Color(0xFF153D3B),
-    onSecondaryContainer = Color(0xFFC9F3EF),
+    onSecondaryContainer = Color.White,
     tertiaryContainer = Color(0xFF563328),
-    onTertiaryContainer = Color(0xFFFFE0D5),
+    onTertiaryContainer = Color.White,
     background = Color(0xFF0D1118),
-    onBackground = Color(0xFFE8EDF5),
+    onBackground = Color.White,
     surface = Color(0xFF151B25),
     surfaceVariant = Color(0xFF1D2633),
-    onSurface = Color(0xFFE8EDF5),
-    onSurfaceVariant = Color(0xFFBBC6D3),
+    onSurface = Color.White,
+    onSurfaceVariant = Color.White,
     outline = Color(0xFF667487),
     outlineVariant = Color(0xFF2D3948)
 )
@@ -77,7 +80,19 @@ private val VeVakShapes = Shapes(
 fun VeVakTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) Dark else Light,
-        shapes = VeVakShapes,
-        content = content
-    )
+        shapes = VeVakShapes
+    ) {
+        // MaterialTheme exposes the palette, but some root/nested containers can otherwise leave
+        // plain Text() nodes with a stale inherited content color. Keep the root background and
+        // LocalContentColor explicitly paired so dark mode never falls back to black-on-dark text.
+        Surface(
+            color = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground
+        ) {
+            CompositionLocalProvider(
+                LocalContentColor provides MaterialTheme.colorScheme.onBackground,
+                content = content
+            )
+        }
+    }
 }

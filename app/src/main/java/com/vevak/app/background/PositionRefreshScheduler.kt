@@ -41,7 +41,9 @@ class PositionRefreshScheduler(context: Context) {
         val normalized = normalizeInterval(intervalMinutes)
         val delayMinutes = initialDelayMinutes?.coerceIn(1, normalized) ?: normalized
         val triggerAt = SystemClock.elapsedRealtime() + delayMinutes * MINUTE_MILLIS
-        manager.setAndAllowWhileIdle(
+        // Optional freshness must not consume the per-app allow-while-idle quota also used by
+        // voluntary emergency fallback. Let Android defer refreshes during deep idle instead.
+        manager.set(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
             triggerAt,
             createRefreshPendingIntent()

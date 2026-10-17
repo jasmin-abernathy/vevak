@@ -156,10 +156,13 @@ class VeVakSettingsRepository(private val context: Context) {
             locationTimeoutSeconds = this[Keys.TIMEOUT] ?: 8,
             allowStaleFallback = this[Keys.STALE_FALLBACK] ?: true,
             allowNetworkApproximation = this[Keys.NETWORK_APPROXIMATION] ?: false,
-            backgroundRefreshEnabled = this[Keys.BACKGROUND_REFRESH_ENABLED] ?: false,
+            // Fresh installs start with the recommended one-slot memory selected in onboarding.
+            // Android still requires the explicit background-location permission before real
+            // off-screen refreshes can run, and the user can uncheck the option before continuing.
+            backgroundRefreshEnabled = this[Keys.BACKGROUND_REFRESH_ENABLED] ?: true,
             backgroundRefreshIntervalMinutes = (this[Keys.BACKGROUND_REFRESH_INTERVAL_MINUTES] ?: 30)
                 .let { stored -> VeVakSettings.BACKGROUND_REFRESH_INTERVAL_CHOICES_MINUTES.minByOrNull { kotlin.math.abs(it - stored) } ?: 30 },
-            startOnBoot = this[Keys.START_ON_BOOT] ?: false,
+            startOnBoot = this[Keys.START_ON_BOOT] ?: true,
             authorizationGrantedAtEpochMs = this[Keys.AUTH_GRANTED_AT] ?: 0L,
             authorizationExpiresAtEpochMs = this[Keys.AUTH_EXPIRES_AT] ?: 0L,
             duressEnabled = this[Keys.DURESS_ENABLED] ?: false,

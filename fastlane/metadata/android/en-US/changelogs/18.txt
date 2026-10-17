@@ -1,0 +1,3 @@
+• Single SMS emergency shortcut, with no icon picker.
+• Emergency SMS is requested immediately on activation, with no four-second grace period.
+• Improved interface, privacy controls, and safety settings.

@@ -25,6 +25,10 @@ Le numéro expéditeur, l'autorisation du contact et le quota anti-suivi restent
   il avance après deux SMS normaux valides du même contact, même si la limite anti-suivi bloque la
   seconde réponse.
 
+> Évolution 0.3.14 : ce compteur et la proposition automatique ont été supprimés. La protection
+> renforcée est désormais accessible uniquement à la demande dans des paramètres supplémentaires
+> protégés par un mot de passe local.
+
 La CI vérifie explicitement que la permission et les dépendances de notification ne reviennent pas dans le cœur SMS.
 
 ## Autorisations / paramètres restreints

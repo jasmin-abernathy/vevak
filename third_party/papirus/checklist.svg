@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" version="1">
+ <!-- Derived from accessories-text-editor.svg, Papirus contributors, GPL-3.0.
+      VeVak contributors, 2026-09-13: replace editor badge and text by generic checks. -->
+ <path fill="#e4e4e4" d="m40 42v-36c0-1.108-0.892-2-2-2h-28c-1.108 0-2 0.892-2 2v36c0 1.108 0.892 2 2 2h28c1.108 0 2-0.892 2-2z"/>
+ <path fill="#fff" opacity=".2" d="m10 4c-1.108 0-2 0.892-2 2v1c0-1.108 0.892-2 2-2h28c1.108 0 2 0.892 2 2v-1c0-1.108-0.892-2-2-2z"/>
+ <path opacity=".2" d="m8 42v1c0 1.108 0.892 2 2 2h28c1.108 0 2-0.892 2-2v-1c0 1.108-0.892 2-2 2h-28c-1.108 0-2-0.892-2-2z"/>
+ <path fill="none" stroke="#298060" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" d="M13,13l2,2 4,-4M13,24l2,2 4,-4M13,35l2,2 4,-4"/>
+ <path fill="#626b73" d="M24,12h11v3H24zM24,23h11v3H24zM24,34h11v3H24z"/>
+</svg>

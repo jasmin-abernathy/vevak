@@ -1,10 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="#5F6368"
-        android:pathData="M5,3h14v18H5zM8,7h8v1.5H8zM8,11h8v1.5H8zM8,15h6v1.5H8z" />
+<!-- Streamline Ultimate Color, CC BY 4.0. See third_party/streamline-ultimate-color/NOTICE.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="32" android:viewportHeight="32">
+  <group android:translateX="4" android:translateY="4">
+    <path android:pathData="M20.609 2.913H3.39a.957.957 0 0 0-.956.957v18.174c0 .528.428.956.956.956h17.22a.956.956 0 0 0 .956-.956V3.87a.956.956 0 0 0-.957-.957" android:fillColor="#ffffff" />
+    <path android:pathData="M2.435 3.87a.957.957 0 0 1 .956-.957H20.61a.957.957 0 0 1 .956.957v18.174a.956.956 0 0 1-.957.956H3.392a.956.956 0 0 1-.956-.956zm3.825.956V1m11.479 3.826V1m-7.653 3.826V1m3.827 3.826V1M6.26 9.609h11.48M6.26 12.478h11.48m-11.48 2.87h11.48M6.26 18.217h6.696" android:fillColor="#00000000" android:strokeColor="#191919" android:strokeWidth="1" android:strokeLineCap="round" android:strokeLineJoin="round" />
+  </group>
 </vector>

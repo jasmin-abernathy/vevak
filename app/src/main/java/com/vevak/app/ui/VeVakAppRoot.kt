@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -42,6 +43,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,16 +62,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vevak.app.BuildConfig
 import com.vevak.app.R
+import com.vevak.app.background.BackgroundLocationAccess
+import com.vevak.app.background.PositionRefreshScheduler
+import com.vevak.app.data.VeVakSettingsRepository
 import com.vevak.app.location.VeVakPositionResolver
 import com.vevak.app.model.MapProvider
 import com.vevak.app.ui.theme.VeVakTheme
+import kotlinx.coroutines.launch
 
 /**
  * Stable outer setup root.
  *
  * The options and permission steps are intentionally kept here so later home-screen refactors cannot
- * silently drop reply choices or make background location mandatory again. Optional periodic
- * last-position refresh remains a separate, explicit setting after onboarding.
+ * silently drop reply choices or make background location mandatory. Optional one-slot background
+ * refresh can be chosen during onboarding, but its extra Android access is requested only after the
+ * user opts in and never blocks the core SMS + foreground-location setup.
  */
 @Composable
 fun VeVakAppRoot(viewModel: AppViewModel = viewModel()) {
@@ -87,6 +95,9 @@ fun VeVakAppRoot(viewModel: AppViewModel = viewModel()) {
                     includeTrustedPlace = false
                 )
             }
+            // The optional one-slot refresh may have been selected during onboarding. Syncing here
+            // makes that choice effective immediately after consent without requiring an app restart.
+            runCatching { PositionRefreshScheduler(appContext).sync(state.settings) }
         }
     }
 
@@ -101,6 +112,24 @@ fun VeVakAppRoot(viewModel: AppViewModel = viewModel()) {
 private fun VeVakOptionsStep(state: AppUiState, viewModel: AppViewModel) {
     VeVakTheme {
         BackHandler { viewModel.previous() }
+        val context = LocalContext.current
+        val settingsRepository = remember { VeVakSettingsRepository(context.applicationContext) }
+        val scope = rememberCoroutineScope()
+        var backgroundRefreshChoice by rememberSaveable {
+            mutableStateOf(state.settings.backgroundRefreshEnabled)
+        }
+        var waitingForSavedChoice by remember { mutableStateOf(false) }
+        var savingChoice by remember { mutableStateOf(false) }
+        var saveError by remember { mutableStateOf<String?>(null) }
+
+        LaunchedEffect(state.settings.backgroundRefreshEnabled, waitingForSavedChoice) {
+            if (waitingForSavedChoice && state.settings.backgroundRefreshEnabled == backgroundRefreshChoice) {
+                waitingForSavedChoice = false
+                savingChoice = false
+                viewModel.next()
+            }
+        }
+
         SetupColumn {
             SetupHeader(
                 step = "Étape 3 sur 6",
@@ -115,6 +144,29 @@ private fun VeVakOptionsStep(state: AppUiState, viewModel: AppViewModel) {
                         "Dès qu'une source fournit une position, VeVak en garde localement la dernière copie. Si Android ne peut plus actualiser la localisation au moment d'une demande, cette dernière position est utilisée et son ancienneté est indiquée. Aucun historique de déplacement n'est construit.",
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Garder une dernière position récente", fontWeight = FontWeight.Bold)
+                    Text(
+                        "Facultatif : VeVak peut essayer de conserver un seul dernier point récent pour répondre plus utilement lorsque le téléphone ne peut pas obtenir une nouvelle position. Chaque nouveau point remplace le précédent. Aucun trajet ni historique n'est conservé. Pendant une veille prolongée, Android reporte les mises à jour : la position mémorisée peut donc être plus ancienne.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    CheckRow(
+                        "Essayer de garder une dernière position récente",
+                        backgroundRefreshChoice
+                    ) {
+                        backgroundRefreshChoice = it
+                        saveError = null
+                    }
+                    if (backgroundRefreshChoice) {
+                        Text(
+                            "Android pourra demander un accès supplémentaire à l'étape suivante pour actualiser ce point lorsque VeVak n'est pas affiché. Vous pourrez aussi continuer sans l'accorder maintenant.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
@@ -180,9 +232,28 @@ private fun VeVakOptionsStep(state: AppUiState, viewModel: AppViewModel) {
                 }
             }
 
+            saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             SetupNavigationButtons(
                 onBack = viewModel::previous,
-                onContinue = viewModel::next
+                onContinue = {
+                    if (backgroundRefreshChoice == state.settings.backgroundRefreshEnabled) {
+                        viewModel.next()
+                    } else {
+                        savingChoice = true
+                        waitingForSavedChoice = true
+                        saveError = null
+                        val updated = state.settings.copy(backgroundRefreshEnabled = backgroundRefreshChoice)
+                        scope.launch {
+                            runCatching { settingsRepository.save(updated) }
+                                .onFailure {
+                                    waitingForSavedChoice = false
+                                    savingChoice = false
+                                    saveError = "Impossible d'enregistrer ce choix pour le moment. Réessayez avant de continuer."
+                                }
+                        }
+                    }
+                },
+                continueEnabled = !savingChoice
             )
         }
     }
@@ -195,7 +266,9 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
         val context = LocalContext.current
         val lifecycleOwner = LocalLifecycleOwner.current
         var showSettingsHelp by remember { mutableStateOf(false) }
-        var permissionRequestAttempted by remember { mutableStateOf(false) }
+        var smsRequestAttempted by remember { mutableStateOf(false) }
+        var locationRequestAttempted by remember { mutableStateOf(false) }
+        var backgroundRequestAttempted by remember { mutableStateOf(false) }
 
         val smsPermissions = remember {
             arrayOf(
@@ -212,13 +285,19 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
         val smsPermissionLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) {
-            permissionRequestAttempted = true
+            smsRequestAttempted = true
             viewModel.refreshDiagnostics()
         }
         val locationPermissionLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) {
-            permissionRequestAttempted = true
+            locationRequestAttempted = true
+            viewModel.refreshDiagnostics()
+        }
+        val backgroundPermissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) {
+            backgroundRequestAttempted = true
             viewModel.refreshDiagnostics()
         }
 
@@ -229,17 +308,21 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
         val foregroundLocation = hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ||
             hasPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
         val smsReady = receiveSms && sendSms
-        val allNeededGranted = smsReady && foregroundLocation
+        val foregroundReady = smsReady && foregroundLocation
+        val backgroundRefreshRequested = state.settings.backgroundRefreshEnabled
+        val backgroundLocationReady = BackgroundLocationAccess.isGranted(context)
 
-        LaunchedEffect(allNeededGranted) {
-            if (allNeededGranted) viewModel.next()
+        LaunchedEffect(foregroundReady, backgroundRefreshRequested, backgroundLocationReady) {
+            if (foregroundReady && (!backgroundRefreshRequested || backgroundLocationReady)) {
+                viewModel.next()
+            }
         }
 
         SetupColumn {
             SetupHeader(
                 step = "Étape 4 sur 6",
                 title = "Autorisations",
-                subtitle = "VeVak vous demande les accès dans l'ordre, un bloc à la fois. Dès que tout est prêt, l'étape suivante s'ouvre automatiquement."
+                subtitle = "VeVak vous demande les accès dans l'ordre, un bloc à la fois. L'accès hors écran n'est proposé que si vous avez choisi de garder une dernière position récente."
             )
 
             PermissionStatusCard(
@@ -250,14 +333,25 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
             PermissionStatusCard(
                 title = "2 · Localisation ponctuelle",
                 ready = foregroundLocation,
-                detail = "Mettre à jour la dernière position quand Android permet une acquisition. La localisation permanente n'est pas nécessaire pour terminer la configuration."
+                detail = "Mettre à jour la dernière position quand Android permet une acquisition. La localisation permanente n'est pas nécessaire pour le fonctionnement normal."
             )
+            if (backgroundRefreshRequested) {
+                PermissionStatusCard(
+                    title = "3 · Dernière position hors écran",
+                    ready = backgroundLocationReady,
+                    detail = if (backgroundLocationReady) {
+                        "Android autorise VeVak à essayer ponctuellement de remplacer son unique dernier point lorsque l'application n'est pas affichée."
+                    } else {
+                        "Facultatif : pour obtenir un nouveau point Android lorsque VeVak n'est pas affiché, Android demande l'accès à la localisation en arrière-plan. VeVak ne conserve toujours qu'un seul point."
+                    }
+                )
+            }
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Pourquoi deux demandes ?", fontWeight = FontWeight.Bold)
+                    Text("Pourquoi plusieurs demandes ?", fontWeight = FontWeight.Bold)
                     Text(
-                        "Android affiche mieux ce que vous autorisez quand chaque besoin est demandé au bon moment. VeVak commence donc par les SMS, puis demande la localisation seulement après."
+                        "Android affiche mieux ce que vous autorisez quand chaque besoin est demandé au bon moment. VeVak commence donc par les SMS, demande ensuite la localisation ponctuelle et ne propose l'accès hors écran que si vous avez choisi cette option."
                     )
                 }
             }
@@ -293,12 +387,45 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
                     }
                 }
 
+                backgroundRefreshRequested && !backgroundLocationReady -> {
+                    Button(
+                        onClick = {
+                            backgroundRequestAttempted = true
+                            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                            } else {
+                                openAppSettings(context)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                                "3 · Autoriser hors écran"
+                            } else {
+                                "3 · Choisir « Toujours autoriser » dans Android"
+                            }
+                        )
+                    }
+                    OutlinedButton(onClick = viewModel::next, modifier = Modifier.fillMaxWidth()) {
+                        Text("Continuer sans cet accès pour l'instant")
+                    }
+                    if (backgroundRequestAttempted) {
+                        Text(
+                            "Si vous ne l'accordez pas maintenant, VeVak continuera à fonctionner normalement. Vous pourrez configurer cette mise à jour facultative plus tard dans Sécurité.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
                 else -> {
                     Text("Tout est prêt ✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 }
             }
 
-            if (!allNeededGranted && permissionRequestAttempted) {
+            val mainPermissionBlocked = (!smsReady && smsRequestAttempted) ||
+                (!foregroundLocation && locationRequestAttempted)
+            if (mainPermissionBlocked) {
                 OutlinedButton(
                     onClick = { showSettingsHelp = true },
                     modifier = Modifier.fillMaxWidth()
@@ -311,7 +438,7 @@ private fun VeVakPermissionsStep(state: AppUiState, viewModel: AppViewModel) {
                 Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            if (!allNeededGranted) {
+            if (!foregroundReady) {
                 OutlinedButton(onClick = viewModel::previous, modifier = Modifier.fillMaxWidth()) {
                     Text("Retour")
                 }
@@ -416,14 +543,18 @@ private fun SetupHeader(step: String, title: String, subtitle: String) {
 }
 
 @Composable
-private fun SetupNavigationButtons(onBack: () -> Unit, onContinue: () -> Unit) {
+private fun SetupNavigationButtons(
+    onBack: () -> Unit,
+    onContinue: () -> Unit,
+    continueEnabled: Boolean = true
+) {
     val compactWidth = LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale > 1.3f
     if (compactWidth) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Button(onClick = onContinue, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = onContinue, enabled = continueEnabled, modifier = Modifier.fillMaxWidth()) {
                 Text("Continuer")
             }
             OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
@@ -435,7 +566,7 @@ private fun SetupNavigationButtons(onBack: () -> Unit, onContinue: () -> Unit) {
             OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) {
                 Text("Retour")
             }
-            Button(onClick = onContinue, modifier = Modifier.weight(1f)) {
+            Button(onClick = onContinue, enabled = continueEnabled, modifier = Modifier.weight(1f)) {
                 Text("Continuer")
             }
         }
@@ -467,7 +598,7 @@ private fun PermissionStatusCard(title: String, ready: Boolean, detail: String) 
                 if (ready) "✓" else "○",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = if (ready) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (ready) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(title, fontWeight = FontWeight.Bold)

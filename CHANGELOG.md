@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.14 - PR #35 validation candidate (2026-09-15)
+
+### Changed
+
+- normal SMS requests, voluntary manual sharing and local emergency now use the same canonical position resolver: Android location → trusted place → explicitly enabled network/IP estimate → latest remembered coordinate → unavailable;
+- the optional last-position refresh remains a single replaceable point, with 15/30/60-minute target intervals, optional restart-after-boot and Android background-location access requested only when this off-screen refresh is enabled;
+- dark-mode content inheritance and onboarding/safety UX have been hardened, with exact build revision exposed for device-test verification;
+- emergency setup remains opt-in with no recipient preselected; the home-screen shortcut and Quick Settings tile are optional entry points for the same emergency action;
+- emergency arming uses `IDLE / CANCEL_WINDOW / PENDING_SYSTEM`: four-second cancellation window, no arbitrary expiry after Android delay, and local cancellation until receiver claim;
+- emergency feedback is configurable: silence by default, short vibration, or a temporary silent notification. Notification permission is never required for ordinary SMS replies or for emergency dispatch itself;
+- the targeted protection against one authorised contact is no longer suggested automatically after SMS activity. It is configured only on demand in `Paramètres supplémentaires`;
+- the targeted contact keeps its existing phrase, but only the pre-recorded fallback is used for that contact. Other contacts keep the canonical resolver;
+- `Paramètres supplémentaires` are protected by a local password whose salted PBKDF2 verifier stays in app-private storage. First-time creation requires Android device-credential confirmation, the screen relocks when left, and edits remain in a private draft until explicitly saved;
+- when that private password exists, in-app configuration export, restore and reset require it as an additional local confirmation. The verifier itself is never exported;
+- private/protection state is excluded from the ordinary home screen, redacted diagnostics and generic audit results;
+- generic emergency-shortcut artwork uses the selected Streamline Ultimate Color assets with attribution retained.
+
+### Safety / regression coverage
+
+- added regression coverage that a protected contact routes to the fallback path while another authorised contact remains normal;
+- added regression coverage that selecting a protected-contact id does not change routing while the protection is disabled;
+- private password creation uses synchronous durable verifier storage before the protected area opens, and in-app reset durably removes that verifier off the UI thread;
+- documentation (`README.md`, `PRIVACY.md`, `ABUSE-PREVENTION.md`) now matches the current resolver, notification and protected-settings contracts;
+- real-device validation is still required before merging or treating a signed Play bundle as final.
+
 ## 0.3.13 - Google Play hand-off candidate
 
 - exposes the redacted, twenty-entry local request history in a dedicated navigation tab;

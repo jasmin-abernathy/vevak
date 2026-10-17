@@ -15,7 +15,6 @@ import androidx.lifecycle.viewModelScope
 import com.vevak.app.backup.SettingsBackupRepository
 import com.vevak.app.data.RequestAuditEvent
 import com.vevak.app.data.RequestAuditRepository
-import com.vevak.app.data.ProtectionPromptRepository
 import com.vevak.app.data.EmergencyRecipientStore
 import com.vevak.app.data.RuntimeStateRepository
 import com.vevak.app.data.VeVakSettingsRepository
@@ -26,11 +25,13 @@ import com.vevak.app.location.VeVakLocationRepository
 import com.vevak.app.location.VeVakLocationSnapshot
 import com.vevak.app.location.VeVakPositionResolution
 import com.vevak.app.location.VeVakPositionResolver
+import com.vevak.app.location.locationAttempt
 import com.vevak.app.model.AuthorizationDuration
 import com.vevak.app.model.MapProvider
 import com.vevak.app.model.TrustedContact
 import com.vevak.app.model.VeVakSettings
 import com.vevak.app.security.DuressPolicy
+import com.vevak.app.security.PrivateSettingsAccessRepository
 import com.vevak.app.sms.PhoneNumberMatcher
 import com.vevak.app.sms.SmsReplyFormatter
 import com.vevak.app.sms.SmsReplySender
@@ -38,6 +39,7 @@ import com.vevak.app.system.BatteryReader
 import com.vevak.app.system.TrustedNetworkReader
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,7 +60,6 @@ data class AppUiState(
     val manualShareTargetContactId: String? = null,
     val manualShareLoading: Boolean = false,
     val auditEvents: List<RequestAuditEvent> = emptyList(),
-    val protectionOfferContactId: String? = null,
     val guidedTestStartedAtMillis: Long? = null,
     val authorizationDuration: AuthorizationDuration = AuthorizationDuration.ThirtyDays,
     val consentChecked: Boolean = false,
@@ -68,6 +69,9 @@ data class AppUiState(
     val newContactAuthorizationDuration: AuthorizationDuration = AuthorizationDuration.ThirtyDays,
     val newContactConsentChecked: Boolean = false,
     val backupPassword: String = "",
+    val settingsAccessPassword: String = "",
+    val privateDraft: VeVakSettings? = null,
+    val privateMessage: String? = null,
     val backupBusy: Boolean = false,
     val message: String? = null
 )
@@ -76,7 +80,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsRepository = VeVakSettingsRepository(application)
     private val runtimeRepository = RuntimeStateRepository(application)
     private val auditRepository = RequestAuditRepository(application)
-    private val protectionPromptRepository = ProtectionPromptRepository(application)
+    private val privateSettingsAccessRepository = PrivateSettingsAccessRepository(application)
     private val emergencyRecipientStore = EmergencyRecipientStore(application)
     private val diagnosticsRepository = DiagnosticsRepository(application)
     private val locationRepository = VeVakLocationRepository(application)
@@ -88,6 +92,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val backupRepository = SettingsBackupRepository(application)
     private val _state = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = _state.asStateFlow()
+    private var privateLocationJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -149,8 +154,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun setDuressEnabled(enabled: Boolean) = updateSettings { it.copy(duressEnabled = enabled) }
-    fun updateDuressPhrase(value: String) = updateSettings { it.copy(duressPhrase = value) }
+    fun beginPrivateDraft() {
+        _state.update { it.copy(privateDraft = it.settings, privateMessage = null) }
+    }
+
+    fun discardPrivateDraft() {
+        privateLocationJob?.cancel()
+        privateLocationJob = null
+        _state.update { it.copy(privateDraft = null, privateMessage = null, fallbackLocationLoading = false) }
+    }
+
+    private fun updatePrivateDraft(block: (VeVakSettings) -> VeVakSettings) {
+        _state.update { it.copy(privateDraft = it.privateDraft?.let(block)) }
+    }
+
+    fun setDuressEnabled(enabled: Boolean) = updatePrivateDraft { it.copy(duressEnabled = enabled) }
+    fun updateDuressPhrase(value: String) = updatePrivateDraft { it.copy(duressPhrase = value) }
+
+    fun savePrivateDraft() {
+        val draft = _state.value.privateDraft ?: return
+        if (!DuressPolicy.configurationIsValid(draft)) return
+        viewModelScope.launch {
+            val latest = settingsRepository.current()
+            val updated = latest.copy(
+                duressEnabled = draft.duressEnabled,
+                protectedContactId = draft.protectedContactId,
+                duressPhrase = draft.duressPhrase,
+                fallbackLatitude = draft.fallbackLatitude,
+                fallbackLongitude = draft.fallbackLongitude,
+                fallbackAccuracyMeters = draft.fallbackAccuracyMeters
+            )
+            if (!DuressPolicy.configurationIsValid(updated)) return@launch
+            settingsRepository.save(updated)
+            _state.update { it.copy(privateMessage = if (it.privateDraft != null) "Choix enregistrés." else null) }
+        }
+    }
 
     fun setProtectedContact(contactId: String) {
         val contact = _state.value.settings.contactById(contactId)
@@ -158,13 +196,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { it.copy(message = "Ce contact n'est plus disponible dans VeVak.") }
             return
         }
-        updateSettings {
+        updatePrivateDraft {
             it.copy(
-                duressEnabled = true,
+                duressEnabled = false,
                 protectedContactId = contact.id
             )
         }
-        _state.update { it.copy(protectionOfferContactId = null) }
     }
 
     fun updateTrustedPlaceLabel(value: String) {
@@ -239,7 +276,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
             settings.usesLegacyProtectionPhrase() && !DuressPolicy.phrasesAreDistinctEnough(trigger, settings.duressPhrase) -> {
-                _state.update { it.copy(message = "La phrase normale de ce contact est trop proche de la phrase de protection de l'ancienne configuration.") }
+                _state.update { it.copy(message = "Cette phrase n'est pas disponible. Choisissez une formulation plus différente.") }
                 return
             }
         }
@@ -352,30 +389,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         _state.update { it.copy(manualShareConfirmationPending = false, manualShareLoading = true, message = null) }
         viewModelScope.launch {
-            val lastKnown = runCatching { locationRepository.fetchLastKnownLocation() }.getOrNull()
-            if (lastKnown == null) {
+            val resolution = locationAttempt { positionResolver.resolve(settings) }
+                .getOrDefault(VeVakPositionResolution.Unavailable)
+            if (resolution == VeVakPositionResolution.Unavailable) {
                 _state.update {
                     it.copy(
                         manualShareLoading = false,
                         manualShareTargetContactId = null,
-                        message = "Aucune dernière position connue : aucun SMS n'a été envoyé."
+                        message = "Aucune position ni lieu reconnu : aucun SMS n'a été envoyé."
                     )
                 }
                 return@launch
             }
 
-            val body = SmsReplyFormatter.formatManualShareWithBatteryLabel(
+            val body = SmsReplyFormatter.formatManualResolutionWithBatteryLabel(
                 settings,
-                lastKnown,
+                resolution,
                 batteryReader.label()
             )
             val acceptedByAndroid = runCatching { smsSender.send(contact.phone, body, subscriptionId) }.isSuccess
+            val sourceLabel = when (resolution) {
+                is VeVakPositionResolution.KnownPlace -> "Lieu ${resolution.label}"
+                is VeVakPositionResolution.Coordinates -> if (resolution.location.isApproximateNetworkEstimate()) {
+                    "Zone approximative (${resolution.location.ageLabel()})"
+                } else {
+                    "Position connue (${resolution.location.ageLabel()})"
+                }
+                VeVakPositionResolution.Unavailable -> "Position"
+            }
             _state.update {
                 it.copy(
                     manualShareLoading = false,
                     manualShareTargetContactId = null,
                     message = if (acceptedByAndroid) {
-                        "Dernière position connue (${lastKnown.ageLabel()}) transmise à Android pour envoi à ${contact.displayLabel()}. La livraison n'est pas garantie."
+                        "$sourceLabel transmis à Android pour envoi à ${contact.displayLabel()}. La livraison n'est pas garantie."
                     } else {
                         "Échec de l'envoi du SMS. Rien ne permet de confirmer sa livraison."
                     }
@@ -400,7 +447,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             if (!DuressPolicy.configurationIsValid(settings)) {
-                _state.update { it.copy(message = "La protection sous contrainte n'est pas correctement configurée.") }
+                _state.update { it.copy(message = "Un paramètre supplémentaire doit être vérifié avant de continuer.") }
                 return@launch
             }
             val now = System.currentTimeMillis()
@@ -431,36 +478,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun revokeAuthorization() = revokeContact(VeVakSettings.PRIMARY_CONTACT_ID)
 
     fun reset() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!authorizeConfigurationTransfer()) return@launch
             settingsRepository.reset()
             runtimeRepository.reset()
             auditRepository.clear()
-            protectionPromptRepository.clear()
+            privateSettingsAccessRepository.clear()
             emergencyRecipientStore.clear()
             _state.value = AppUiState(loaded = true)
-        }
-    }
-
-    fun continueWithoutProtection(contactId: String) {
-        viewModelScope.launch {
-            protectionPromptRepository.dismiss(contactId)
-            _state.update {
-                it.copy(
-                    protectionOfferContactId = null,
-                    message = "Les réponses normales continueront pour ce contact sans activer la protection."
-                )
-            }
-        }
-    }
-
-    fun refreshProtectionOfferForOpening() {
-        viewModelScope.launch {
-            val contactId = if (_state.value.settings.duressEnabled) {
-                null
-            } else {
-                protectionPromptRepository.firstEligibleContactId()
-            }
-            _state.update { it.copy(protectionOfferContactId = contactId) }
         }
     }
 
@@ -486,6 +511,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateBackupPassword(value: String) = _state.update { it.copy(backupPassword = value.take(256), message = null) }
 
+    fun updateSettingsAccessPassword(value: String) = _state.update {
+        it.copy(settingsAccessPassword = value.take(128), message = null)
+    }
+
+    private fun authorizeConfigurationTransfer(): Boolean {
+        val password = _state.value.settingsAccessPassword
+        _state.update { it.copy(settingsAccessPassword = "") }
+        if (!privateSettingsAccessRepository.hasPassword()) return true
+        if (privateSettingsAccessRepository.verify(password)) return true
+        _state.update {
+            it.copy(backupBusy = false, message = "Saisissez le mot de passe des paramètres supplémentaires pour modifier ou exporter la configuration.")
+        }
+        return false
+    }
+
     fun exportEncryptedBackup(uri: Uri) {
         val password = _state.value.backupPassword
         if (password.length < 8) {
@@ -495,6 +535,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val settings = _state.value.settings
         _state.update { it.copy(backupBusy = true, message = null) }
         viewModelScope.launch(Dispatchers.IO) {
+            if (!authorizeConfigurationTransfer()) return@launch
             val result = runCatching { backupRepository.export(uri, settings, password) }
             _state.update {
                 it.copy(
@@ -518,6 +559,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         _state.update { it.copy(backupBusy = true, message = null) }
         viewModelScope.launch(Dispatchers.IO) {
+            if (!authorizeConfigurationTransfer()) return@launch
             val restored = runCatching { backupRepository.import(uri, password) }.getOrNull()
             val valid = restored != null &&
                 restored.trustedContacts().isNotEmpty() &&
@@ -588,14 +630,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun captureFallbackLocation() {
+        if (_state.value.privateDraft == null || _state.value.fallbackLocationLoading) return
         val app = getApplication<Application>()
         if (!hasForegroundLocationPermission(app)) {
-            _state.update { it.copy(message = "Autorisez d'abord la localisation pour enregistrer le lieu de repli.") }
+            _state.update { it.copy(privateMessage = "Autorisez d'abord la localisation pour enregistrer le lieu de repli.") }
             return
         }
-        _state.update { it.copy(fallbackLocationLoading = true, message = null) }
-        viewModelScope.launch {
-            val result = runCatching {
+        _state.update { it.copy(fallbackLocationLoading = true, privateMessage = null) }
+        privateLocationJob = viewModelScope.launch {
+            val result = locationAttempt {
                 locationRepository.fetchBestLocation(
                     LocationRequestPolicy(
                         maxAcceptedCacheAgeMillis = 30_000L,
@@ -605,10 +648,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }.getOrNull()
             if (result == null || result.isApproximateNetworkEstimate()) {
-                _state.update { it.copy(fallbackLocationLoading = false, message = "Impossible d'enregistrer une position de repli précise maintenant.") }
+                _state.update { it.copy(fallbackLocationLoading = false, privateMessage = "Impossible d'enregistrer une position de repli précise maintenant.") }
                 return@launch
             }
-            updateSettings {
+            updatePrivateDraft {
                 it.copy(
                     fallbackLatitude = result.latitude,
                     fallbackLongitude = result.longitude,
@@ -618,13 +661,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _state.update {
                 it.copy(
                     fallbackLocationLoading = false,
-                    message = "Position de repli enregistrée localement. Ses coordonnées ne seront pas affichées sur l'accueil."
+                    privateMessage = "Lieu ajouté au brouillon. Confirmez vos choix pour l'enregistrer."
                 )
             }
         }
     }
 
-    fun duressConfigurationValid(): Boolean = DuressPolicy.configurationIsValid(_state.value.settings)
+    fun duressConfigurationValid(): Boolean = _state.value.privateDraft?.let(DuressPolicy::configurationIsValid) ?: false
 
     private fun hasDuplicateContactPhones(settings: VeVakSettings): Boolean {
         val contacts = settings.trustedContacts()

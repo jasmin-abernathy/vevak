@@ -15,9 +15,9 @@ class VeVakLocationRepository(context: Context) {
     /**
      * Legacy/explicit-share contract: returns only the newest real/local position already known.
      *
-     * Manual sharing and the emergency shortcut intentionally keep using this method so an opted-in
-     * IP estimate can never silently replace the stricter "last real point" behaviour introduced in
-     * 0.3.6. No new positioning request is started here.
+     * Manual sharing intentionally keeps using this enriched path so an opted-in IP estimate can
+     * never silently replace the stricter "last real point" behaviour introduced in 0.3.6. No new
+     * positioning request is started here.
      */
     suspend fun fetchLastKnownLocation(): VeVakLocationSnapshot? =
         fetchCachedLocation(includeNetworkApproximation = false)
@@ -44,7 +44,7 @@ class VeVakLocationRepository(context: Context) {
      */
     suspend fun fetchBestLocation(policy: LocationRequestPolicy): VeVakLocationSnapshot? {
         val androidCached = platformCachedLocation()
-        val rememberedCached = runCatching { rememberedLocationStore.readReal() }.getOrNull()
+        val rememberedCached = locationAttempt { rememberedLocationStore.readReal() }.getOrNull()
         val bestCached = freshest(androidCached, rememberedCached)
 
         if (bestCached != null && LocationSelectionPolicy.acceptsCache(
@@ -56,7 +56,7 @@ class VeVakLocationRepository(context: Context) {
             return enrich(bestCached)
         }
 
-        val current = runCatching {
+        val current = locationAttempt {
             provider.currentLocation(policy.currentLocationTimeoutMillis)
                 ?.toVeVakSnapshot(provider.currentSource)
         }.getOrNull()?.takeUnless { it.isMocked }
@@ -75,8 +75,8 @@ class VeVakLocationRepository(context: Context) {
 
     /**
      * Persists any legitimate coordinate-bearing source selected by the resolver. The memory store
-     * keeps a separate last-real slot, so remembering an IP estimate cannot erase the emergency or
-     * manual-share fallback. Safety/duress coordinates and mocked points are rejected by policy.
+     * keeps a separate last-real slot, so remembering an IP estimate cannot erase the manual-share
+     * fallback. Safety/duress coordinates and mocked points are rejected by policy.
      */
     suspend fun rememberLocation(location: VeVakLocationSnapshot) {
         rememberedLocationStore.remember(location)
@@ -90,9 +90,9 @@ class VeVakLocationRepository(context: Context) {
 
     private suspend fun fetchCachedLocation(includeNetworkApproximation: Boolean): VeVakLocationSnapshot? {
         val androidCached = platformCachedLocation()
-        androidCached?.let { runCatching { rememberLocation(it) } }
+        androidCached?.let { locationAttempt { rememberLocation(it) } }
 
-        val rememberedCached = runCatching {
+        val rememberedCached = locationAttempt {
             if (includeNetworkApproximation) rememberedLocationStore.read()
             else rememberedLocationStore.readReal()
         }.getOrNull()
@@ -101,8 +101,8 @@ class VeVakLocationRepository(context: Context) {
         return enrich(bestCached)
     }
 
-    private suspend fun platformCachedLocation(): VeVakLocationSnapshot? = runCatching {
-        provider.lastKnownLocation()
+    private suspend fun platformCachedLocation(): VeVakLocationSnapshot? = locationAttempt {
+        platformCacheLookup { provider.lastKnownLocation() }
             ?.toVeVakSnapshot(provider.lastKnownSource)
             ?.takeUnless { it.isMocked }
     }.getOrNull()
