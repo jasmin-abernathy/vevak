@@ -99,12 +99,12 @@ An optional Quick Settings tile may expose the same local emergency action. Neit
 
 ### Accidental-tap protection
 
-The shortcut/tile action uses a four-second grace period:
+The shortcut/tile action requests dispatch immediately, without a guaranteed cancellation period:
 
 - first activation arms the emergency send;
-- a second activation during the grace period cancels it;
+- a second activation cancels only if the receiver has not yet claimed the request;
 - otherwise dispatch is requested after the delay; Android may postpone it without arbitrary expiry;
-- a later activation can cancel a pending request until receiver claim;
+- a later activation can cancel a still-pending request only until receiver claim;
 - after dispatch, the next activation starts a new sequence.
 
 The owner chooses the local feedback mode: silence by default, short vibration, or a temporary silent notification. The notification is optional, contains no position/contact/SMS content, is hidden on the lock screen, and never proves delivery. It must not introduce a permanent service, persistent notification or retry loop.
@@ -192,7 +192,7 @@ Before a stable public release, test at minimum:
 - private settings relock on leaving the screen and do not appear in standard diagnostics;
 - manual share confirmation, default-SIM handling and canonical resolver behavior;
 - emergency recipient subset and repeated emergency sends;
-- emergency shortcut/tile first activation, second-activation cancellation and dispatch requested after four seconds (system delays possible);
+- emergency shortcut/tile first activation, second-activation cancellation and immediate dispatch requested (system delays possible);
 - each optional emergency-feedback mode, including notification refusal;
 - encrypted backup round-trip with every contact revoked;
 - private-settings password required for configuration export/import/reset when configured;
