@@ -13,7 +13,7 @@ Fonctions facultatives :
 • reconnaissance locale d’un lieu de confiance ;
 • estimation de zone par IP via beaconDB, désactivée par défaut : le service reçoit alors votre adresse IP publique ;
 • partage manuel confirmé sur le téléphone ;
-• raccourci d’urgence local, avec destinataires choisis à l’avance et délai d’annulation de quatre secondes ;
+• raccourci d’urgence local, avec destinataires choisis à l’avance et demande d’envoi immédiate ; une annulation reste possible uniquement avant la prise en charge par Android ;
 • protection ciblée d’un contact autorisé, configurée dans des paramètres supplémentaires protégés : sa réponse utilise un lieu de repli préenregistré ;
 • export et restauration chiffrés de la configuration, sans réactivation automatique des contacts.
 
