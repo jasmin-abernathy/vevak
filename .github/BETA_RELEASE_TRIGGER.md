@@ -1,7 +1,8 @@
 # Deliberate beta release trigger
 
-Current requested beta: `0.3.14` (`versionCode 17`) — improved permission onboarding, compact-screen
-and large-text layout fixes, tightened security checks and the current Google Play hand-off candidate.
+Current requested beta: `0.3.15` (`versionCode 18`) — FOSS build for real-device tests and F-Droid readiness, including the current SMS/location privacy, safety and permission behaviour.
+
+This trigger records the explicit request to provide the FOSS APK corresponding to the currently validated source.
 
 Updating this file on `main` deliberately launches the full FOSS + Play validation workflow. The
 rolling GitHub release `beta` is replaced only after every test, build, lint, privacy and ecodesign
