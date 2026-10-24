@@ -1,3 +1,6 @@
-• Single SMS emergency shortcut, with no icon picker.
-• Emergency SMS is requested immediately on activation, with no four-second grace period.
-• Improved interface, privacy controls, and safety settings.
+• Request phrase recognised inside natural SMS messages.
+• Unified location resolution and manual sharing.
+• Emergency SMS shortcut with a four-second cancellation window.
+• Password-protected additional settings.
+• Optional single-location refresh.
+• Permission and privacy improvements.
