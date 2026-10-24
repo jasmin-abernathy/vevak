@@ -23,8 +23,8 @@ def require(condition: bool, message: str) -> None:
 
 
 gradle = (ROOT / "app/build.gradle.kts").read_text(encoding="utf-8")
-code_match = re.search(r'\\bversionCode\\s*=\\s*(\\d+)', gradle)
-name_match = re.search(r'\\bversionName\\s*=\\s*"([^"]+)"', gradle)
+code_match = re.search(r'\bversionCode\s*=\s*(\d+)', gradle)
+name_match = re.search(r'\bversionName\s*=\s*"([^"]+)"', gradle)
 require(code_match is not None and name_match is not None, "Missing numeric versionCode / versionName")
 version_code = code_match.group(1) if code_match else None
 
@@ -32,7 +32,7 @@ version_code = code_match.group(1) if code_match else None
 def png_size(path: Path) -> tuple[int, int] | None:
     try:
         data = path.read_bytes()
-        if len(data) < 24 or data[:8] != b"\\x89PNG\\r\\n\\x1a\\n" or data[12:16] != b"IHDR":
+        if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
             return None
         return struct.unpack(">II", data[16:24])
     except OSError:
