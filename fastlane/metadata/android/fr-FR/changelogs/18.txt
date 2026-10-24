@@ -1,6 +1,6 @@
 • SMS contenant la phrase-clé dans un message naturel.
 • Résolution de position et partage manuel harmonisés.
-• Raccourci SMS urgence avec quatre secondes pour annuler.
+• Raccourci SMS urgence : demande immédiate, annulation possible avant prise en charge.
 • Paramètres supplémentaires protégés par mot de passe.
 • Rafraîchissement facultatif d'une seule dernière position.
 • Améliorations des permissions et de la confidentialité.
