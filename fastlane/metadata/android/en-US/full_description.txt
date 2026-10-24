@@ -13,7 +13,7 @@ Optional features include:
 • locally recognised trusted place;
 • coarse IP-based area estimate via beaconDB, off by default: this reveals your public IP to that service;
 • locally confirmed manual sharing;
-• local emergency SMS shortcut, with preselected recipients and a four-second cancellation window;
+• local emergency SMS shortcut, with preselected recipients and an immediate send request; cancellation is possible only before Android processes it;
 • targeted protection for a selected authorised contact, configured behind password-protected additional settings, using only a pre-recorded fallback location for that contact;
 • encrypted configuration export and restore without restoring active contact authorisations.
 
