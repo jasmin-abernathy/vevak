@@ -1,0 +1,32 @@
+# F-Droid submission candidate for the upstream FOSS build.
+# NOT ready to submit until v0.3.15 is tagged at a tested release commit,
+# real-device validation is signed off, and 'fdroid lint' / 'fdroid build' pass.
+# Copy to fdroiddata/metadata/com.vevak.app.yml when ready.
+Categories:
+  - Phone & SMS
+  - Location Tracker & Sharer
+License: GPL-3.0-or-later
+AuthorName: VeVak contributors
+WebSite: https://vevak.lepotager.org/
+SourceCode: https://github.com/jasmin-abernathy/vevak
+IssueTracker: https://github.com/jasmin-abernathy/vevak/issues
+Changelog: https://github.com/jasmin-abernathy/vevak/releases
+Donate: https://vevak.lepotager.org/soutenir/
+
+AutoName: VeVak
+
+RepoType: git
+Repo: https://github.com/jasmin-abernathy/vevak.git
+
+Builds:
+  - versionName: 0.3.15
+    versionCode: 18
+    commit: v0.3.15
+    subdir: app
+    gradle:
+      - foss
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.3.15
+CurrentVersionCode: 18

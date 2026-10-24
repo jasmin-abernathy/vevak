@@ -8,7 +8,11 @@
 > [!WARNING]
 > VeVak ne contacte pas les services de secours et ne remplace pas le 112/911 ni les fonctions d'urgence natives du téléphone. Le projet est encore en bêta et doit être validé sur davantage d'appareils réels.
 
-## VeVak 0.3.14 — candidate de validation et de publication Play
+## Distribution F-Droid (en préparation)
+
+La variante `foss` est prévue pour F-Droid, avec une compilation sans Google Play Services. Le dossier et les contrôles de publication sont décrits dans [`docs/FDROID.md`](docs/FDROID.md). **VeVak n'est pas encore publiée sur le dépôt officiel F-Droid.** Les tests physiques et la validation de la compilation de publication restent nécessaires.
+
+## VeVak 0.3.15 — bêta de validation (publication Play et F-Droid en préparation)
 
 VeVak permet à des contacts explicitement autorisés de demander une information de localisation par SMS pendant une durée limitée. Jusqu'à cinq contacts peuvent être configurés localement, chacun avec son numéro, sa phrase-clé, son autorisation finie et sa révocation locale.
 
@@ -78,7 +82,7 @@ L'urgence utilise le resolver canonique partagé. Elle n'est pas soumise au quot
 
 VeVak peut demander à Android d'épingler un raccourci **SMS urgence**, avec une bulle de message Streamline. Une tuile Réglages rapides facultative peut également être ajoutée. Retirez les anciennes icônes génériques du launcher et ajoutez le raccourci SMS pour actualiser leur apparence.
 
-Un appui sur le raccourci **SMS urgence** arme l’envoi pendant **4 secondes**. Les appuis répétés sont ignorés. Annulez explicitement depuis la tuile « Annuler » / « Urgence en attente » ou la notification facultative, jusqu’à la prise en charge. Une alarme système inexacte sert de repli. Armement, annulation et claim sont écrits durablement hors UI. Aucun retry automatique après claim : un crash peut empêcher certains envois et la remise à Android ne prouve pas la livraison.
+Un appui sur le raccourci **SMS urgence** déclenche immédiatement la demande d’envoi. Il n’existe **aucun délai garanti pour annuler** : une annulation n’est possible que si la demande n’a pas encore été prise en charge par le récepteur. Les appuis répétés sont ignorés. Une alarme système inexacte sert de repli. Armement, annulation et claim sont écrits durablement hors UI. Aucun retry automatique après claim : un crash peut empêcher certains envois et la remise à Android ne prouve pas la livraison.
 
 Selon le choix local, cette action reste silencieuse, vibre brièvement ou affiche une notification temporaire sans son. Aucun de ces retours ne constitue une preuve de livraison du SMS.
 
@@ -132,7 +136,7 @@ Documentation détaillée : [`PRIVACY.md`](PRIVACY.md), [`ABUSE-PREVENTION.md`](
 
 VeVak is an open-source Android application for limited, explicitly authorised location requests by SMS. No VeVak account, advertising, telemetry or mandatory application server is required.
 
-### 0.3.14 highlights
+### 0.3.15 highlights
 
 - A configured phrase may appear inside a longer SMS; matching remains case-insensitive and typography-normalised.
 - Normal requests, manual sharing and local emergency use the same canonical resolver: Android location → trusted place → opt-in network/IP estimate → latest remembered coordinate → unavailable.
@@ -140,7 +144,7 @@ VeVak is an open-source Android application for limited, explicitly authorised l
 - The owner may opt into a single-slot last-position refresh target of 15/30/60 minutes (30 by default), with optional re-scheduling after boot. Optional background-location access is requested only for this off-screen refresh; it is never required for SMS replies. There is no route/history.
 - Optional additional settings are protected by a local password. The password itself is never stored; only a salted PBKDF2 verifier remains in app-private storage. Once configured, it is also required before configuration export, restore or reset.
 - Protection is targeted at a selected trusted contact while keeping that contact's existing phrase. The protected path only uses the pre-recorded fallback and never consults real location, trusted Wi-Fi or network approximation. It is disabled by default and is never auto-suggested after SMS activity.
-- Emergency recipients are selected locally in advance. A generic pinned home-screen shortcut and optional Quick Settings tile can arm the emergency SMS for four seconds; a second activation cancels it. Android may delay dispatch; cancellation remains possible until receiver claim. Delivery is never claimed.
+- Emergency recipients are selected locally in advance. A generic pinned home-screen shortcut and optional Quick Settings tile request emergency SMS immediately; cancellation is possible only before the receiver claims it. There is no guaranteed grace period, and Android may delay dispatch. Delivery is never claimed.
 - Emergency feedback is optional: silence by default, or a short vibration / temporary silent notification if explicitly selected.
 - Emergency is unconfigured by default and preselects no recipient during onboarding.
 - The sideload/restricted-settings flow explains Android's `Allow restricted settings` step before opening app settings and rechecks permissions automatically on return.

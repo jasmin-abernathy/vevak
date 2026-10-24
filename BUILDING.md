@@ -7,13 +7,13 @@ VeVak is a standard Android Studio / Gradle project using Kotlin, Jetpack Compos
 The project intentionally stays on a conservative, compatible toolchain:
 
 - JDK 17
-- Android Gradle Plugin 8.10.1
-- Gradle 8.11.1 via the checked-in Gradle Wrapper
+- Android Gradle Plugin 8.13.2
+- Gradle 8.14.5 via the checked-in Gradle Wrapper
 - Kotlin 2.2.21
 - compileSdk / targetSdk 36
 - minSdk 26
 
-AGP 8.10 officially requires Gradle 8.11.1 and JDK 17, and supports API 36. Kotlin 2.2 is compatible with AGP 8.10.
+The versions above reflect the committed `build.gradle.kts` and `gradle/wrapper/gradle-wrapper.properties`. Verify compatibility and CI before future toolchain upgrades.
 
 ## Open in Android Studio
 
@@ -57,7 +57,7 @@ vevak-foss-debug-<commit SHA>
 
 as a GitHub Actions artifact with a short retention period. This artifact is deliberately published **only after all FOSS and Play verification steps have succeeded**, so the APK used for a real-device regression test can be tied to an exact validated commit.
 
-For the 0.3.13 candidate, verify the app reports version `0.3.13` / versionCode `16` before using test results to validate natural-message phrase matching, per-contact protection prompting, visible redacted history, off-screen single-slot refresh, Location-OFF network approximation and the discreet emergency shortcut.
+For the current 0.3.15 candidate, verify the app reports version `0.3.15` / versionCode `18` before using test results to validate natural-message phrase matching, protected additional settings, redacted audit, off-screen single-slot refresh, optional network approximation and the four-second emergency shortcut cancellation.
 
 ## Google Play bundle
 
@@ -68,6 +68,16 @@ The Play release can be signed without placing secrets in the repository. Set
 Play Console hand-off checklist.
 
 An Actions artifact is a test build, not a signed production release. Do not present it as the future stable/F-Droid release.
+
+## F-Droid release preflight
+
+The `fossRelease` variant is the **only** candidate for the official F-Droid repository; the `play` variant has Google Play Services and a separate application ID. Build the unsigned release without signing secrets:
+
+```bash
+./gradlew --no-daemon testFossDebugUnitTest lintFossDebug assembleFossRelease
+```
+
+The `F-Droid preflight (FOSS release)` GitHub Actions workflow repeats these checks for incoming packaging PRs. See [`docs/FDROID.md`](docs/FDROID.md) for release tagging, fdroiddata validation, assets, and submission. An unsigned release build is a technical preflight, **not** proof of F-Droid acceptance or SMS functionality on a physical phone.
 
 ## Gradle Wrapper
 
