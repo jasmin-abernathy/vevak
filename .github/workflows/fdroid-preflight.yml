@@ -54,6 +54,8 @@ jobs:
           python3 scripts/verify-foss-boundary.py
           python3 scripts/verify-ecodesign-boundaries.py
           python3 scripts/check-sensitive-logs.py
+      - name: Check F-Droid Fastlane listing metadata
+        run: python3 scripts/check-fdroid-metadata.py
       - name: Test, lint and build unsigned FOSS release
         run: ./gradlew --no-daemon --stacktrace testFossDebugUnitTest lintFossDebug assembleFossRelease
       - name: Confirm FOSS release artifact
