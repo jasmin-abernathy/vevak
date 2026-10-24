@@ -8,7 +8,11 @@
 > [!WARNING]
 > VeVak ne contacte pas les services de secours et ne remplace pas le 112/911 ni les fonctions d'urgence natives du téléphone. Le projet est encore en bêta et doit être validé sur davantage d'appareils réels.
 
-## VeVak 0.3.14 — candidate de validation et de publication Play
+## Distribution F-Droid (en préparation)
+
+La variante `foss` est prévue pour F-Droid, avec une compilation sans Google Play Services. Le dossier et les contrôles de publication sont décrits dans [`docs/FDROID.md`](docs/FDROID.md). **VeVak n'est pas encore publiée sur le dépôt officiel F-Droid.** Les tests physiques et la validation de la compilation de publication restent nécessaires.
+
+## VeVak 0.3.15 — bêta de validation (publication Play et F-Droid en préparation)
 
 VeVak permet à des contacts explicitement autorisés de demander une information de localisation par SMS pendant une durée limitée. Jusqu'à cinq contacts peuvent être configurés localement, chacun avec son numéro, sa phrase-clé, son autorisation finie et sa révocation locale.
 
@@ -132,7 +136,7 @@ Documentation détaillée : [`PRIVACY.md`](PRIVACY.md), [`ABUSE-PREVENTION.md`](
 
 VeVak is an open-source Android application for limited, explicitly authorised location requests by SMS. No VeVak account, advertising, telemetry or mandatory application server is required.
 
-### 0.3.14 highlights
+### 0.3.15 highlights
 
 - A configured phrase may appear inside a longer SMS; matching remains case-insensitive and typography-normalised.
 - Normal requests, manual sharing and local emergency use the same canonical resolver: Android location → trusted place → opt-in network/IP estimate → latest remembered coordinate → unavailable.
