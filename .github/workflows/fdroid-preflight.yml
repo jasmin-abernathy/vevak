@@ -1,0 +1,65 @@
+name: F-Droid preflight (FOSS release)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "app/**"
+      - "gradle/**"
+      - "gradlew"
+      - "gradlew.bat"
+      - "*.gradle.kts"
+      - "scripts/**"
+      - ".github/workflows/fdroid-preflight.yml"
+      - "packaging/fdroid/**"
+      - "fastlane/metadata/android/**"
+
+permissions:
+  contents: read
+
+jobs:
+  foss-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: true
+      - name: Install Android SDK 36 when needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d "$ANDROID_HOME/platforms/android-36" ] && [ -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            exit 0
+          fi
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          fi
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;35.0.0"
+      - name: Verify FOSS boundary
+        run: |
+          python3 scripts/verify-foss-boundary.py
+          python3 scripts/verify-ecodesign-boundaries.py
+          python3 scripts/check-sensitive-logs.py
+      - name: Test, lint and build unsigned FOSS release
+        run: ./gradlew --no-daemon --stacktrace testFossDebugUnitTest lintFossDebug assembleFossRelease
+      - name: Confirm FOSS release artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk
+          sha256sum app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk
+          echo "This is an unsigned CI verification artifact, NOT a signed F-Droid release."
