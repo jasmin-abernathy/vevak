@@ -1,6 +1,6 @@
 • Request phrase recognised inside natural SMS messages.
 • Unified location resolution and manual sharing.
-• Emergency SMS shortcut with a four-second cancellation window.
+• Emergency SMS shortcut: immediate request, cancellation possible before processing.
 • Password-protected additional settings.
 • Optional single-location refresh.
 • Permission and privacy improvements.
