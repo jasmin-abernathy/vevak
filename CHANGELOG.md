@@ -8,7 +8,7 @@
 - the optional last-position refresh remains a single replaceable point, with 15/30/60-minute target intervals, optional restart-after-boot and Android background-location access requested only when this off-screen refresh is enabled;
 - dark-mode content inheritance and onboarding/safety UX have been hardened, with exact build revision exposed for device-test verification;
 - emergency setup remains opt-in with no recipient preselected; the home-screen shortcut and Quick Settings tile are optional entry points for the same emergency action;
-- emergency arming uses `IDLE / CANCEL_WINDOW / PENDING_SYSTEM`: four-second cancellation window, no arbitrary expiry after Android delay, and local cancellation until receiver claim;
+- emergency arming uses `IDLE / CANCEL_WINDOW / PENDING_SYSTEM`: immediate dispatch request with no guaranteed cancellation window or arbitrary expiry after Android delay, and local cancellation until receiver claim;
 - emergency feedback is configurable: silence by default, short vibration, or a temporary silent notification. Notification permission is never required for ordinary SMS replies or for emergency dispatch itself;
 - the targeted protection against one authorised contact is no longer suggested automatically after SMS activity. It is configured only on demand in `Paramètres supplémentaires`;
 - the targeted contact keeps its existing phrase, but only the pre-recorded fallback is used for that contact. Other contacts keep the canonical resolver;
@@ -33,7 +33,7 @@
   only on a later app opening after one specific contact reaches two valid SMS messages;
 - adds optional emergency setup to the six-step onboarding flow with no recipient preselected;
 - shows the real generic shortcut icons before pinning and makes emergency unconfigured by default;
-- backs the four-second emergency arm window with a one-shot system alarm so process death does not
+- backs immediate emergency arming with a one-shot system alarm so process death does not
   silently discard an armed action;
 - adds a prominent disclosure before optional background-location refresh is enabled;
 - fails closed when neither the receiving SIM nor Android's default SMS SIM is identifiable;
