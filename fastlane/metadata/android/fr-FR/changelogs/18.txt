@@ -1,3 +1,6 @@
-• Raccourci unique SMS urgence, sans choix d’icône.
-• Un appui déclenche immédiatement la demande de SMS d’urgence, sans délai de quatre secondes.
-• Améliorations de l’interface, de la confidentialité et des réglages de sécurité.
+• SMS contenant la phrase-clé dans un message naturel.
+• Résolution de position et partage manuel harmonisés.
+• Raccourci SMS urgence avec quatre secondes pour annuler.
+• Paramètres supplémentaires protégés par mot de passe.
+• Rafraîchissement facultatif d'une seule dernière position.
+• Améliorations des permissions et de la confidentialité.
