@@ -168,7 +168,9 @@ object SmsReplyFormatter {
         val accuracy = location.accuracyMeters
         append("\nDernière zone connue : ")
         append(location.ageLabel())
-        append("\nEstimation via le réseau — pas une position exacte.")
+        append(if (location.source == com.vevak.app.location.LocationSource.CellularApproximation)
+            "\nEstimation via antenne cellulaire — pas une position exacte."
+            else "\nEstimation via le réseau/IP — pas une position exacte.")
         if (settings.includeAccuracy) {
             if (accuracy != null && accuracy > VERY_COARSE_NETWORK_RADIUS_METERS) {
                 append("\nPrécision faible : la zone peut s'étendre sur ")
