@@ -38,6 +38,12 @@ Pour une demande normale et autorisée, un partage manuel ou une urgence locale,
 
 Chaque coordonnée conserve son ancienneté. Une estimation réseau reste explicitement présentée comme approximative. Les coordonnées du lieu de repli de la protection ciblée restent séparées de ce resolver et ne sont utilisées que pour le contact concerné.
 
+### Repli cellulaire et mémoire locale (bêta)
+
+La mémoire locale garde **un seul dernier point** effectivement obtenu, avec sa source, sa précision et son ancienneté. Android Localisation OFF, cette mémoire est relue **directement depuis le stockage privé VeVak** sans solliciter les API de géolocalisation Android. Si aucun point n'a jamais été acquis, VeVak ne peut pas en inventer.
+
+Une **option séparée, désactivée par défaut**, autorise la consultation d'une antenne cellulaire enregistrée auprès de beaconDB pour obtenir une zone approximative. Elle nécessite Internet et Android Localisation ON, en plus de la permission de localisation précise. Le service tiers reçoit l'identifiant de l'antenne et l'IP publique. Aucun identifiant radio n'est conservé par VeVak. Cette option ne contourne pas l'interrupteur de confidentialité Android, et peut échouer si les cellules sont masquées ou inconnues de beaconDB.
+
 ### Mémoire périodique optionnelle, sans trajet
 
 L'utilisateur peut activer un rafraîchissement best-effort de **la seule dernière position** : 15, 30 ou 60 minutes, avec 30 minutes par défaut.
