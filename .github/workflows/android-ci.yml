@@ -123,7 +123,7 @@ jobs:
           fi
 
       - name: Publish validated FOSS debug APK artifact
-        if: github.event_name != 'pull_request'
+        # Attach tested builds to PR checks too, for device testing without publishing beta.
         uses: actions/upload-artifact@v4
         with:
           name: vevak-foss-debug-${{ github.sha }}
