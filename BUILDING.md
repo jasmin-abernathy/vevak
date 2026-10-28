@@ -44,20 +44,15 @@ gradlew.bat testFossDebugUnitTest assembleFossDebug lintFossDebug
 gradlew.bat testPlayDebugUnitTest assemblePlayDebug lintPlayDebug
 ```
 
-## Validated tester APK from GitHub Actions
+## Validated APKs from GitHub Actions
 
-The `Android CI` workflow runs the static privacy/ecodesign checks, unit tests, builds and lint for both flavors.
+The regular Android CI job produces **`fossDebug` for developer checks only**. Its signing key is specific to each GitHub runner, so **it is not an upgradable public beta**.
 
-For successful runs on `main` (and manual non-PR runs), the workflow then publishes:
+For repeatable testing, there is a separate **`fossBeta`** build type with the package `com.vevak.app.beta`, signed with a persistent **tester-only** key injected using GitHub Actions encrypted secrets. It is independent of the former `com.vevak.app.debug`, the F-Droid `com.vevak.app` ID and the Play `vevak.lepotager.org` ID.
 
-```text
-vevak-foss-debug-<commit SHA>
-└── app-foss-debug.apk
-```
+To set up the key (one time) and trigger a signed APK build, follow **[docs/BETA-SIGNING.md](docs/BETA-SIGNING.md)**.
 
-as a GitHub Actions artifact with a short retention period. This artifact is deliberately published **only after all FOSS and Play verification steps have succeeded**, so the APK used for a real-device regression test can be tied to an exact validated commit.
-
-For the current 0.3.15 candidate, verify the app reports version `0.3.15` / versionCode `18` before using test results to validate natural-message phrase matching, protected additional settings, redacted audit, off-screen single-slot refresh, optional network approximation and the four-second emergency shortcut cancellation.
+This workflow never signs an unreviewed PR automatically, requires an explicit manual dispatch from the repository owner, checks the pinned certificate fingerprint and exports the APK plus SHA-256 checksum. A successful build is not a proof of working SMS on all phones, and signing does not bypass Google Play Protect.
 
 ## Google Play bundle
 
