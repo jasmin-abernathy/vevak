@@ -319,7 +319,7 @@ private fun OptionsScreen(state: AppUiState, vm: AppViewModel) {
     CheckRow("Ajouter la précision de la position", state.settings.includeAccuracy) { vm.updateOptions(accuracy = it) }
     SimpleInfo(
         "Dernière position toujours disponible",
-        "Si aucune position plus récente ne peut être obtenue, VeVak renvoie la dernière position mémorisée et indique depuis combien de temps elle date. Ce comportement fait partie du fonctionnement de base et n'a plus besoin d'une option séparée."
+        "Quand VeVak a effectivement acquis une position, il en garde une seule copie locale avec son ancienneté. Si aucune position n’a encore été obtenue, le repli est indisponible. Aucun historique de déplacements."
     )
     CheckRow(
         "Autoriser la localisation alternative réseau/IP en dernier recours",
