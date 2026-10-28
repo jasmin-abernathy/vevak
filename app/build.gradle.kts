@@ -15,6 +15,16 @@ val hasUploadSigning = listOf(
     uploadKeyPassword
 ).all { it.isPresent }
 
+// Persistent *testing-only* signing key, independent of the Play upload key and official F-Droid.
+// Never commit the keystore; trusted manual CI runs restore it from GitHub Actions secrets.
+val betaStoreFile = providers.environmentVariable("VEVAK_BETA_STORE_FILE")
+val betaStorePassword = providers.environmentVariable("VEVAK_BETA_STORE_PASSWORD")
+val betaKeyAlias = providers.environmentVariable("VEVAK_BETA_KEY_ALIAS")
+val betaKeyPassword = providers.environmentVariable("VEVAK_BETA_KEY_PASSWORD")
+val hasBetaSigning = listOf(
+    betaStoreFile, betaStorePassword, betaKeyAlias, betaKeyPassword
+).all { it.isPresent && it.get().isNotBlank() }
+
 // CI supplies the exact checked-out commit. Local builds are explicitly identified as local.
 val sourceRevision = providers.environmentVariable("VEVAK_SOURCE_REVISION")
     .orElse(providers.environmentVariable("GITHUB_SHA"))
@@ -63,6 +73,14 @@ android {
                 keyPassword = uploadKeyPassword.get()
             }
         }
+        if (hasBetaSigning) {
+            create("betaTester") {
+                storeFile = file(betaStoreFile.get())
+                storePassword = betaStorePassword.get()
+                keyAlias = betaKeyAlias.get()
+                keyPassword = betaKeyPassword.get()
+            }
+        }
     }
 
     buildTypes {
@@ -78,8 +96,24 @@ android {
             }
         }
         debug {
+            // Ephemeral Android debug key, only for developer/CI compilation.
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+        }
+        create("beta") {
+            // Production safety rules (DEBUG=false), but a distinct install identity.
+            // Keeping .beta separate prevents us overwriting old debug installations with
+            // incompatible signing certificates and keeps the Play/F-Droid IDs unchanged.
+            initWith(getByName("release"))
+            applicationIdSuffix = ".beta"
+            versionNameSuffix = "-beta"
+            isDebuggable = false
+            matchingFallbacks += listOf("release")
+            // Never inherit the Play upload signature through initWith(release).
+            signingConfig = null
+            if (hasBetaSigning) {
+                signingConfig = signingConfigs.getByName("betaTester")
+            }
         }
     }
 
