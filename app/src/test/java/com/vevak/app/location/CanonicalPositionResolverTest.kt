@@ -112,5 +112,6 @@ class CanonicalPositionResolverTest {
         override suspend fun cellular(): VeVakLocationSnapshot? { cellularCalls++; return cellularFix }
         override suspend fun remember(location: VeVakLocationSnapshot) { memory = location }
         override suspend fun cached(): VeVakLocationSnapshot? { cacheReads++; return memory }
+        override suspend fun rememberedOnly(): VeVakLocationSnapshot? { cacheReads++; return memory }
     }
 }
