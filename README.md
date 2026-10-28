@@ -12,6 +12,17 @@
 
 La variante `foss` est prévue pour F-Droid, avec une compilation sans Google Play Services. Le dossier et les contrôles de publication sont décrits dans [`docs/FDROID.md`](docs/FDROID.md). **VeVak n'est pas encore publiée sur le dépôt officiel F-Droid.** Les tests physiques et la validation de la compilation de publication restent nécessaires.
 
+## Installation de test (APK)
+
+**Ne pas utiliser les anciens APK `fossDebug` comme des bêtas mises à jour** : GitHub Actions leur attribuait une nouvelle signature debug à chaque exécution.
+
+Deux éditions de test existent désormais dans la branche de travail :
+
+- **`diagnosticDebug`** (`com.vevak.app.diagnostic.debug`) : interface dédiée aux tests GPS, repli cellulaire et dernière mémoire locale, **sans réception ni envoi SMS**. Le manifeste supprime les permissions SMS ; cette édition ne remplace pas la vraie VeVak.
+- **`fossBeta`** (`com.vevak.app.beta`) : édition complète avec SMS, signée par une **clé de test persistante** conservée dans les secrets GitHub et créée localement par le propriétaire. Elle requiert une compilation manuelle explicitement demandée. Les restrictions Play Protect sur `RECEIVE_SMS` peuvent toujours empêcher une installation depuis un navigateur.
+
+Documentation : [`docs/BETA-SIGNING.md`](docs/BETA-SIGNING.md). Aucune clé privée de signature n'est conservée dans le dépôt Git.
+
 ## VeVak 0.3.15 — bêta de validation (publication Play et F-Droid en préparation)
 
 VeVak permet à des contacts explicitement autorisés de demander une information de localisation par SMS pendant une durée limitée. Jusqu'à cinq contacts peuvent être configurés localement, chacun avec son numéro, sa phrase-clé, son autorisation finie et sa révocation locale.
