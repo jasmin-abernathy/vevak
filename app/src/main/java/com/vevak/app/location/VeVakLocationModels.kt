@@ -17,6 +17,7 @@ enum class LocationSource(val label: String) {
     AndroidLastKnown("Android / cache"),
     VeVakRemembered("VeVak / dernière position mémorisée"),
     NetworkApproximation("Réseau / estimation IP"),
+    CellularApproximation("Réseau / antenne cellulaire"),
     SafetyFallback("Repli de sécurité")
 }
 
@@ -60,7 +61,9 @@ data class VeVakLocationSnapshot(
     } ?: "inconnue"
 
     fun isFresh(maxAgeMillis: Long): Boolean = ageMillis <= maxAgeMillis
-    fun isApproximateNetworkEstimate(): Boolean = source == LocationSource.NetworkApproximation
+    /** Both remote network estimates are coarse, not a precise GPS location. */
+    fun isApproximateNetworkEstimate(): Boolean =
+        source == LocationSource.NetworkApproximation || source == LocationSource.CellularApproximation
 }
 
 fun Location.toVeVakSnapshot(source: LocationSource): VeVakLocationSnapshot {
