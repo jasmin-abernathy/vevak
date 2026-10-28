@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
+import android.os.SystemClock
 import android.telephony.CellInfo
 import android.telephony.CellInfoGsm
 import android.telephony.CellInfoLte
@@ -66,7 +67,7 @@ internal class CellularApproximateLocationProvider(context: Context) {
         if (!enabled(location)) return@withContext null
         val telephony = appContext.getSystemService(TelephonyManager::class.java) ?: return@withContext null
         val cells = runCatching { telephony.allCellInfo.orEmpty() }.getOrDefault(emptyList())
-        val tower = cells.asSequence().filter { it.isRegistered }.mapNotNull(::observation)
+        val tower = cells.asSequence().filter { it.isRegistered && isRecent(it) }.mapNotNull(::observation)
             .firstOrNull { it.valid() } ?: return@withContext null
 
         // Recheck the user's system choice immediately before transmitting any radio identity.
@@ -79,6 +80,16 @@ internal class CellularApproximateLocationProvider(context: Context) {
         else manager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
             manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }.getOrDefault(false)
+
+    /** Reject stale modem cache entries: an old serving cell is not a current location. */
+    @Suppress("DEPRECATION")
+    private fun isRecent(cell: CellInfo): Boolean {
+        val ageMillis = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+            SystemClock.elapsedRealtime() - cell.timestampMillis
+        else
+            (SystemClock.elapsedRealtimeNanos() - cell.timeStamp) / 1_000_000L
+        return ageMillis in 0L..300_000L
+    }
 
     @Suppress("DEPRECATION")
     private fun observation(info: CellInfo): CellTowerObservation? {
