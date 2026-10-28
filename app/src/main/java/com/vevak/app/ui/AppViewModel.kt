@@ -131,14 +131,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         accuracy: Boolean? = null,
         provider: MapProvider? = null,
         staleFallback: Boolean? = null,
-        networkApproximation: Boolean? = null
+        networkApproximation: Boolean? = null,
+        cellularApproximation: Boolean? = null
     ) = updateSettings {
         it.copy(
             includeBattery = battery ?: it.includeBattery,
             includeAccuracy = accuracy ?: it.includeAccuracy,
             mapProvider = provider ?: it.mapProvider,
             allowStaleFallback = staleFallback ?: it.allowStaleFallback,
-            allowNetworkApproximation = networkApproximation ?: it.allowNetworkApproximation
+            allowNetworkApproximation = networkApproximation ?: it.allowNetworkApproximation,
+            allowCellularApproximation = cellularApproximation ?: it.allowCellularApproximation
         )
     }
 
@@ -150,6 +152,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 "Estimation réseau activée. En dernier recours, VeVak pourra contacter beaconDB : votre adresse IP sera visible par ce service et la position obtenue restera approximative."
             } else {
                 "Estimation réseau désactivée. VeVak n'utilisera plus Internet pour chercher votre position."
+            }
+        )
+    }
+
+    fun setCellularApproximation(enabled: Boolean) {
+        persistSettings(
+            _state.value.settings.copy(allowCellularApproximation = enabled),
+            if (enabled) {
+                "Estimation cellulaire activée. Si Android autorise la localisation, VeVak peut transmettre à beaconDB l'identité de l'antenne utilisée pour obtenir une zone approximative. Internet requis."
+            } else {
+                "Estimation cellulaire désactivée. VeVak ne transmettra plus d'identité d'antenne à beaconDB."
             }
         )
     }
