@@ -48,7 +48,7 @@ Une option distincte permet de reprogrammer ce fonctionnement après le redémar
 
 Le repli par antenne est **désactivé par défaut**, distinct de la localisation par IP. Quand le propriétaire l'active et qu'Android autorise encore la localisation précise, VeVak peut lire l'identité de **l'antenne en service** (type radio, MCC, MNC, zone, identifiant de cellule), puis l'envoyer en HTTPS au service public beaconDB. Celui-ci voit également l'adresse IP de la connexion. Aucun identifiant d'antenne n'est enregistré dans VeVak, dans les sauvegardes ou dans les diagnostics. La zone estimée reste approximative, avec son rayon, et peut être indisponible si beaconDB ne connaît pas l'antenne ou si Android refuse de l'exposer.
 
-**Android Localisation désactivée : VeVak ne consulte ni ne transmet les identifiants d'antennes.** Il peut alors utiliser une position effectivement mémorisée localement, ou la simple estimation IP si celle-ci a été activée séparément. Le consentement cellulaire n'est pas rétabli lors d'une restauration de configuration.
+**Android Localisation désactivée : VeVak ne consulte ni ne transmet les identifiants d'antennes.** Il peut alors utiliser une position effectivement mémorisée localement, ou la simple estimation IP si celle-ci a été activée séparément. Le consentement cellulaire n'est pas rétabli lors d'une restauration de configuration. Le rafraîchissement périodique en arrière-plan n'interroge jamais les antennes et ne transmet pas leurs identifiants.
 
 ## Estimation réseau facultative
 
