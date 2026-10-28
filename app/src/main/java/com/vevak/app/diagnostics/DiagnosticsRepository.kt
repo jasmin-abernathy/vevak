@@ -90,6 +90,10 @@ class DiagnosticsRepository(private val context: Context) {
         val cellularFallbackCheck = ReadinessCheck(
             "Repli cellulaire facultatif",
             when {
+                !settings.allowCellularApproximation ->
+                    "Désactivé : activer séparément dans Réglages autorise l’envoi à beaconDB des identifiants de l’antenne utilisée."
+                !capabilities.locationEnabled ->
+                    "Localisation Android désactivée : aucune donnée d’antenne n’est consultée ni envoyée. Seule la mémoire locale peut rester disponible."
                 !capabilities.telephonyRadioAccessSupported ->
                     "Pas d’accès aux antennes sur cet appareil. Le repli cellulaire ne peut pas fonctionner."
                 !capabilities.fineLocationPermission ->
@@ -99,7 +103,7 @@ class DiagnosticsRepository(private val context: Context) {
                 capabilities.offlineCellLookupReadyCount == 0 ->
                     "Android expose ${capabilities.visibleCellRecordCount} cellule(s), mais aucune avec tous les champs nécessaires à une correspondance locale. Technologies : ${capabilities.cellRadioTechnologies.joinToString().ifBlank { "inconnues" }}."
                 else ->
-                    "Antenne(s) observée(s) : ${capabilities.visibleCellRecordCount} cellule(s) visible(s), ${capabilities.registeredCellRecordCount} enregistrée(s), ${capabilities.offlineCellLookupReadyCount} identité(s) complète(s), technologies ${capabilities.cellRadioTechnologies.joinToString()}, cache le plus récent ${CellularFallbackFeasibilityPolicy.freshnessLabel(capabilities.freshestCellAgeMillis)}. Aucun identifiant brut n'est conservé ni envoyé."
+                    "Antenne(s) observée(s) : ${capabilities.visibleCellRecordCount}, dont ${capabilities.registeredCellRecordCount} en service et ${capabilities.offlineCellLookupReadyCount} identifiants complets. Technologies : ${capabilities.cellRadioTechnologies.joinToString()}. Si l’option est activée, une antenne compatible peut être envoyée à beaconDB pour estimation ; aucun identifiant n’est conservé."
             },
             CheckState.Warning
         )
