@@ -36,6 +36,7 @@ class VeVakSettingsRepository(private val context: Context) {
         val TIMEOUT = intPreferencesKey("location_timeout_seconds")
         val STALE_FALLBACK = booleanPreferencesKey("allow_stale_fallback")
         val NETWORK_APPROXIMATION = booleanPreferencesKey("allow_network_approximation")
+        val CELLULAR_APPROXIMATION = booleanPreferencesKey("allow_cellular_approximation")
         val BACKGROUND_REFRESH_ENABLED = booleanPreferencesKey("background_refresh_enabled")
         val BACKGROUND_REFRESH_INTERVAL_MINUTES = intPreferencesKey("background_refresh_interval_minutes")
         val START_ON_BOOT = booleanPreferencesKey("start_on_boot")
@@ -106,6 +107,7 @@ class VeVakSettingsRepository(private val context: Context) {
             prefs[Keys.TIMEOUT] = settings.locationTimeoutSeconds.coerceIn(3, 30)
             prefs[Keys.STALE_FALLBACK] = settings.allowStaleFallback
             prefs[Keys.NETWORK_APPROXIMATION] = settings.allowNetworkApproximation
+            prefs[Keys.CELLULAR_APPROXIMATION] = settings.allowCellularApproximation
             prefs[Keys.BACKGROUND_REFRESH_ENABLED] = settings.backgroundRefreshEnabled
             prefs[Keys.BACKGROUND_REFRESH_INTERVAL_MINUTES] = settings.normalizedBackgroundRefreshIntervalMinutes()
             prefs[Keys.START_ON_BOOT] = settings.startOnBoot
@@ -156,6 +158,7 @@ class VeVakSettingsRepository(private val context: Context) {
             locationTimeoutSeconds = this[Keys.TIMEOUT] ?: 8,
             allowStaleFallback = this[Keys.STALE_FALLBACK] ?: true,
             allowNetworkApproximation = this[Keys.NETWORK_APPROXIMATION] ?: false,
+            allowCellularApproximation = this[Keys.CELLULAR_APPROXIMATION] ?: false,
             // Fresh installs start with the recommended one-slot memory selected in onboarding.
             // Android still requires the explicit background-location permission before real
             // off-screen refreshes can run, and the user can uncheck the option before continuing.
