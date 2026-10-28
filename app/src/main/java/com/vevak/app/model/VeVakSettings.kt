@@ -40,6 +40,8 @@ data class VeVakSettings(
     // Off by default: enabling this permits an IP-only request to the public beaconDB service
     // when local Android sources cannot provide a usable point.
     val allowNetworkApproximation: Boolean = false,
+    // Distinct opt-in because the beaconDB cellular request includes a serving-cell identity.
+    val allowCellularApproximation: Boolean = false,
     // Recommended by default for new installs, but still user-controlled in onboarding. It never
     // stores a route/history: a successful refresh only replaces the locally remembered last point.
     // Android may defer alarm ticks, and the extra background-location access still requires an
