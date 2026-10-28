@@ -88,18 +88,18 @@ class DiagnosticsRepository(private val context: Context) {
         }
 
         val cellularFallbackCheck = ReadinessCheck(
-            "Étude repli cellulaire local",
+            "Repli cellulaire facultatif",
             when {
                 !capabilities.telephonyRadioAccessSupported ->
-                    "Ce téléphone ne déclare pas l'accès radio nécessaire pour tester les cellules visibles. Aucun repli cellulaire n'est actif dans VeVak."
+                    "Pas d’accès aux antennes sur cet appareil. Le repli cellulaire ne peut pas fonctionner."
                 !capabilities.fineLocationPermission ->
-                    "Test non disponible sans la permission de localisation précise Android. Aucun identifiant cellulaire n'est enregistré par VeVak."
+                    "Le repli cellulaire exige la permission précise Android. Aucun identifiant cellulaire n’est conservé par VeVak."
                 capabilities.visibleCellRecordCount == 0 ->
-                    "Android ne fournit actuellement aucune cellule exploitable au diagnostic. Testez de nouveau localisation ON puis OFF : aucun repli cellulaire n'est actif dans VeVak."
+                    "Aucune antenne lisible. Android peut masquer ces données lorsque la localisation système est coupée."
                 capabilities.offlineCellLookupReadyCount == 0 ->
                     "Android expose ${capabilities.visibleCellRecordCount} cellule(s), mais aucune avec tous les champs nécessaires à une correspondance locale. Technologies : ${capabilities.cellRadioTechnologies.joinToString().ifBlank { "inconnues" }}."
                 else ->
-                    "POC local plausible : ${capabilities.visibleCellRecordCount} cellule(s) visible(s), ${capabilities.registeredCellRecordCount} enregistrée(s), ${capabilities.offlineCellLookupReadyCount} identité(s) complète(s), technologies ${capabilities.cellRadioTechnologies.joinToString()}, cache le plus récent ${CellularFallbackFeasibilityPolicy.freshnessLabel(capabilities.freshestCellAgeMillis)}. Aucun identifiant brut n'est conservé ni envoyé."
+                    "Antenne(s) observée(s) : ${capabilities.visibleCellRecordCount} cellule(s) visible(s), ${capabilities.registeredCellRecordCount} enregistrée(s), ${capabilities.offlineCellLookupReadyCount} identité(s) complète(s), technologies ${capabilities.cellRadioTechnologies.joinToString()}, cache le plus récent ${CellularFallbackFeasibilityPolicy.freshnessLabel(capabilities.freshestCellAgeMillis)}. Aucun identifiant brut n'est conservé ni envoyé."
             },
             CheckState.Warning
         )
@@ -154,6 +154,7 @@ class DiagnosticsRepository(private val context: Context) {
             appendLine("activeTrustedContactCount=${activeContacts.size}")
             appendLine("trustedWifiConfigured=${settings.hasTrustedWifiConfiguration()}")
             appendLine("networkApproximationEnabled=${settings.allowNetworkApproximation}")
+            appendLine("cellularApproximationEnabled=${settings.allowCellularApproximation}")
             appendLine("locationServicesEnabled=${capabilities.locationEnabled}")
             appendLine("locationLab.knownProviders=${capabilities.knownProviderCount}")
             appendLine("locationLab.enabledProviders=${capabilities.enabledProviderCount}")
