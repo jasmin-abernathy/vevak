@@ -72,6 +72,10 @@ android {
         }
     }
 
+    // The diagnostic flavor uses the exact FOSS location/entitlement implementations.
+    // They are native Android sources and do not add Google Play dependencies.
+    sourceSets.getByName("diagnostic").java.srcDir("src/foss/java")
+
     signingConfigs {
         if (hasUploadSigning) {
             create("upload") {
