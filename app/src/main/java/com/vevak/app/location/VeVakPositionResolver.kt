@@ -25,6 +25,7 @@ internal interface PositionSources {
     suspend fun cellular(): VeVakLocationSnapshot?
     suspend fun remember(location: VeVakLocationSnapshot)
     suspend fun cached(): VeVakLocationSnapshot?
+    suspend fun rememberedOnly(): VeVakLocationSnapshot?
 }
 
 /**
@@ -70,7 +71,7 @@ class VeVakPositionResolver internal constructor(private val sources: PositionSo
         // Location OFF is a hard privacy boundary: do not collect live cellular IDs.
         // The previously saved point is preferred to a potentially misleading IP estimate.
         if (!androidLocationEnabled) {
-            locationAttempt { sources.cached() }.getOrNull()
+            locationAttempt { sources.rememberedOnly() }.getOrNull()
                 ?.let { return VeVakPositionResolution.Coordinates(it) }
         }
         if (androidLocationEnabled && settings.allowCellularApproximation) {
@@ -111,6 +112,7 @@ private class AndroidPositionSources(context: Context) : PositionSources {
     override suspend fun cellular() = cellularApproximation.locate()
     override suspend fun remember(location: VeVakLocationSnapshot) = locationRepository.rememberLocation(location)
     override suspend fun cached() = locationRepository.fetchLastKnownAnyLocation()
+    override suspend fun rememberedOnly() = locationRepository.fetchRememberedOnlyLocation()
 
     override fun isSystemLocationEnabled(): Boolean {
         val manager = locationManager ?: return false
