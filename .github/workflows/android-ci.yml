@@ -108,6 +108,31 @@ jobs:
             exit 1
           fi
 
+      - name: Compile location-only diagnostic APK
+        run: ./gradlew --no-daemon --stacktrace assembleDiagnosticDebug
+
+      - name: Verify diagnostic APK has no SMS permissions or receivers
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/diagnostic/debug/app-diagnostic-debug.apk"
+          test -s "$APK"
+          TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          "$TOOLS/aapt" dump badging "$APK" | grep -F "package: name='com.vevak.app.diagnostic.debug'"
+          "$TOOLS/aapt" dump permissions "$APK" > "$RUNNER_TEMP/diagnostic-permissions.txt"
+          if grep -E 'android.permission.(RECEIVE_SMS|READ_SMS|SEND_SMS|ACCESS_BACKGROUND_LOCATION)' "$RUNNER_TEMP/diagnostic-permissions.txt"; then
+            echo "::error::Sensitive SMS or background location permission leaked into the diagnostic APK"
+            exit 1
+          fi
+          # Launcher and SMS broadcast entrypoints are separate, also verify the merged manifest.
+          MANIFEST="$(find app/build/intermediates/merged_manifests/diagnosticDebug -name AndroidManifest.xml -print -quit)"
+          test -n "$MANIFEST"
+          if grep -F 'com.vevak.app.sms.SmsReceiver' "$MANIFEST"; then
+            echo "::error::SMS receiver leaked into diagnostics build"
+            exit 1
+          fi
+          echo "Diagnostic artifact contains no SMS permissions or receivers."
+
       - name: Play unit tests
         run: ./gradlew --no-daemon --stacktrace testPlayDebugUnitTest
 
@@ -127,6 +152,15 @@ jobs:
             exit 1
           fi
 
+      - name: Upload diagnostic-only APK for manual phone testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: vevak-diagnostic-nosms-${{ github.sha }}
+          path: app/build/outputs/apk/diagnostic/debug/app-diagnostic-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
       - name: Publish validated FOSS debug APK artifact
         # Attach tested builds to PR checks too, for device testing without publishing beta.
         uses: actions/upload-artifact@v4
@@ -137,6 +171,8 @@ jobs:
           retention-days: 7
           compression-level: 0
 
+  # The standalone diagnostic is explicitly SMS-free and safe for browser-based location tests.
+  # It never uses any signing secrets and cannot respond to SMS.
   signed-beta-test:
     name: signed-beta-test
     needs: verify
