@@ -56,6 +56,14 @@ android {
             buildConfigField("String", "LOCATION_BACKEND", "\"Android LocationManager\"")
             buildConfigField("Boolean", "USES_GOOGLE_PLAY_SERVICES", "false")
         }
+        create("diagnostic") {
+            // Location-only sideload build; RECEIVE_SMS/SEND_SMS are removed in its
+            // source-set manifest, and only the dedicated diagnostics activity is exported.
+            dimension = "services"
+            applicationId = "com.vevak.app.diagnostic"
+            buildConfigField("String", "LOCATION_BACKEND", "\"Android LocationManager\"")
+            buildConfigField("Boolean", "USES_GOOGLE_PLAY_SERVICES", "false")
+        }
         create("play") {
             dimension = "services"
             applicationId = "vevak.lepotager.org"
