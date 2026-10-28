@@ -133,6 +133,10 @@ jobs:
           fi
           echo "Diagnostic artifact contains no SMS permissions or receivers."
 
+      - name: FOSS beta build-type preflight (unsigned when no key configured)
+        # Validate this distribution variant without making signing secrets available to PRs.
+        run: ./gradlew --no-daemon --stacktrace assembleFossBeta
+
       - name: Play unit tests
         run: ./gradlew --no-daemon --stacktrace testPlayDebugUnitTest
 
