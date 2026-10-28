@@ -108,14 +108,17 @@ internal class CellularApproximateLocationProvider(context: Context) {
                     if (Build.VERSION.SDK_INT >= 28) c.mncString else null)
                 CellTowerObservation("wcdma",mcc,mnc,c.lac,c.cid.toLong())
             }
-            is CellInfoNr -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val c = info.cellIdentity as? android.telephony.CellIdentityNr ?: return null
-                CellTowerObservation("nr", c.mccString?.toIntOrNull() ?: -1,
-                    c.mncString?.toIntOrNull() ?: -1, c.tac, c.nci)
-            } else null
             // TD-SCDMA and CDMA need independent verified mappings.
-            else -> null
+            else -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) nrObservation(info) else null
         }
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private fun nrObservation(info: CellInfo): CellTowerObservation? {
+        val nr = info as? CellInfoNr ?: return null
+        val c = nr.cellIdentity as? android.telephony.CellIdentityNr ?: return null
+        return CellTowerObservation("nr", c.mccString?.toIntOrNull() ?: -1,
+            c.mncString?.toIntOrNull() ?: -1, c.tac, c.nci)
     }
 
     private fun request(tower: CellTowerObservation): VeVakLocationSnapshot? {
