@@ -102,6 +102,8 @@ object SettingsBackupSerializer {
             locationTimeoutSeconds = properties.int("locationTimeoutSeconds", 8).coerceIn(3, 30),
             allowStaleFallback = properties.boolean("allowStaleFallback", true),
             allowNetworkApproximation = properties.boolean("allowNetworkApproximation", false),
+            // Privacy: a restored backup never reactivates sharing cell IDs with beaconDB.
+            allowCellularApproximation = false,
             backgroundRefreshEnabled = properties.boolean("backgroundRefreshEnabled", false),
             backgroundRefreshIntervalMinutes = refreshMinutes,
             startOnBoot = properties.boolean("startOnBoot", false),

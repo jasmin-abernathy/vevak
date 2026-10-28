@@ -22,8 +22,10 @@ internal interface PositionSources {
     suspend fun fresh(policy: LocationRequestPolicy): VeVakLocationSnapshot?
     fun matchesTrustedPlace(settings: VeVakSettings): Boolean
     suspend fun approximate(): VeVakLocationSnapshot?
+    suspend fun cellular(): VeVakLocationSnapshot?
     suspend fun remember(location: VeVakLocationSnapshot)
     suspend fun cached(): VeVakLocationSnapshot?
+    suspend fun rememberedOnly(): VeVakLocationSnapshot?
 }
 
 /**
@@ -37,10 +39,9 @@ internal interface PositionSources {
  * Normal resolution order:
  * 1. while Android location is currently usable, try a recent/current local device point;
  * 2. recognise the configured trusted place if the current network matches;
- * 3. if explicitly enabled, request a fresh coarse IP/network estimate and remember it;
- * 4. return the newest coordinate-bearing point VeVak/Android already knows, whatever its source
- *    or age, with that age made explicit in the SMS;
- * 5. unavailable only when no source has ever produced usable information.
+ * 3. with Location OFF, prefer the last locally remembered coordinate;
+ * 4. with Location ON, optionally ask for a cell-based estimate (separate consent);
+ * 5. optionally fall back to IP, and finally to any local point.
  *
  * Explicit manual sharing and local emergency use this same canonical resolver. The duress/protection path deliberately bypasses this resolver in SmsRequestHandler.
  */
@@ -51,7 +52,8 @@ class VeVakPositionResolver internal constructor(private val sources: PositionSo
         settings: VeVakSettings,
         includeTrustedPlace: Boolean = true
     ): VeVakPositionResolution {
-        if (sources.isSystemLocationEnabled()) {
+        val androidLocationEnabled = sources.isSystemLocationEnabled()
+        if (androidLocationEnabled) {
             val freshPolicy = LocationRequestPolicy(
                 maxAcceptedCacheAgeMillis = settings.maxCachedLocationAgeSeconds * 1_000L,
                 currentLocationTimeoutMillis = settings.locationTimeoutSeconds * 1_000L,
@@ -66,6 +68,19 @@ class VeVakPositionResolver internal constructor(private val sources: PositionSo
             return VeVakPositionResolution.KnownPlace(settings.trustedPlaceLabel.trim().ifBlank { "Maison" })
         }
 
+        // Location OFF is a hard privacy boundary: do not collect live cellular IDs.
+        // The previously saved point is preferred to a potentially misleading IP estimate.
+        if (!androidLocationEnabled) {
+            locationAttempt { sources.rememberedOnly() }.getOrNull()
+                ?.let { return VeVakPositionResolution.Coordinates(it) }
+        }
+        if (androidLocationEnabled && settings.allowCellularApproximation) {
+            locationAttempt { sources.cellular() }.getOrNull()
+                ?.let { cellular ->
+                    locationAttempt { sources.remember(cellular) }
+                    return VeVakPositionResolution.Coordinates(cellular)
+                }
+        }
         if (settings.allowNetworkApproximation) {
             locationAttempt { sources.approximate() }
                 .getOrNull()
@@ -88,13 +103,16 @@ private class AndroidPositionSources(context: Context) : PositionSources {
     private val locationRepository = VeVakLocationRepository(context)
     private val trustedNetworkReader = TrustedNetworkReader(context)
     private val onlineApproximation = OnlineApproximateLocationProvider()
+    private val cellularApproximation = CellularApproximateLocationProvider(context)
     private val locationManager = context.getSystemService(LocationManager::class.java)
 
     override suspend fun fresh(policy: LocationRequestPolicy) = locationRepository.fetchBestLocation(policy)
     override fun matchesTrustedPlace(settings: VeVakSettings) = trustedNetworkReader.matches(settings)
     override suspend fun approximate() = onlineApproximation.locate()
+    override suspend fun cellular() = cellularApproximation.locate()
     override suspend fun remember(location: VeVakLocationSnapshot) = locationRepository.rememberLocation(location)
     override suspend fun cached() = locationRepository.fetchLastKnownAnyLocation()
+    override suspend fun rememberedOnly() = locationRepository.fetchRememberedOnlyLocation()
 
     override fun isSystemLocationEnabled(): Boolean {
         val manager = locationManager ?: return false

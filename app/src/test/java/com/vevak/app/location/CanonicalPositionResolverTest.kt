@@ -58,21 +58,60 @@ class CanonicalPositionResolverTest {
         assertEquals(1, sources.networkCalls)
     }
 
+    @Test fun androidOffUsesStoredMemoryEvenWhenBothNetworkOptionsEnabled() = runBlocking {
+        val sources = FakeSources(memory = point)
+        val options = settings.copy(allowCellularApproximation = true, allowNetworkApproximation = true)
+        assertEquals(VeVakPositionResolution.Coordinates(point), VeVakPositionResolver(sources).resolve(options))
+        assertEquals(0, sources.cellularCalls)
+        assertEquals(0, sources.networkCalls)
+    }
+
+    @Test fun cellularConsentNeverOverridesAndroidLocationOff() = runBlocking {
+        val sources = FakeSources()
+        val options = settings.copy(allowCellularApproximation = true)
+        assertEquals(VeVakPositionResolution.Unavailable, VeVakPositionResolver(sources).resolve(options))
+        assertEquals(0, sources.cellularCalls)
+    }
+
+    @Test fun cellularLookupWorksWithAndroidOnAndSeparateConsent() = runBlocking {
+        val cellularFix = point.copy(source = LocationSource.CellularApproximation, ageMillis = 0L)
+        val sources = FakeSources(androidLocationEnabled = true, cellularFix = cellularFix)
+        val resolver = VeVakPositionResolver(sources)
+        assertEquals(VeVakPositionResolution.Unavailable, resolver.resolve(settings))
+        assertEquals(0, sources.cellularCalls)
+        assertEquals(VeVakPositionResolution.Coordinates(cellularFix),
+            resolver.resolve(settings.copy(allowCellularApproximation = true)))
+        assertEquals(1, sources.cellularCalls)
+        assertSame(cellularFix, sources.memory)
+    }
+
+    @Test fun cellularFailureFallsBackToLocalMemory() = runBlocking {
+        val sources = FakeSources(androidLocationEnabled = true, memory = point)
+        assertEquals(VeVakPositionResolution.Coordinates(point),
+            VeVakPositionResolver(sources).resolve(settings.copy(allowCellularApproximation = true)))
+        assertEquals(1, sources.cellularCalls)
+    }
+
     private class FakeSources(
         var home: Boolean = false,
         var memory: VeVakLocationSnapshot? = null,
-        val homeFailure: Exception? = null
+        val homeFailure: Exception? = null,
+        val androidLocationEnabled: Boolean = false,
+        val cellularFix: VeVakLocationSnapshot? = null
     ) : PositionSources {
         var cacheReads = 0
         var networkCalls = 0
-        override fun isSystemLocationEnabled() = false
+        var cellularCalls = 0
+        override fun isSystemLocationEnabled() = androidLocationEnabled
         override suspend fun fresh(policy: LocationRequestPolicy): VeVakLocationSnapshot? = error("GPS disabled")
         override fun matchesTrustedPlace(settings: VeVakSettings): Boolean {
             homeFailure?.let { throw it }
             return home
         }
         override suspend fun approximate(): VeVakLocationSnapshot? { networkCalls++; return null }
+        override suspend fun cellular(): VeVakLocationSnapshot? { cellularCalls++; return cellularFix }
         override suspend fun remember(location: VeVakLocationSnapshot) { memory = location }
         override suspend fun cached(): VeVakLocationSnapshot? { cacheReads++; return memory }
+        override suspend fun rememberedOnly(): VeVakLocationSnapshot? { cacheReads++; return memory }
     }
 }

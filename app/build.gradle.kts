@@ -15,6 +15,16 @@ val hasUploadSigning = listOf(
     uploadKeyPassword
 ).all { it.isPresent }
 
+// Persistent *testing-only* signing key, independent of the Play upload key and official F-Droid.
+// Never commit the keystore; trusted manual CI runs restore it from GitHub Actions secrets.
+val betaStoreFile = providers.environmentVariable("VEVAK_BETA_STORE_FILE")
+val betaStorePassword = providers.environmentVariable("VEVAK_BETA_STORE_PASSWORD")
+val betaKeyAlias = providers.environmentVariable("VEVAK_BETA_KEY_ALIAS")
+val betaKeyPassword = providers.environmentVariable("VEVAK_BETA_KEY_PASSWORD")
+val hasBetaSigning = listOf(
+    betaStoreFile, betaStorePassword, betaKeyAlias, betaKeyPassword
+).all { it.isPresent && it.get().isNotBlank() }
+
 // CI supplies the exact checked-out commit. Local builds are explicitly identified as local.
 val sourceRevision = providers.environmentVariable("VEVAK_SOURCE_REVISION")
     .orElse(providers.environmentVariable("GITHUB_SHA"))
@@ -46,6 +56,14 @@ android {
             buildConfigField("String", "LOCATION_BACKEND", "\"Android LocationManager\"")
             buildConfigField("Boolean", "USES_GOOGLE_PLAY_SERVICES", "false")
         }
+        create("diagnostic") {
+            // Location-only sideload build; RECEIVE_SMS/SEND_SMS are removed in its
+            // source-set manifest, and only the dedicated diagnostics activity is exported.
+            dimension = "services"
+            applicationId = "com.vevak.app.diagnostic"
+            buildConfigField("String", "LOCATION_BACKEND", "\"Android LocationManager\"")
+            buildConfigField("Boolean", "USES_GOOGLE_PLAY_SERVICES", "false")
+        }
         create("play") {
             dimension = "services"
             applicationId = "vevak.lepotager.org"
@@ -54,6 +72,10 @@ android {
         }
     }
 
+    // The diagnostic flavor uses the exact FOSS location/entitlement implementations.
+    // They are native Android sources and do not add Google Play dependencies.
+    sourceSets.getByName("diagnostic").java.srcDir("src/foss/java")
+
     signingConfigs {
         if (hasUploadSigning) {
             create("upload") {
@@ -61,6 +83,14 @@ android {
                 storePassword = uploadStorePassword.get()
                 keyAlias = uploadKeyAlias.get()
                 keyPassword = uploadKeyPassword.get()
+            }
+        }
+        if (hasBetaSigning) {
+            create("betaTester") {
+                storeFile = file(betaStoreFile.get())
+                storePassword = betaStorePassword.get()
+                keyAlias = betaKeyAlias.get()
+                keyPassword = betaKeyPassword.get()
             }
         }
     }
@@ -78,8 +108,24 @@ android {
             }
         }
         debug {
+            // Ephemeral Android debug key, only for developer/CI compilation.
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+        }
+        create("beta") {
+            // Production safety rules (DEBUG=false), but a distinct install identity.
+            // Keeping .beta separate prevents us overwriting old debug installations with
+            // incompatible signing certificates and keeps the Play/F-Droid IDs unchanged.
+            initWith(getByName("release"))
+            applicationIdSuffix = ".beta"
+            versionNameSuffix = "-beta"
+            isDebuggable = false
+            matchingFallbacks += listOf("release")
+            // Never inherit the Play upload signature through initWith(release).
+            signingConfig = null
+            if (hasBetaSigning) {
+                signingConfig = signingConfigs.getByName("betaTester")
+            }
         }
     }
 

@@ -319,15 +319,19 @@ private fun OptionsScreen(state: AppUiState, vm: AppViewModel) {
     CheckRow("Ajouter la précision de la position", state.settings.includeAccuracy) { vm.updateOptions(accuracy = it) }
     SimpleInfo(
         "Dernière position toujours disponible",
-        "Si aucune position plus récente ne peut être obtenue, VeVak renvoie la dernière position mémorisée et indique depuis combien de temps elle date. Ce comportement fait partie du fonctionnement de base et n'a plus besoin d'une option séparée."
+        "Quand VeVak a effectivement acquis une position, il en garde une seule copie locale avec son ancienneté. Si aucune position n’a encore été obtenue, le repli est indisponible. Aucun historique de déplacements."
     )
     CheckRow(
         "Autoriser la localisation alternative réseau/IP en dernier recours",
         state.settings.allowNetworkApproximation
     ) { vm.updateOptions(networkApproximation = it) }
+    CheckRow(
+        "Autoriser l'estimation par antenne cellulaire (envoi à beaconDB)",
+        state.settings.allowCellularApproximation
+    ) { vm.updateOptions(cellularApproximation = it) }
     SimpleInfo(
         "Localisation alternative",
-        "Facultative. Si vous l'activez et qu'aucune source locale exploitable n'est disponible, VeVak peut demander une zone approximative à beaconDB via votre adresse IP. Le SMS la présente comme une estimation, jamais comme un GPS."
+        "Facultative : deux consentements distincts. L’IP seule n’envoie pas d’identifiant radio. Le mode cellulaire transmet à beaconDB les codes de l’antenne utilisée (MCC/MNC, zone, cellule), uniquement si la localisation Android est activée. Internet requis, précision variable. Ne fonctionne pas si Android masque les antennes."
     )
     Text("Moteur du lien cartographique", fontWeight = FontWeight.SemiBold)
     MapProvider.entries.forEach { provider ->
@@ -808,7 +812,7 @@ private fun MonitoringHeroCard(
                 when {
                     trustedPlaceRecognized -> "Lieu reconnu : ${state.settings.trustedPlaceLabel}. Aucun GPS permanent n'est nécessaire."
                     systemLocationEnabled(context) -> "La localisation Android est disponible : VeVak peut actualiser sa mémoire ponctuellement."
-                    else -> "La localisation Android est coupée : VeVak conserve et renvoie la dernière position mémorisée avec son ancienneté."
+                    else -> "Localisation Android coupée : VeVak utilise le dernier point local seulement s’il en existe un, avec son ancienneté."
                 },
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 style = MaterialTheme.typography.bodyMedium
@@ -1027,12 +1031,13 @@ private fun SettingsTabContent(
         CheckRow("Inclure la précision", state.settings.includeAccuracy) { vm.updateOptions(accuracy = it); vm.persistDraft() }
         SimpleInfo(
             "Dernière position",
-            "La dernière position connue est toujours utilisée lorsque VeVak ne peut pas en obtenir une plus récente. Son ancienneté est indiquée : ce comportement de sécurité n'est plus désactivable par erreur."
+            "Si VeVak a déjà obtenu une position, elle reste mémorisée localement après désactivation de la localisation Android. Son ancienneté est indiquée. Aucune position ne peut être inventée si la mémoire est vide."
         )
         CheckRow("Autoriser une estimation réseau approximative en dernier recours", state.settings.allowNetworkApproximation, vm::setNetworkApproximation)
+        CheckRow("Autoriser la localisation par antenne (transmission à beaconDB)", state.settings.allowCellularApproximation, vm::setCellularApproximation)
         SimpleInfo(
             "Estimation réseau : facultative",
-            "Désactivée par défaut. Si vous l'activez, VeVak peut contacter beaconDB lorsqu'aucune source Android ou lieu reconnu ne fournit une information plus utile. Le service voit alors votre adresse IP ; le SMS indique clairement qu'il s'agit d'une estimation et non d'un GPS."
+            "Désactivées par défaut. L’estimation IP transmet seulement votre IP publique ; l’estimation cellulaire, sur consentement séparé, transmet à beaconDB les identifiants de l’antenne actuelle. Le mode cellulaire exige la localisation Android activée. Aucune estimation réseau n’est présentée comme un point GPS exact."
         )
         Text("Lien cartographique", fontWeight = FontWeight.SemiBold)
         MapProvider.entries.forEach { provider ->

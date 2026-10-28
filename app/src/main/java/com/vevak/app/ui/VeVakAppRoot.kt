@@ -141,7 +141,7 @@ private fun VeVakOptionsStep(state: AppUiState, viewModel: AppViewModel) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Dernière position toujours disponible", fontWeight = FontWeight.Bold)
                     Text(
-                        "Dès qu'une source fournit une position, VeVak en garde localement la dernière copie. Si Android ne peut plus actualiser la localisation au moment d'une demande, cette dernière position est utilisée et son ancienneté est indiquée. Aucun historique de déplacement n'est construit.",
+                        "Une fois une position effectivement acquise, VeVak la garde localement. Si Android ne peut plus fournir de nouveau point, cette mémoire peut être utilisée avec son ancienneté. Si aucun point n’a été acquis, VeVak l’indique clairement. Aucun trajet n’est enregistré.",
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
@@ -190,6 +190,11 @@ private fun VeVakOptionsStep(state: AppUiState, viewModel: AppViewModel) {
                         "Activer l'estimation réseau/IP",
                         state.settings.allowNetworkApproximation
                     ) { viewModel.updateOptions(networkApproximation = it) }
+                    CheckRow(
+                        "Activer l'estimation cellulaire (partage des codes d'antenne avec beaconDB)",
+                        state.settings.allowCellularApproximation
+                    ) { viewModel.updateOptions(cellularApproximation = it) }
+                    Text("Nécessite Internet et la localisation Android activée. Les identifiants cellulaires ne sont pas stockés. Les deux estimations sont facultatives.")
                 }
             }
 

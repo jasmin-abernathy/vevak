@@ -39,7 +39,10 @@ class PositionRefreshReceiver : BroadcastReceiver() {
                 // to improve the single remembered coordinate, never to build a movement history.
                 runCatching {
                     VeVakPositionResolver(appContext).resolve(
-                        settings = settings,
+                        // Cellular radio identifiers must never be uploaded by the periodic
+                        // background one-slot refresh; only a foreground use / authorised
+                        // one-off action may invoke the separately consented cellular path.
+                        settings = settings.copy(allowCellularApproximation = false),
                         includeTrustedPlace = false
                     )
                 }

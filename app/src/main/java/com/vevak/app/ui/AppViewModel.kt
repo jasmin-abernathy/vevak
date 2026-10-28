@@ -131,14 +131,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         accuracy: Boolean? = null,
         provider: MapProvider? = null,
         staleFallback: Boolean? = null,
-        networkApproximation: Boolean? = null
+        networkApproximation: Boolean? = null,
+        cellularApproximation: Boolean? = null
     ) = updateSettings {
         it.copy(
             includeBattery = battery ?: it.includeBattery,
             includeAccuracy = accuracy ?: it.includeAccuracy,
             mapProvider = provider ?: it.mapProvider,
             allowStaleFallback = staleFallback ?: it.allowStaleFallback,
-            allowNetworkApproximation = networkApproximation ?: it.allowNetworkApproximation
+            allowNetworkApproximation = networkApproximation ?: it.allowNetworkApproximation,
+            allowCellularApproximation = cellularApproximation ?: it.allowCellularApproximation
         )
     }
 
@@ -150,6 +152,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 "Estimation réseau activée. En dernier recours, VeVak pourra contacter beaconDB : votre adresse IP sera visible par ce service et la position obtenue restera approximative."
             } else {
                 "Estimation réseau désactivée. VeVak n'utilisera plus Internet pour chercher votre position."
+            }
+        )
+    }
+
+    fun setCellularApproximation(enabled: Boolean) {
+        persistSettings(
+            _state.value.settings.copy(allowCellularApproximation = enabled),
+            if (enabled) {
+                "Estimation cellulaire activée. Si Android autorise la localisation, VeVak peut transmettre à beaconDB l'identité de l'antenne utilisée pour obtenir une zone approximative. Internet requis."
+            } else {
+                "Estimation cellulaire désactivée. VeVak ne transmettra plus d'identité d'antenne à beaconDB."
             }
         )
     }
@@ -611,7 +624,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val summary = when (result) {
                 is VeVakPositionResolution.KnownPlace -> "Lieu reconnu : ${result.label}. Aucune géolocalisation n'a été lancée."
                 is VeVakPositionResolution.Coordinates -> if (result.location.isApproximateNetworkEstimate()) {
-                    "Estimation réseau obtenue via l'adresse IP (${result.location.accuracyLabel()}). Ce n'est pas une position GPS."
+                    if (result.location.source == com.vevak.app.location.LocationSource.CellularApproximation) {
+                        "Estimation cellulaire via beaconDB (${result.location.accuracyLabel()}). Ce n’est pas une position GPS."
+                    } else {
+                        "Estimation réseau obtenue via l’adresse IP (${result.location.accuracyLabel()}). Ce n’est pas une position GPS."
+                    }
                 } else {
                     "Position obtenue via ${result.location.source.label}, ${result.location.ageLabel()}, précision ${result.location.accuracyLabel()}."
                 }
