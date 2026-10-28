@@ -624,7 +624,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val summary = when (result) {
                 is VeVakPositionResolution.KnownPlace -> "Lieu reconnu : ${result.label}. Aucune géolocalisation n'a été lancée."
                 is VeVakPositionResolution.Coordinates -> if (result.location.isApproximateNetworkEstimate()) {
-                    "Estimation réseau obtenue via l'adresse IP (${result.location.accuracyLabel()}). Ce n'est pas une position GPS."
+                    if (result.location.source == com.vevak.app.location.LocationSource.CellularApproximation) {
+                        "Estimation cellulaire via beaconDB (${result.location.accuracyLabel()}). Ce n’est pas une position GPS."
+                    } else {
+                        "Estimation réseau obtenue via l’adresse IP (${result.location.accuracyLabel()}). Ce n’est pas une position GPS."
+                    }
                 } else {
                     "Position obtenue via ${result.location.source.label}, ${result.location.ageLabel()}, précision ${result.location.accuracyLabel()}."
                 }
