@@ -30,6 +30,10 @@ class VeVakLocationRepository(context: Context) {
     suspend fun fetchLastKnownAnyLocation(): VeVakLocationSnapshot? =
         fetchCachedLocation(includeNetworkApproximation = true)
 
+    /** Read only VeVak's own durable last point, without calling Android location APIs. */
+    suspend fun fetchRememberedOnlyLocation(): VeVakLocationSnapshot? =
+        locationAttempt { rememberedLocationStore.read() }.getOrNull()
+
     /**
      * Tries the local Android location stack without letting a remembered IP estimate short-circuit
      * a real device fix.
