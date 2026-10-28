@@ -50,6 +50,10 @@ Routine incoming-request handling is silent. VeVak does not show a notification 
 
 The protection model is therefore based on finite local authorisation, immediate revocation, global rate limiting, minimal audit and the targeted protection mode rather than on routine notification visibility.
 
+## Consentement cellulaire
+
+L'estimation par antenne est une option distincte, désactivée par défaut. Elle est accessible seulement lorsque la localisation précise Android est autorisée **et activée**. L'application ne persiste ni ne journalise les identifiants radio ; l'envoi à beaconDB est limité à une antenne enregistrée et à une requête ponctuelle pour la résolution demandée. Lorsque l'interrupteur Android Localisation est OFF, seule la mémoire locale préexistante ou l'estimation IP activée séparément peuvent être utilisées. Le mode de protection ciblé exclut strictement la collecte cellulaire. Les sauvegardes ne rétablissent pas ce consentement.
+
 ## Position memory and optional refresh
 
 Normal SMS requests, manual sharing and local emergency use one canonical resolution contract: Android location, trusted place, explicitly opted-in network/IP estimate, latest remembered coordinate, then unavailable.
