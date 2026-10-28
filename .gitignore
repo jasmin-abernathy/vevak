@@ -12,3 +12,4 @@ captures/
 *.jks
 *.keystore
 keystore.properties
+.private/
